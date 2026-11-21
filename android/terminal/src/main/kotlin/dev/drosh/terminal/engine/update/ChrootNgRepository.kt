@@ -41,8 +41,15 @@ class ChrootNgRepository : UpdateRepository {
     private suspend fun releases(): List<GhRelease>? {
         val body = httpGetText("https://api.github.com/repos/mmuhofy/chroot-ng/releases?per_page=20")
             ?: return null
-        return runCatching { UpdateJson.decodeFromString<List<GhRelease>>(body) }.getOrNull()
+        val list = runCatching { UpdateJson.decodeFromString<List<GhRelease>>(body) }.getOrNull()
+            ?: return null
+        // The API orders by creation date, not by version. A release created
+        // out of order (1.3.0 after 1.6.0) would otherwise be offered first.
+        return list.sortedByDescending { versionKey(it.tag_name) }
     }
+
+    private fun versionKey(tag: String): List<Int> =
+        tag.trimStart('v').split('.').mapNotNull { it.toIntOrNull() }
 
     private suspend fun digestFor(release: GhRelease): String? {
         val asset = release.assets.firstOrNull { it.name == "libchrootng.so.sha256" }

@@ -42,8 +42,15 @@ class UpstreamVtRepository : UpdateRepository {
     private suspend fun releases(): List<GhRelease>? {
         val body = httpGetText("https://api.github.com/repos/ancientcatz/libghostty-android/releases?per_page=20")
             ?: return null
-        return runCatching { UpdateJson.decodeFromString<List<GhRelease>>(body) }.getOrNull()
+        val list = runCatching { UpdateJson.decodeFromString<List<GhRelease>>(body) }.getOrNull()
+            ?: return null
+        return list.sortedByDescending { versionKey(it.tag_name) }
     }
+
+    private fun versionKey(tag: String): List<Int> =
+        tag.trimStart('v').trimStart('n').trimStart('i').trimStart('g').trimStart('h')
+            .trimStart('t').trimStart('l').trimStart('y').trimStart('-')
+            .split('.').mapNotNull { it.toIntOrNull() }
 
     private suspend fun digestFor(release: GhRelease, fileName: String, abi: String): String? {
         val sumsAsset = release.assets.firstOrNull { it.name == "SHA256SUMS" }

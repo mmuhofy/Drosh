@@ -44,8 +44,14 @@ class ApkRepository : UpdateRepository {
     private suspend fun releases(): List<GhRelease>? {
         val body = httpGetText("https://api.github.com/repos/mmuhofy/Drosh/releases?per_page=20")
             ?: return null
-        return runCatching { UpdateJson.decodeFromString<List<GhRelease>>(body) }.getOrNull()
+        val list = runCatching { UpdateJson.decodeFromString<List<GhRelease>>(body) }.getOrNull()
+            ?: return null
+        return list.sortedByDescending { versionKey(it.tag_name) }
     }
+
+    private fun versionKey(tag: String): List<Int> =
+        tag.removePrefix("v").removePrefix("nightly-").split('-').first()
+            .split('.').mapNotNull { it.toIntOrNull() }
 
     private suspend fun digestFor(release: GhRelease, fileName: String): String? {
         val shaAsset = release.assets.firstOrNull { it.name == "$fileName.sha256" }
