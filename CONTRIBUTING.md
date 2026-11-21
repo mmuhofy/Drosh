@@ -1,93 +1,252 @@
 # Contributing to Drosh
 
-Drosh is a single-developer project with an agent doing much of the typing, so
-this file exists mainly to make the *rules* legible — to a future collaborator,
-and to an agent that just joined the session. Read `LICENSE.md` first: it is the
-map of what is ours and what comes from upstream.
+Thank you for your interest in contributing to Drosh.
 
-- **All Drosh-authored source is Apache-2.0**, including `android/terminal/`
-  and the Rust half in `native/`. Contributions are accepted under Apache-2.0
-  (see §5 of that license).
-- Third-party components keep their own terms: Ghostty (MIT), chroot-ng
-  (Apache-2.0), sora-editor (LGPL-2.1-or-later), TextMate grammars (MIT),
-  fonts (OFL-1.1). They are named in `LICENSE.md` and `CREDITS.md`.
+Drosh is an Android terminal environment that provides a persistent
+Ubuntu userspace and an integrated terminal experience.
 
-## Building
+We welcome bug reports, technical discussions, documentation
+improvements, and contributions that help improve the project.
 
-You need JDK 17 and the Android SDK. The app is arm64-only and needs a device
-or emulator with that ABI — the guest runtime and PTY do not work on x86_64
-emulators.
+## Current Contribution Status
 
-```bash
-./gradlew assembleDebug        # debug APK, arm64-v8a
-./gradlew testDebugUnitTest    # the unit test suite
+Drosh is currently under active development and has not published its
+first release yet.
+
+Until the first public release, contribution opportunities may be
+limited while the project undergoes architectural improvements,
+stabilization, and documentation work.
+
+External contributions are expected to become more broadly available
+after the first release.
+
+This does not prevent you from participating in discussions, reporting
+bugs, or suggesting improvements.
+
+## Before Contributing
+
+Before starting work:
+
+-   Check existing issues and pull requests.
+-   Review relevant documentation.
+-   Look for existing implementations of the functionality you intend to
+    change.
+-   Make sure your proposal aligns with Drosh's goals and current
+    development direction.
+
+For substantial changes, open an issue before submitting a pull request.
+
+This is particularly important for:
+
+-   New features.
+-   Architectural changes.
+-   New modules or major dependencies.
+-   Significant refactoring.
+-   Changes affecting runtime behavior or security boundaries.
+
+Small fixes and documentation corrections do not require a preliminary
+issue.
+
+## Types of Contributions
+
+Contributions may involve:
+
+-   Android application development.
+-   Kotlin and Rust development.
+-   Terminal engine improvements.
+-   Terminal rendering and performance.
+-   PTY and process lifecycle management.
+-   Ubuntu runtime and environment management.
+-   Runtime isolation and security improvements.
+-   User interface and user experience.
+-   Internationalization and localization.
+-   Documentation and developer tooling.
+-   Bug fixes and testing.
+
+## Development Guidelines
+
+Please follow these principles when working on Drosh:
+
+-   Keep changes focused and avoid unrelated modifications.
+-   Follow existing architectural boundaries and module conventions.
+-   Prefer maintainable and understandable implementations.
+-   Avoid unnecessary dependencies.
+-   Handle errors explicitly.
+-   Consider Android lifecycle behavior and mobile resource constraints.
+-   Avoid introducing hidden behavior or undocumented configuration.
+-   Keep documentation consistent with the actual implementation.
+-   Do not introduce security or performance claims that cannot be
+    verified.
+
+## Architecture and Design Changes
+
+Drosh's architecture is actively evolving.
+
+Before introducing significant architectural changes, discuss the
+proposed design through a GitHub issue or discussion.
+
+Avoid unnecessary module dependencies, duplicated responsibilities, and
+changes that make existing components harder to maintain.
+
+## Commit Convention
+
+Drosh requires Conventional Commits for commit messages.
+
+Use the following format:
+
+`<type>(<scope>): <description>`
+
+Common types include:
+
+  -----------------------------------------------------------------------
+  Type                                Purpose
+  ----------------------------------- -----------------------------------
+  `feat`                              Introduces a new feature
+
+  `fix`                               Fixes a bug
+
+  `refactor`                          Changes implementation without
+                                      changing intended behavior
+
+  `perf`                              Improves performance
+
+  `docs`                              Changes documentation
+
+  `test`                              Adds or updates tests
+
+  `build`                             Changes build configuration or
+                                      dependencies
+
+  `ci`                                Changes CI workflows
+
+  `chore`                             Performs maintenance tasks
+  -----------------------------------------------------------------------
+
+Examples:
+
+``` text
+feat(terminal): improve terminal input handling
+fix(pty): resolve session cleanup issue
+refactor(runtime): simplify environment initialization
+perf(renderer): optimize glyph lookup
+docs(security): update security policy
+test(terminal): add parser tests
+build(android): update Gradle dependencies
+ci: improve verification workflow
+chore(repo): remove obsolete files
 ```
 
-CI (`Build Debug`, `Unit Tests`) runs these on every push and PR; the release
-workflow runs on tags. No local build is required for a change to be validated.
+Commit messages should be concise, descriptive, and written in English.
 
-## Commits
+## Code Quality and Testing
 
-Conventional commits: `type(scope): subject`, where type is one of
-`feat|fix|docs|refactor|perf|test|build|ci|chore|revert`.
+Before submitting changes:
 
-The subject says what changed; the **body says why**. This is not decoration —
-the changelog is curated from git (`@changelog`), and a commit whose body
-carries no reasoning is an entry that has to be guessed at later. The good
-commits in this repository's history read like short essays; copy them.
+-   Review the complete diff.
+-   Remove unused code and temporary debugging output.
+-   Check for hardcoded credentials, tokens, or sensitive information.
+-   Follow established project conventions.
+-   Run relevant tests and verification tasks.
+-   Document any tests that could not be executed.
+-   Update documentation when implementation changes affect documented
+    behavior.
 
-A commit that fixes a bug should name the symptom a user would see
-(`fix(crash): a reopened chat now shows its transcript`), not the mechanism.
+Test requirements depend on the scope and impact of the change. Bug
+fixes and new functionality should include relevant tests where
+practical.
 
-## The changelog
+Do not claim that a change has been tested if it has not been tested.
 
-`CHANGELOG.md` is user-facing. It is maintained with the `@changelog` skill,
-either at the end of a milestone or before a release. The rules in short:
+## Pull Requests
 
-- Draft from the git range since the last changelog touch — **not from memory**
-- Include what a user can see or hit; exclude refactors, dependency bumps and
-  abandoned work
-- No commit hashes, authors or PR numbers in the file
-- The draft is shown for review before it is written; nothing lands unapproved
+Before submitting a pull request:
 
-## Versioning & releases
+1.  Make sure your changes are focused and complete.
+2.  Follow the Conventional Commits convention.
+3.  Run the relevant tests and verification tasks.
+4.  Review your changes for unintended modifications.
+5.  Update affected documentation.
 
-Semantic versioning, currently on the pre-1.0 `0.x` line: a `0.x.0` minor bump
-for anything a user would call a milestone, patch for fixes.
+A pull request should include:
 
-`versionCode` is derived from the commit count by
-`AndroidApplicationConventionPlugin` (10,000 + commits) and cannot be set by
-hand per release — it exists to keep an old build from installing over a new
-one, which is how the Room database got downgraded out from under a running
-app once. Do not bypass it.
+-   A clear description of the changes.
+-   The reason for the changes.
+-   Relevant implementation details.
+-   Testing and verification results.
+-   References to related issues, when applicable.
 
-To cut a release:
+Keep pull requests focused and reasonably sized.
 
-1. Update `CHANGELOG.md`: move `## [Unreleased]` to `## [X.Y.Z] — YYYY-MM-DD`
-   and set the compare link to the previous version.
-2. Commit, review, then `git tag vX.Y.Z && git push origin main --tags`.
-3. CI builds the release APK with the tag's version (`-PversionName`) and
-   creates the GitHub Release from the CHANGELOG section for that version —
-   the release notes and the changelog are the same text, by design.
-4. Install the release APK on a device and check the version in Settings
-   before announcing it. **Nothing in this project is considered verified
-   until it has run on a real device.**
+### Continuous Integration
 
-Release builds are signed with the debug key committed to the repository (a
-deliberate single-identity choice, see README). That is recorded as a known
-issue, not a secret.
+Required CI checks must pass before a pull request can be merged.
 
-## Hygiene
+If a check fails, investigate and resolve the failure before requesting
+a merge.
 
-- No build output, screenshots, screen recordings or design junk in commits.
-  Build artifacts are ignored; prototypes live in the design vault, not here.
-- New files need no license header — `LICENSE.md` is the single source of
-  truth. A new third-party dependency needs a row in `LICENSE.md` (and a
-  `NOTICE.md` next to the module, if it is a library).
+Exceptions should only be handled by project maintainers when there is a
+justified reason.
+
+## Bug Reports
+
+When reporting a bug, provide as much relevant information as possible:
+
+-   A clear description of the problem.
+-   Steps to reproduce it.
+-   Expected behavior.
+-   Actual behavior.
+-   Android version and relevant device information.
+-   Relevant logs or screenshots, with sensitive information removed.
+
+Do not include passwords, API keys, access tokens, or other private
+information in reports.
+
+## Feature Requests
+
+Feature requests should explain:
+
+-   The problem or need being addressed.
+-   The proposed behavior.
+-   Why the feature would benefit Drosh.
+-   Any relevant technical considerations.
+
+Significant proposals should be discussed before implementation.
+
+## Security Issues
+
+Do not disclose security vulnerabilities through public GitHub issues or
+discussions.
+
+Follow the reporting process described in [SECURITY.md](SECURITY.md).
 
 ## Documentation
 
-`docs/` is the reference layer: `ARCHITECTURE.md` holds the rules and invariants,
-`docs/AGENT.md` holds the rules for working in the codebase. If a change
-contradicts a documented decision, the documentation moves with the code —
-same commit, not later.
+Documentation contributions should:
+
+-   Reflect the current implementation.
+-   Distinguish implemented functionality from planned features.
+-   Use consistent terminology.
+-   Avoid unsupported technical claims.
+-   Remain clear and maintainable.
+
+## License
+
+Drosh is distributed under the Apache License 2.0.
+
+By submitting a contribution, you agree that your contributions will be
+licensed under the same license.
+
+You must have the legal right to submit the code or other materials you
+contribute.
+
+See [LICENSE](LICENSE) for the complete license text.
+
+## Community
+
+Please follow the project's [Code of Conduct](CODE_OF_CONDUCT.md) when
+participating in Drosh community spaces.
+
+GitHub Discussions is available for questions, ideas, technical
+discussions, and general project conversations.
+
+Thank you for helping improve Drosh.

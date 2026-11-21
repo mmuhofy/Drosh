@@ -6,13 +6,5 @@ edit, not a deletion.
 
 | Document | What it is |
 |----------|------------|
-| `STATUS.md` | what is in the tree, what is still open, and the release plan |
 | `ARCHITECTURE.md` | the module graph, the naming contract, and where the engine's C ABI meets Kotlin |
 | `AGENT.md` | rules for working in this codebase |
-| `SESSION-SYSTEM.md` | the session model: the record, the live session, the pane, and the foreground/background rule — cited from `data` and `ui` |
-| `IMMERSIVE-STATUSBAR.md` | the immersive chrome feature, including why one direction was dropped |
-| `icon/` | launcher icon proposal (Open Decision #5) — not yet adopted; `android/app/src/main/res` still holds the placeholder |
-| `archive/` | superseded, kept for history: `PLAN.md` (DroshKeyboard fork — a separate repo), `PHASE-6-ARCHITECTURE.md` (agent design research — the code has since shipped) |
-
-HTML prototypes are not in this folder, and not in the repository at all —
-they live in the design vault (`MuhofyBox/Drosh/`), outside git.

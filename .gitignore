@@ -69,7 +69,7 @@ fastlane/readme.md
 *.jks
 *.keystore
 
-# IrisShell: commit the debug.keystore so every installer (CI + local) signs
+# Drosh: commit the debug.keystore so every installer (CI + local) signs
 # with the same key. Otherwise CI-built APKs cannot be installed over locally-
 # built APKs without uninstalling first. Release keystores are NEVER tracked.
 !android/app/keystore/debug.keystore
