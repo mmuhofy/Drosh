@@ -1217,15 +1217,14 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             maxRow = maxRow,
         )
 
-        // At the live edge, ask the engine for the bottom rather than trusting
-        // the row arithmetic. The last prompt is one row plus the descending
-        // part of the line box; a viewport that stops one row short leaves it
-        // cut off, which is exactly what "I cannot see the prompt" looks like.
-        // SCROLL_BOTTOM is the engine's own answer to where the bottom is.
+        // At the live edge the picture is clamped by the machine already:
+        // forcing SCROLL_BOTTOM and resetting the machine here is what made
+        // the picture spring back ("yay gibi firlama"). Keep the machine in
+        // sync with the engine instead, so the picture stays where the finger
+        // left it.
         if (target.pinned && distancePx < 0f) {
-            NativeSession.scroll(session, NativeSession.SCROLL_BOTTOM, 0)
-            scrollMachine.reset()
-            renderThread.post(RenderThread.Command.ScrollOffset(0f))
+            scrollMachine.snapToEngine()
+            renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
             renderThread.invalidate()
             lastScrollPinned = true
             return
