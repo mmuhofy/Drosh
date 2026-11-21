@@ -537,8 +537,13 @@ internal class FrameRenderer {
             dirtyRowFlags = BooleanArray(frame.rowCount)
         }
         val dirty = dirtyRowFlags
-        for (row in 0 until frame.rowCount) {
-            dirty[row] = frame.isRowDirty(row)
+        if (forceFullFrame) {
+            forceFullFrame = false
+            for (row in 0 until frame.rowCount) dirty[row] = true
+        } else {
+            for (row in 0 until frame.rowCount) {
+                dirty[row] = frame.isRowDirty(row)
+            }
         }
         markCursorRow(dirty, frame, previousInverted)
         markCursorRow(dirty, frame, invertedCell)
@@ -556,6 +561,9 @@ internal class FrameRenderer {
 
     /** The rows that have to be drawn again, reused from frame to frame. */
     private var dirtyRowFlags = BooleanArray(0)
+
+    /** Force every row to be rebuilt on the next frame. */
+    var forceFullFrame = false
 
     /** The cell the sprites were last built at. */
     private var spriteCellWidth = -1f

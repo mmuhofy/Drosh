@@ -833,10 +833,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     performHapticFeedback(
                         android.view.HapticFeedbackConstants.LONG_PRESS,
                     )
-                    // The engine just changed its selection; the frame that
-                    // draws the highlight has to be produced now, not on the
-                    // next blink or the next output.
-                    renderThread.invalidate()
+                    // A selection change does not make the engine mark any row
+                    // dirty. Without a full rebuild the swapped colours are
+                    // painted on no frame at all, and a long press highlights
+                    // nothing even though the engine says it selected something.
+                    renderThread.invalidateFull()
                 }
             }
 

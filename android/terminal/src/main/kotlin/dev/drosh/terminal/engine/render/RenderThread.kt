@@ -373,6 +373,24 @@ class RenderThread(
         signal()
     }
 
+    /**
+     * Ask for a frame in which every row is rebuilt.
+     *
+     * A selection that changes does not make the engine's dirty flags say so:
+     * the cells it covers are already on the screen, and the engine only marks
+     * a row dirty when its *text* changed. Without this the swapped colours of
+     * a selection are painted on no frame at all, and a long press highlights
+     * nothing even though the engine says it selected something.
+     */
+    fun invalidateFull() {
+        forceFullFrame = true
+        dirty = true
+        signal()
+    }
+
+    @Volatile
+    private var forceFullFrame = false
+
     /** Post a command for the loop to apply. */
     fun post(command: Command) {
         lock.withLock { pending.addLast(command) }
@@ -564,6 +582,10 @@ class RenderThread(
             if (dirty && egl.isReady && egl.windowSurface != null && layout.cellReady) {
                 dirty = false
                 renderer?.focused = focused
+                if (forceFullFrame) {
+                    renderer?.forceFullFrame = true
+                    forceFullFrame = false
+                }
                 drawFrame()
             }
 
