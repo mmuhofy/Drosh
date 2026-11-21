@@ -43,7 +43,7 @@ object RunSplitter {
         val codepoints: IntArray,
     ) {
         val length: Int get() = end - start
-        val text: String get() = String(codepoints.map { Character.toChars(it) }.flatten().toCharArray())
+        val text: String get() = String(codepoints.flatMap { Character.toChars(it).asIterable() }.toCharArray())
     }
 
     /**
