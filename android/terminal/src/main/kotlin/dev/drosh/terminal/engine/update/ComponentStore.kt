@@ -72,7 +72,7 @@ class ComponentStore(private val context: Context) {
             return null
         }
 
-        val dir = versionDir(ComponentId.valueOfKey(release.id), release.version)
+        val dir = versionDir(ComponentId.fromKey(release.id), release.version)
         if (!dir.isDirectory && !dir.mkdirs()) {
             Log.w(TAG, "could not create $dir")
             return null
@@ -93,7 +93,7 @@ class ComponentStore(private val context: Context) {
                 source = InstallSource.DOWNLOADED,
             )
         }.getOrNull()?.also {
-            prune(ComponentId.valueOfKey(release.id))
+            prune(ComponentId.fromKey(release.id))
         }
     }
 
@@ -191,8 +191,5 @@ class ComponentStore(private val context: Context) {
     companion object {
         private const val TAG = "ComponentStore"
 
-        /** Parse a component id from its key, or null when unknown. */
-        fun ComponentId.Companion.valueOfKey(key: String): ComponentId =
-            entries.firstOrNull { it.key == key } ?: throw IllegalArgumentException(key)
     }
 }

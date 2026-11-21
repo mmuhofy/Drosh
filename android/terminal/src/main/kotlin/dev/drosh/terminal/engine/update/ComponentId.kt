@@ -10,7 +10,13 @@ package dev.drosh.terminal.engine.update
 enum class ComponentId(val key: String) {
     APK("apk"),
     GHOSTTY_VT("ghostty_vt"),
-    CHROOT_NG("chroot_ng"),
+    CHROOT_NG("chroot_ng");
+
+    companion object {
+        fun fromKey(key: String): ComponentId =
+            entries.firstOrNull { it.key == key }
+                ?: throw IllegalArgumentException("unknown component: $key")
+    }
 }
 
 /**
