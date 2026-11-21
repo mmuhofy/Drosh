@@ -93,7 +93,6 @@ import dev.drosh.ui.pin.PinEntryScreen
 import dev.drosh.ui.theme.DroshTheme
 import dev.drosh.ui.agent.AgentChatScreen
 import dev.drosh.ui.agent.AgentHomeScreen
-import dev.drosh.ui.agent.AgentSettingsScreen
 import dev.drosh.ui.settings.AboutCategory
 import dev.drosh.ui.settings.AppearanceCategory
 import dev.drosh.domain.settings.DroshSettings
@@ -101,9 +100,9 @@ import dev.drosh.ui.settings.KeyboardCategory
 import dev.drosh.ui.settings.LanguageCategory
 import dev.drosh.ui.settings.SecurityCategory
 import dev.drosh.ui.settings.SettingsCategoryRoute
+import dev.drosh.ui.updates.UpdatesCategory
 import dev.drosh.ui.settings.OnSettingsUpdate
 import dev.drosh.ui.settings.SettingsHomeScreen
-import dev.drosh.ui.session.DeviceIdentityViewModel
 import dev.drosh.ui.session.SessionLogTarget
 import dev.drosh.ui.session.SessionSwitcherViewModel
 import dev.drosh.ui.settings.SettingsViewModel
@@ -111,7 +110,6 @@ import dev.drosh.ui.settings.ShellCategory
 import dev.drosh.ui.settings.TerminalCategory
 import dev.drosh.ui.settings.ThemeStoreScreen
 import dev.drosh.ui.backup.BackupRestoreRoute
-import dev.drosh.ui.workspace.WorkspaceScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -148,6 +146,12 @@ class MainActivity : ComponentActivity() {
 
     /** Elapsed realtime when the window went away, 0 while it is up. */
     private var backgroundedAt = 0L
+
+    /**
+     * True only while a settings route is on screen: the status bar belongs
+     * there, while the terminal and the session screen stay fully edge-to-edge.
+     */
+    private val showStatusBar = MutableStateFlow(false)
 
     /**
      * The auto-lock timeout as a duration. Collected once per start rather
@@ -267,17 +271,21 @@ class MainActivity : ComponentActivity() {
      */
     @Composable
     private fun SystemBarsGlobal(activity: ComponentActivity) {
+        val settingsStatusBar by showStatusBar.collectAsStateWithLifecycle()
+        LaunchedEffect(settingsStatusBar) {
+            applyImmersiveWindow(activity.window, settingsStatusBar)
+        }
         // Passed in, not read from LocalContext: ProvideLocale wraps the context
         // below setContent, and the wrapped context is not the Activity whose
         // window owns the bars.
         DisposableEffect(activity) {
             val window = activity.window
-            applyImmersiveWindow(window)
+            applyImmersiveWindow(window, showStatusBar.value)
             val observer = window.decorView.viewTreeObserver
             val reapply = ViewTreeObserver.OnGlobalLayoutListener {
                 // Idempotent, and cheap: the controller only writes when the
                 // requested state actually differs.
-                applyImmersiveWindow(window)
+                applyImmersiveWindow(window, showStatusBar.value)
             }
             observer.addOnGlobalLayoutListener(reapply)
             onDispose {
@@ -305,12 +313,12 @@ class MainActivity : ComponentActivity() {
         // bar visibility, never the window's input or focus policy.
         applyImmersiveToAllWindows(window)
         if (hasFocus) {
-            window.decorView.post { applyImmersiveWindow(window) }
+            window.decorView.post { applyImmersiveWindow(window, showStatusBar.value) }
         }
     }
 
     private fun applyImmersiveToAllWindows(window: Window) {
-        applyImmersiveWindow(window)
+        applyImmersiveWindow(window, showStatusBar.value)
         hideBarsOnOtherWindows()
     }
 
@@ -470,6 +478,8 @@ class MainActivity : ComponentActivity() {
                     versionCode = BuildConfig.VERSION_CODE,
                     gitSha = BuildConfig.GIT_SHA,
                 )
+            SettingsCategoryRoute.Updates ->
+                UpdatesCategory(onBack = onBack)
         }
     }
 
@@ -520,6 +530,10 @@ class MainActivity : ComponentActivity() {
         // terminal as destinations, so the lock never waits on a terminal that
         // has not been built yet.
         val currentRoute by navController.currentBackStackEntryAsState()
+        LaunchedEffect(currentRoute?.destination?.route) {
+            val route = currentRoute?.destination?.route
+            showStatusBar.value = route == "settings" || route == "settings/{category}"
+        }
         Box(modifier = Modifier.fillMaxSize()) {
             DroshNavGraph(navController, coroutineScope)
 
@@ -695,7 +709,6 @@ class MainActivity : ComponentActivity() {
                     onOpenEditor = { path -> navController.openEditor(path) },
                     onOpenAgent = { navController.navigate("agent_home") },
                     onOpenSsh = { navController.navigate("ssh") },
-                    onOpenProjects = { navController.navigate("workspace") },
                 )
             }
 
@@ -705,7 +718,10 @@ class MainActivity : ComponentActivity() {
                     onOpenChat = { id -> navController.navigate("agent_chat/$id") },
                     onNewChat = { navController.navigate("agent_chat/new") },
                     onBack = { navController.popBackStack() },
-                    onOpenSettings = { navController.navigate("agent_settings") },
+                    // The agent's own settings screen is gone; its gear lands
+                    // on the settings home instead of a route that no longer
+                    // exists.
+                    onOpenSettings = { navController.navigate("settings") },
                 )
             }
 
@@ -741,7 +757,9 @@ class MainActivity : ComponentActivity() {
                 AgentChatScreen(
                     chatId = chatId,
                     onBack = { navController.popBackStack() },
-                    onOpenSettings = { navController.navigate("agent_settings") },
+                    // Same as the home screen: the agent's settings screen was
+                    // removed, so the gear opens the settings home.
+                    onOpenSettings = { navController.navigate("settings") },
                     // A chat created on the first send replaces this entry rather
                     // than stacking on it, so Back from it returns to Agent Home
                     // instead of to a placeholder chat that no longer exists.
@@ -759,10 +777,6 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            composable("agent_settings") {
-                AgentSettingsScreen(onBack = { navController.popBackStack() })
-            }
-
             composable("settings") {
                 SettingsHomeScreen(
                     onBack = { navController.popBackStack() },
@@ -773,10 +787,6 @@ class MainActivity : ComponentActivity() {
                     onOpenCategory = { category ->
                         navController.navigate("settings/${category.id}")
                     },
-                    onOpenProjects = { navController.navigate("workspace") },
-                    // Reached from Settings rather than from a gear on the agent
-                    // screens: an OpenRouter key is the user's, not a chat's.
-                    onOpenAgentSettings = { navController.navigate("agent_settings") },
                     onOpenBackupRestore = { navController.navigate("backup_restore") },
                 )
             }
@@ -797,22 +807,12 @@ class MainActivity : ComponentActivity() {
                 BackupRestoreRoute(onBack = { navController.popBackStack() })
             }
 
-            // Projects — workspaces and the sessions filed under them. Reached
-            // from Settings, which is why opening a session from here has to pop
-            // all the way back to the terminal rather than just one entry.
             // SSH hosts: sidebar → SSH opens this route; tapping a host
             // connects and drops back into the terminal with the live session.
             composable("ssh") {
                 dev.drosh.ui.ssh.SshHomeScreen(
                     onBack = { navController.popBackStack() },
                     onConnected = { navController.popBackStack() },
-                )
-            }
-
-            composable("workspace") {
-                WorkspaceScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenSession = { navController.returnToTerminal() },
                 )
             }
 
@@ -843,23 +843,6 @@ class MainActivity : ComponentActivity() {
 /** Blank means "follow the system", where no override applies. */
 private fun String.toLocaleOrNull() =
     takeIf { it.isNotBlank() }?.let { java.util.Locale.forLanguageTag(it) }
-
-/**
- * Come back to a terminal from a screen the user reached through Settings.
- *
- * The stack when this is called is terminal → settings → workspace, so a single
- * `popBackStack()` would land on Settings — the screen they left to do
- * something else, and the one thing they are not waiting for. Popping to the
- * named destination clears everything in between. `popBackStack` reports
- * whether it found the destination, so the fallback is a real check rather
- * than a guess — and reaching for the terminal still has to leave something on
- * the stack for Back to work.
- */
-private fun NavHostController.returnToTerminal() {
-    if (!popBackStack(TERMINAL_ROUTE, inclusive = false)) navigate(TERMINAL_ROUTE)
-}
-
-private const val TERMINAL_ROUTE = "terminal"
 
 /**
  * Starts the app again from its launcher intent.
@@ -899,7 +882,7 @@ private fun NavHostController.openEditor(guestPath: String) {
  *
  * // UNTESTED — verify before use on a device with gesture navigation.
  */
-private fun applyImmersiveWindow(window: Window?) {
+private fun applyImmersiveWindow(window: Window?, statusBarVisible: Boolean = false) {
     if (window == null) return
     WindowCompat.setDecorFitsSystemWindows(window, false)
     window.statusBarColor = android.graphics.Color.TRANSPARENT
@@ -908,15 +891,21 @@ private fun applyImmersiveWindow(window: Window?) {
         window.isNavigationBarContrastEnforced = false
         window.isStatusBarContrastEnforced = false
     }
-    val bars = WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars()
+    val navBars = WindowInsetsCompat.Type.navigationBars()
+    val statusBars = WindowInsetsCompat.Type.statusBars()
     WindowCompat.getInsetsController(window, window.decorView).apply {
         isAppearanceLightStatusBars = false
         isAppearanceLightNavigationBars = false
         systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        // Only write when a bar is actually showing: this runs on every layout
-        // pass, and a redundant hide() can itself provoke another layout.
+        // Only write when a bar's state actually differs: this runs on every
+        // layout pass, and a redundant hide()/show() can provoke another one.
         val insets = ViewCompat.getRootWindowInsets(window.decorView)
-        if (insets == null || insets.isVisible(bars)) hide(bars)
+        if (statusBarVisible) {
+            if (insets == null || !insets.isVisible(statusBars)) show(statusBars)
+        } else if (insets == null || insets.isVisible(statusBars)) {
+            hide(statusBars)
+        }
+        if (insets == null || insets.isVisible(navBars)) hide(navBars)
     }
 }
 

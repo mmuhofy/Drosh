@@ -27,7 +27,6 @@ import dev.drosh.data.terminal.BootstrapObserver
 import dev.drosh.data.terminal.PaneLayoutRepositoryImpl
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
 import dev.drosh.data.terminal.TriggerBootstrap
-import dev.drosh.data.workspace.WorkspaceRepositoryImpl
 import dev.drosh.data.ssh.SshHostRepositoryImpl
 import dev.drosh.data.ssh.SshKeyRepositoryImpl
 import dev.drosh.data.ssh.SshCredentialVaultImpl
@@ -60,7 +59,6 @@ import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.PaneLayoutRepository
 import dev.drosh.domain.terminal.SubmitBlockCommandUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
-import dev.drosh.domain.workspace.WorkspaceRepository
 import dev.drosh.domain.ssh.SshHostRepository
 import dev.drosh.domain.ssh.SshKeyRepository
 import dev.drosh.domain.ssh.SshCredentialVault
@@ -129,12 +127,6 @@ abstract class BindingsModule {
     abstract fun bindSessionTelemetry(
         impl: SessionManagerAdapter,
     ): SessionTelemetry
-
-    @Binds
-    @Singleton
-    abstract fun bindWorkspaceRepository(
-        impl: WorkspaceRepositoryImpl,
-    ): WorkspaceRepository
 
     @Binds
     @Singleton

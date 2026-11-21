@@ -14,7 +14,6 @@ import dev.drosh.data.ssh.SshKeyDao
 import dev.drosh.data.ssh.SshKeyEntity
 import dev.drosh.data.session.SessionDao
 import dev.drosh.data.session.SessionEntity
-import dev.drosh.data.workspace.WorkspaceDao
 import dev.drosh.data.workspace.WorkspaceEntity
 
 /**
@@ -43,7 +42,6 @@ import dev.drosh.data.workspace.WorkspaceEntity
 )
 abstract class DroshDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
-    abstract fun workspaceDao(): WorkspaceDao
     abstract fun sshHostDao(): SshHostDao
     abstract fun sshKeyDao(): SshKeyDao
     abstract fun agentChatDao(): AgentChatDao

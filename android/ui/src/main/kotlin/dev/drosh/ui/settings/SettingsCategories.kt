@@ -66,7 +66,7 @@ import dev.drosh.ui.R
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-internal val GROUP_GAP = 22.dp
+internal val GROUP_GAP = 18.dp
 
 /** Content clearance for the system bar, without insetting the background. */
 @Composable
@@ -405,7 +405,7 @@ fun AppearanceCategory(
                     stacked = true,
                     title = stringResource(R.string.settings_background_opacity),
                     icon = DroshIcons.Eye,
-                    supporting = stringResource(
+                    value = stringResource(
                         R.string.settings_background_opacity_value,
                         settings.background.imageOpacity,
                     ),
@@ -425,7 +425,7 @@ fun AppearanceCategory(
                     stacked = true,
                     title = stringResource(R.string.settings_background_blur),
                     icon = DroshIcons.Eye,
-                    supporting = if (settings.background.blurRadius == 0) {
+                    value = if (settings.background.blurRadius == 0) {
                         stringResource(R.string.settings_background_blur_off)
                     } else {
                         stringResource(
@@ -449,7 +449,7 @@ fun AppearanceCategory(
                     stacked = true,
                     title = stringResource(R.string.settings_content_padding),
                     icon = DroshIcons.Maximize,
-                    supporting = stringResource(
+                    value = stringResource(
                         R.string.settings_content_padding_value,
                         settings.background.contentPaddingDp,
                     ),
@@ -469,7 +469,7 @@ fun AppearanceCategory(
                     stacked = true,
                     title = stringResource(R.string.settings_content_corners),
                     icon = DroshIcons.Square,
-                    supporting = stringResource(
+                    value = stringResource(
                         R.string.settings_content_corners_value,
                         settings.background.cornerRadiusDp,
                     ),
@@ -500,7 +500,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_terminal),
-            items = 8,
+            items = 6,
         ) { index, cap ->
             when (index) {
                 0 -> SettingsTile(
@@ -529,7 +529,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     stacked = true,
                     title = stringResource(R.string.settings_font_size),
                     icon = DroshIcons.Resize,
-                    supporting = stringResource(
+                    value = stringResource(
                         R.string.settings_font_size_value,
                         String.format(Locale.US, "%.1f", settings.terminal.defaultFontSizeSp),
                     ),
@@ -544,12 +544,12 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     )
                 }
 
-                2 -> SettingsTile(
+                3 -> SettingsTile(
                     cap = cap,
                     stacked = true,
                     title = stringResource(R.string.settings_cursor_blink),
                     icon = DroshIcons.Clock,
-                    supporting = if (settings.terminal.cursorBlinkMs == 0) {
+                    value = if (settings.terminal.cursorBlinkMs == 0) {
                         stringResource(R.string.settings_cursor_blink_off)
                     } else {
                         stringResource(R.string.settings_cursor_blink_value, settings.terminal.cursorBlinkMs)
@@ -565,7 +565,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     )
                 }
 
-                3 -> SettingsTile(
+                2 -> SettingsTile(
                     cap = cap,
                     stacked = true,
                     title = stringResource(R.string.settings_cursor_style),
@@ -610,7 +610,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                 // one engine and a crash. There is one engine now, and the
                 // setting that could not be turned off is gone with it.
 
-                6 -> SettingsTile(
+                else -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_terminal_keep_position),
                     icon = DroshIcons.ArrowUp,

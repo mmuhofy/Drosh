@@ -1,6 +1,33 @@
 package dev.drosh.ui.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
+import dev.drosh.theme.DroshOutline
+import dev.drosh.theme.DroshTileSelected
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +37,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
@@ -63,34 +91,127 @@ fun <T> SettingsSelectRow(
     supporting: String? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier) {
-        SettingsTile(
-            cap = cap,
-            title = title,
-            icon = icon,
-            supporting = supporting,
-            onClick = { expanded = true },
-        ) {
-            SettingsValuePill(text = options.firstOrNull { it.first == selected }?.second.orEmpty())
+    SettingsTile(
+        cap = cap,
+        title = title,
+        icon = icon,
+        supporting = supporting,
+        modifier = modifier,
+        onClick = { expanded = true },
+    ) {
+        // The menu hangs off the pill, not off the row: the pill is what
+        // the person touched and what the menu is a bigger version of.
+        Box {
+            SettingsValuePill(
+                text = options.firstOrNull { it.first == selected }?.second.orEmpty(),
+                open = expanded,
+            )
+            SettingsDropdown(
+                expanded = expanded,
+                onDismiss = { expanded = false },
+                options = options,
+                selected = selected,
+                onSelect = { value ->
+                    expanded = false
+                    onSelect(value)
+                },
+            )
         }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.background(DroshTile, RoundedCornerShape(16.dp)),
+    }
+}
+
+/**
+ * The menu a select row opens: a small floating panel, not the platform menu.
+ *
+ * Positioned by hand. The platform menu anchors to the row's top-left and
+ * lands wherever that puts it; this one right-aligns to the pill it grew
+ * from, opens below it, and flips above when the screen has no room below.
+ * Either way it stays inside the window by [EDGE] on every side.
+ */
+@Composable
+fun <T> SettingsDropdown(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    options: List<Pair<T, String>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+) {
+    if (!expanded) return
+    val density = LocalDensity.current
+    val gap = with(density) { 6.dp.roundToPx() }
+    val edge = with(density) { 12.dp.roundToPx() }
+    val provider = remember(gap, edge) {
+        object : PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: IntRect,
+                windowSize: IntSize,
+                layoutDirection: LayoutDirection,
+                popupContentSize: IntSize,
+            ): IntOffset {
+                val maxX = (windowSize.width - popupContentSize.width - edge).coerceAtLeast(edge)
+                val x = (anchorBounds.right - popupContentSize.width).coerceIn(edge, maxX)
+                val below = anchorBounds.bottom + gap
+                val fitsBelow = below + popupContentSize.height <= windowSize.height - edge
+                val y = if (fitsBelow) {
+                    below
+                } else {
+                    (anchorBounds.top - gap - popupContentSize.height).coerceAtLeast(edge)
+                }
+                return IntOffset(x, y)
+            }
+        }
+    }
+    val shape = RoundedCornerShape(14.dp)
+    Popup(
+        popupPositionProvider = provider,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        val visible = remember { MutableTransitionState(false).apply { targetState = true } }
+        AnimatedVisibility(
+            visibleState = visible,
+            enter = fadeIn(tween(120)) + scaleIn(
+                initialScale = 0.92f,
+                transformOrigin = TransformOrigin(1f, 0f),
+                animationSpec = tween(140),
+            ),
         ) {
-            options.forEach { (value, label) ->
-                DropdownMenuItem(
-                    text = { Text(label) },
-                    leadingIcon = if (value == selected) {
-                        { SettingsCheck() }
-                    } else {
-                        null
-                    },
-                    onClick = {
-                        expanded = false
-                        onSelect(value)
-                    },
-                )
+            Column(
+                modifier = Modifier
+                    .widthIn(min = 168.dp, max = 280.dp)
+                    .heightIn(max = 320.dp)
+                    .shadow(12.dp, shape)
+                    .clip(shape)
+                    .background(DroshTile)
+                    .border(1.dp, DroshOutline, shape)
+                    .verticalScroll(rememberScrollState())
+                    .padding(4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                options.forEach { (value, label) ->
+                    val isOn = value == selected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 42.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isOn) DroshTileSelected else Color.Transparent)
+                            .clickable { onSelect(value) }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = label,
+                            color = DroshText,
+                            fontSize = 15.sp,
+                            fontWeight = if (isOn) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (isOn) SettingsCheck()
+                    }
+                }
             }
         }
     }
@@ -108,27 +229,28 @@ fun <T> SettingsSelectRow(
 fun SettingsValuePill(
     text: String,
     modifier: Modifier = Modifier,
+    open: Boolean = false,
 ) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(DroshTrack)
-            .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = text,
             color = DroshText,
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
         )
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(2.dp))
         Icon(
             imageVector = DroshIcons.ChevronRight,
             contentDescription = null,
             tint = DroshTextMuted,
-            modifier = Modifier.size(18.dp).rotate(90f),
+            modifier = Modifier.size(16.dp).rotate(if (open) -90f else 90f),
         )
     }
 }

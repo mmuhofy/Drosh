@@ -8,7 +8,6 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.drosh.data.di.ApplicationScope
 import dev.drosh.data.local.DroshDatabase
 import dev.drosh.data.local.irisShellDataStore
-import dev.drosh.data.workspace.WorkspaceDao
 import dev.drosh.domain.session.SessionRepository
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.session.SessionSnapshot
@@ -36,7 +35,6 @@ class SessionRepositoryImpl @Inject constructor(
 ) : SessionRepository {
 
     private val dao: SessionDao = database.sessionDao()
-    private val workspaceDao: WorkspaceDao = database.workspaceDao()
     private val dataStore: DataStore<Preferences> = context.irisShellDataStore
 
     private val _livePreviews = MutableStateFlow<Map<String, List<String>>>(emptyMap())
@@ -69,7 +67,7 @@ class SessionRepositoryImpl @Inject constructor(
         }
             .distinctUntilChanged()
 
-    override suspend fun create(name: String, workspaceId: String?): String {
+    override suspend fun create(name: String): String {
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
         dao.upsert(
@@ -80,7 +78,8 @@ class SessionRepositoryImpl @Inject constructor(
                 createdAtMs = now,
                 lastUsedAtMs = now,
                 lastSnapshot = "",
-                workspaceId = workspaceId,
+                // Legacy column — always ungrouped now that the feature is gone.
+                workspaceId = null,
             )
         )
         dataStore.edit { it[KEY_ACTIVE_SESSION_ID] = id }
@@ -189,16 +188,6 @@ class SessionRepositoryImpl @Inject constructor(
 
     override suspend fun updateState(id: String, state: SessionState) {
         dao.updateState(id, state.name)
-    }
-
-    override suspend fun assignToWorkspace(sessionId: String, workspaceId: String?) {
-        // Checked before the write, not left to the foreign key. A bad id is a
-        // UI mistake — a stale screen offering a workspace that has since been
-        // deleted — and surfacing it as an SQLiteConstraintException at an
-        // arbitrary later point would be a poor trade. Ungrouping (null) has
-        // nothing to validate, so it always goes through.
-        if (workspaceId != null && !workspaceDao.exists(workspaceId)) return
-        dao.setWorkspace(sessionId, workspaceId)
     }
 
     fun observeActiveId(): Flow<String?> =

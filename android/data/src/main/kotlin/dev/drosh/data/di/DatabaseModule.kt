@@ -7,7 +7,6 @@ import dev.drosh.data.agent.AgentMessageDao
 import dev.drosh.data.local.DroshDatabase
 import dev.drosh.data.ssh.SshHostDao
 import dev.drosh.data.ssh.SshKeyDao
-import dev.drosh.data.workspace.WorkspaceDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -74,16 +73,6 @@ object DatabaseModule {
 
     @Provides
     fun provideAgentMessageDao(database: DroshDatabase): AgentMessageDao = database.agentMessageDao()
-
-    /**
-     * Workspaces.
-     *
-     * Same database for the same reason as agent chats — and not by preference
-     * here: `sessions.workspace_id` is a foreign key into this table, so the two
-     * have to be in one connection for the constraint to mean anything.
-     */
-    @Provides
-    fun provideWorkspaceDao(database: DroshDatabase): WorkspaceDao = database.workspaceDao()
 
     @Provides
     fun provideSshHostDao(database: DroshDatabase): SshHostDao = database.sshHostDao()

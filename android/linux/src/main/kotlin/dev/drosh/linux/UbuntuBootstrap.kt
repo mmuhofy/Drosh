@@ -39,7 +39,14 @@ class UbuntuBootstrap(private val context: Context) {
      * APK and nowhere else, and the guest has nothing to run. The runtime is staged
      * from an asset for the same reason, and it works.
      */
-    val chrootNgFile: File get() = File(baseDir, "bin/libchrootng.so")
+    val chrootNgFile: File get() {
+        val override = System.getProperty("dev.drosh.chrootNg.override")
+        if (!override.isNullOrBlank()) {
+            val file = File(override)
+            if (file.isFile) return file
+        }
+        return File(baseDir, "bin/libchrootng.so")
+    }
     val libDir: File get() = File(baseDir, "lib")
     val rootfsDir: File get() = File(baseDir, "rootfs")
     private val tmpDir: File get() = File(baseDir, "tmp")
@@ -47,6 +54,16 @@ class UbuntuBootstrap(private val context: Context) {
     /** Marker file written by `setup.sh` once bootstrap completes. */
     private val setupMarker: File
         get() = File(rootfsDir, "var/lib/drosh/.setup_complete")
+
+    /**
+     * The guest's login shell — the one file a usable rootfs must contain.
+     *
+     * `bin/bash` rather than a fixed `usr/bin/bash`: the cloud image is a
+     * merged-usr layout where `/bin` is a symlink to `usr/bin`, and
+     * `File.exists()` follows it, so either path answers for the same file.
+     */
+    private val guestShell: File
+        get() = File(rootfsDir, "bin/bash")
 
     /**
      * Whether the guest's filesystem is installed.
@@ -58,10 +75,33 @@ class UbuntuBootstrap(private val context: Context) {
      * chroot-ng on a device where it had never been staged said "no guest" —
      * and the terminal came up empty, with the vendored terminal quietly
      * falling back to a plain shell and hiding it.
+     *
+     * The apt layout is deliberately not part of this: the Ubuntu 24.04 cloud
+     * image carries no `etc/apt/sources.list` at all — sources live in the
+     * deb822 file `etc/apt/sources.list.d/ubuntu.sources` — so checking for
+     * the old one-file layout read a correctly installed guest as missing and
+     * the terminal said "no guest command". What a finished setup leaves
+     * behind is the marker, and what a rootfs cannot lack is the shell; both
+     * together are the installation, and neither names a package manager.
      */
     val isInstalled: Boolean
-        get() = File(rootfsDir, "etc/apt/sources.list").exists()
-            && setupMarker.exists()
+        get() = setupMarker.exists() && guestShell.exists()
+
+    /**
+     * Why the guest is not installed, or null when it is.
+     *
+     * The specific reason rather than a boolean: the two failures have
+     * different fixes, and the terminal shows this text instead of the bare
+     * "no guest command" that told the user nothing.
+     */
+    val installUnavailableReason: String?
+        get() = when {
+            !setupMarker.exists() ->
+                "setup has not completed (no setup marker in the rootfs) — run setup"
+            !guestShell.exists() ->
+                "the rootfs has no /bin/bash — the download may be corrupt, run setup again"
+            else -> null
+        }
 
     /**
      * Whether the guest runtime can be launched.
@@ -141,33 +181,37 @@ class UbuntuBootstrap(private val context: Context) {
                 stageRuntimes()
                 onLog("  · Guest launchers staged.")
 
-                // Full Ubuntu Server root filesystem, downloaded and verified
-                // before a single entry is written. There are no bundled rootfs
-                // assets in this build, so the download is the only path — and
-                // keeping it the only path is what makes "never extract
-                // unverified bytes" true rather than a convention.
+                // The full Ubuntu Server root filesystem. The normal path
+                // downloads and verifies it before extracting. If an earlier
+                // attempt already extracted it (e.g. setup.sh failed later),
+                // the extracted tree is reused as-is so an update re-runs
+                // setup.sh instead of re-downloading and re-extracting.
                 rootfsDir.mkdirs()
-                val rootfsArch = rootfsArchForAbi()
-                val archive = downloadRootfs(rootfsArch, onLog, onDownloadProgress)
-                try {
-                    onLog("  · Extracting verified root filesystem…")
-                    FileInputStream(archive).use { raw ->
-                        XZInputStream(raw).use { xz ->
-                            extractTar(xz, rootfsDir)
+                if (guestShell.exists()) {
+                    onLog("  · Reusing extracted rootfs.")
+                } else {
+                    val rootfsArch = rootfsArchForAbi()
+                    val archive = downloadRootfs(rootfsArch, onLog, onDownloadProgress)
+                    try {
+                        onLog("  · Extracting verified root filesystem…")
+                        FileInputStream(archive).use { raw ->
+                            XZInputStream(raw).use { xz ->
+                                extractTar(xz, rootfsDir)
+                            }
                         }
+                    } finally {
+                        archive.delete()
+                        partFile(rootfsArch).delete()
+                        partMetaFile(rootfsArch).delete()
                     }
-                } finally {
-                    archive.delete()
-                    partFile(rootfsArch).delete()
-                    partMetaFile(rootfsArch).delete()
+                    onLog("✓ Rootfs extracted.")
                 }
-                onLog("✓ Rootfs extracted.")
 
                 onLog("→ Configuring guest (network, bash, completion marker)…")
                 onState(UbuntuSetupState.Configuring)
                 lastFailedStep = "Configure"
                 val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"
-                runScriptInGuest(
+                val setupExit = runScriptInGuest(
                     SCRIPT_SETUP,
                     onLog = onLog,
                     envExtras = mapOf(
@@ -175,6 +219,23 @@ class UbuntuBootstrap(private val context: Context) {
                         "ABI" to abi,
                     ),
                 )
+                // UNTESTED — verify before use: chroot-ng's exit code for a
+                // script that failed inside the guest. Ready used to be emitted
+                // unconditionally, so a setup that died mid-way still reported
+                // success — the loading gate trusted it, the terminal opened,
+                // and there was no guest behind it. Both checks are required:
+                // a non-zero exit, or a zero exit that never wrote the marker
+                // `setup.sh` writes last, means the guest is not set up.
+                if (setupExit != 0) {
+                    throw IllegalStateException(
+                        "setup.sh failed in the guest with exit code $setupExit",
+                    )
+                }
+                if (!setupMarker.exists()) {
+                    throw IllegalStateException(
+                        "setup.sh exited 0 but never wrote ${setupMarker.path} — the guest is not set up",
+                    )
+                }
                 onLog("✓ Guest configured for ${preferences.userName}.")
 
                 onLog("✓ Bootstrap complete. Ready.")
@@ -203,6 +264,17 @@ class UbuntuBootstrap(private val context: Context) {
     }
 
     /**
+     * The guest directory chroot-ng works in: `/home` when the rootfs has one.
+     *
+     * UNTESTED — verify before use: a rootfs without `/home` would make
+     * `--work-dir /home` point at a directory that is not there, and `/root`
+     * is the fallback every Ubuntu rootfs does have. HOME follows the same
+     * directory so the shell never starts with a home that does not exist.
+     */
+    private fun workDirIn(rootfs: String): String =
+        if (File(rootfs, "home").isDirectory) "/home" else "/root"
+
+    /**
      * Runs a shell script inside the guest, streaming its output.
      *
      * The script arrives on the guest shell's stdin (`bash -s`), which is what
@@ -216,6 +288,7 @@ class UbuntuBootstrap(private val context: Context) {
     ): Int {
         val rootfs = rootfsDir.absolutePath
         val runtime = chrootNgFile.absolutePath
+        val workDir = workDirIn(rootfs)
 
         val argv = mutableListOf<String>().apply {
             add(runtime)
@@ -226,10 +299,10 @@ class UbuntuBootstrap(private val context: Context) {
                 .filter { File(it).isDirectory }
                 .forEach { add("--bind"); add("$it:$it") }
             add("--work-dir")
-            add("/home")
+            add(workDir)
             val environment = linkedMapOf(
                 "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-                "HOME" to "/home",
+                "HOME" to workDir,
                 "LANG" to "C.UTF-8",
                 "TMPDIR" to "/tmp",
             )
@@ -286,6 +359,7 @@ class UbuntuBootstrap(private val context: Context) {
     ): Int {
         val rootfs = rootfsDir.absolutePath
         val runtime = chrootNgFile.absolutePath
+        val workDir = workDirIn(rootfs)
 
         val argv = mutableListOf<String>().apply {
             add(runtime)
@@ -296,10 +370,10 @@ class UbuntuBootstrap(private val context: Context) {
                 .filter { File(it).isDirectory }
                 .forEach { add("--bind"); add("$it:$it") }
             add("--work-dir")
-            add("/home")
+            add(workDir)
             listOf(
                 "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-                "HOME" to "/home",
+                "HOME" to workDir,
                 "LANG" to "C.UTF-8",
                 "TMPDIR" to "/tmp",
             ).forEach { (name, value) -> add("-E"); add("$name=$value") }

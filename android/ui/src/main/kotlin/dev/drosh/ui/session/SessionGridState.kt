@@ -67,6 +67,29 @@ internal fun ungroup(groups: List<SessionGroup>, target: SessionGroup): List<Ses
 }
 
 /**
+ * Turns two ungrouped cards into one UI group, [targetId] first.
+ *
+ * Target-first because a group card takes the slot of its first member: the
+ * new group appears where the card that was dropped *on* already stood, and
+ * the held card moves into it rather than dragging the pair to the held
+ * card's old position.
+ *
+ * Both ids must be ungrouped — the caller resolves the target and held groups
+ * first and only reaches this for two singles — so nothing is dissolved here
+ * and no member can be stranded.
+ *
+ * UNTESTED — verify before use.
+ */
+internal fun groupTwoSessions(
+    groups: List<SessionGroup>,
+    targetId: String,
+    heldId: String,
+): List<SessionGroup> {
+    if (targetId == heldId) return groups
+    return groups + SessionGroup(listOf(targetId, heldId))
+}
+
+/**
  * Group copies are rebuilt on every composition, so identity is compared by
  * membership rather than by object reference.
  */

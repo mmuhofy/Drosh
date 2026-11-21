@@ -392,7 +392,12 @@ fun GhosttyTerminalHost(
             runCatching { terminalManager.guestCommand() }.getOrNull()
         }
         if (guest == null) {
-            status = "no guest command"
+            // The reason the guest is missing, not a bare "no guest command":
+            // a user can act on "run setup", not on a null return. guestCommand
+            // logs the same reason when it refuses.
+            val reason = terminalManager.guestUnavailableReason() ?: "no guest command"
+            Log.w(TAG, "session not started: $reason")
+            status = reason
             return@LaunchedEffect
         }
 

@@ -16,6 +16,9 @@ IRIS_USERNAME="${IRIS_USERNAME:-user}"
 echo "setup: writing network configuration..."
 mkdir -p /etc/apt /root /tmp
 
+# The cloud rootfs ships a dangling resolv.conf symlink; replace it outright
+# so a real regular file exists and the write below can never fail on it.
+rm -f /etc/resolv.conf
 cat > /etc/resolv.conf <<'RESOLV'
 nameserver 8.8.8.8
 nameserver 8.8.4.4
@@ -73,10 +76,6 @@ write_bashrc /root/.bashrc
 if [ -d /home ]; then
     write_bashrc /home/.bashrc
 fi
-
-echo "setup: cleaning apt deb cache and /tmp..."
-apt-get clean -qq
-rm -rf /tmp/*
 
 echo "setup: writing completion marker..."
 MARKER_DIR=/var/lib/drosh

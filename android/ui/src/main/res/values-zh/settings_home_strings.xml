@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_home_group_app">应用</string>
+    <string name="settings_home_group_terminal">终端</string>
+    <string name="settings_home_group_privacy">隐私与数据</string>
+    <string name="settings_home_group_about">关于</string>
+</resources>
