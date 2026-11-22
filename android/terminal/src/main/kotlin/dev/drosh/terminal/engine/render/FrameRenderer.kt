@@ -309,6 +309,8 @@ internal class FrameRenderer {
     data class DrawResult(
         /** The cells the frame carried. */
         val cells: Int,
+        /** The rows the renderer rebuilt this frame. */
+        val dirtyRows: Int,
         /** The foreground instances drawn. */
         val sprites: Int,
         /** The pictures drawn. */
@@ -328,6 +330,7 @@ internal class FrameRenderer {
             /** A frame that drew nothing: the previous picture stays up. */
             val EMPTY = DrawResult(
                 cells = 0,
+                dirtyRows = 0,
                 sprites = 0,
                 images = 0,
                 drawCalls = 0,
@@ -426,8 +429,11 @@ internal class FrameRenderer {
 
         val drawEnd = System.nanoTime()
 
+        val dirtyRowCount = dirty.count { it }
+
         return DrawResult(
             cells = frame.cellCount,
+            dirtyRows = dirtyRowCount,
             sprites = foregroundCount,
             images = images.size,
             drawCalls = drawCalls,

@@ -1,6 +1,7 @@
 package dev.drosh.terminal.engine.render
 
 import android.util.Log
+import dev.drosh.terminal.engine.bench.BenchmarkLog
 import dev.drosh.terminal.engine.bench.RenderBench
 import dev.drosh.terminal.engine.layout.SizeInfo
 import java.util.concurrent.atomic.AtomicBoolean
@@ -774,7 +775,11 @@ class RenderThread(
             frameBytes = frame?.frameBytes ?: 0,
             atlasUploads = result.atlasUploads,
             dirty = frame?.dirty ?: 0,
-        )?.let { line -> Log.i(BENCH_TAG, line) }
+            dirtyRows = result.dirtyRows,
+        )?.let { line ->
+            Log.i(BENCH_TAG, line)
+            BenchmarkLog.sample(line)
+        }
     }
 
     /**

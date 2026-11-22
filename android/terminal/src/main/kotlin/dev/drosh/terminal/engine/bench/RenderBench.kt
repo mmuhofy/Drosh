@@ -102,6 +102,7 @@ object RenderBench {
         frameBytes: Int,
         atlasUploads: Int,
         dirty: Int,
+        dirtyRows: Int,
     ): String? {
         stats.record(
             startNanos = startNanos,
@@ -116,6 +117,7 @@ object RenderBench {
             frameBytes = frameBytes,
             atlasUploads = atlasUploads,
             dirty = dirty,
+            dirtyRows = dirtyRows,
         )
         sinceLog += 1
         if (sinceLog < LOG_EVERY_FRAMES) return null
@@ -143,6 +145,15 @@ object RenderBench {
 
     /** The numbers as one line, for the log. */
     fun logLine(): String = stats.logLine()
+
+    /** A multi-line report for diagnostics and benchmark files. */
+    fun report(): String = buildString {
+        appendLine("Drosh render benchmark")
+        appendLine(rendererFacts())
+        appendLine(stats.summary())
+        appendLine(stats.detail())
+        appendLine("rows/frame=${stats.averageDirtyRows()}")
+    }
 
     /** Whether the counters are frozen. */
     fun isFrozen(): Boolean = stats.isFrozen

@@ -1,6 +1,6 @@
 # Drosh — Status & Roadmap
 
-_Snapshot: 2026-11-18. Base: GitHub `main` @ `23d1d547`; this file also records
+_Snapshot: 2026-11-22. Base: GitHub `main` @ `06ff29fe`; this file also records
 the release-cleanup work on branch `docs/release-status`. Code is the reference;
 where a document disagrees with it, the document is a bug._
 

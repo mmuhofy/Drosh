@@ -60,6 +60,9 @@ object BenchmarkLog {
             file.appendText(
                 "# drosh benchmark · ${System.currentTimeMillis()} · $label\n",
             )
+            file.appendText(
+                "# columns: frames cells sprites images calls bytes atlas rows clean partial full slow8 slowShare max pump build upload draw jank interval_max\n",
+            )
             current = file
             active = true
         }

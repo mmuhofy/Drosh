@@ -56,6 +56,7 @@ internal class FrameStats {
     private var drawCallsTotal = 0L
     private var frameBytesTotal = 0L
     private var atlasUploadsTotal = 0L
+    private var dirtyRowsTotal = 0L
 
     /**
      * The frames by the engine's own dirty state.
@@ -117,6 +118,7 @@ internal class FrameStats {
         frameBytes: Int,
         atlasUploads: Int,
         dirty: Int,
+        dirtyRows: Int,
     ) {
         if (isFrozen) {
             return
@@ -144,6 +146,7 @@ internal class FrameStats {
         drawCallsTotal += drawCalls
         frameBytesTotal += frameBytes
         atlasUploadsTotal += atlasUploads
+        dirtyRowsTotal += dirtyRows
         frames += 1
         maxWork = maxOf(maxWork, total)
         work[bucket(total)] += 1
@@ -195,6 +198,7 @@ internal class FrameStats {
         drawCallsTotal = 0
         frameBytesTotal = 0
         atlasUploadsTotal = 0
+        dirtyRowsTotal = 0
         cleanFrames = 0
         partialFrames = 0
         fullFrames = 0
@@ -244,6 +248,10 @@ internal class FrameStats {
     /** The atlas regions uploaded, per frame. */
     fun averageAtlasUploads(): Float =
         if (frames == 0) 0f else atlasUploadsTotal.toFloat() / frames
+
+    /** The rows rebuilt, per frame. */
+    fun averageDirtyRows(): Float =
+        if (frames == 0) 0f else dirtyRowsTotal.toFloat() / frames
 
     /** The frames the engine said were clean. */
     fun cleanFrameCount(): Int = cleanFrames
@@ -336,7 +344,7 @@ internal class FrameStats {
         String.format(
             Locale.ROOT,
             "frames=%d cells=%.0f sprites=%.0f images=%.1f calls=%.1f bytes=%.0f " +
-                "atlas=%.2f clean=%d partial=%d full=%d slow8=%d (%.2f%%) max=%.1f " +
+                "atlas=%.2f rows=%.0f clean=%d partial=%d full=%d slow8=%d (%.2f%%) max=%.1f " +
                 "pump=%.2f build=%.2f upload=%.2f draw=%.2f jank=%d interval_max=%.1f",
             frames,
             averageCells(),
@@ -345,6 +353,7 @@ internal class FrameStats {
             averageDrawCalls(),
             averageFrameBytes(),
             averageAtlasUploads(),
+            averageDirtyRows(),
             cleanFrames,
             partialFrames,
             fullFrames,

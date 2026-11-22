@@ -218,4 +218,20 @@ class CellsTest {
         // The viewport's first row is the captured row one.
         assertEquals(false, frame.isViewportRowDirty(0))
     }
+
+
+    @Test
+    fun `resize resets the sprite state`() {
+        val cells = Cells()
+        val small = frame(columns = 4, viewportRows = 3, text = { _, _ -> 'x' })
+        cells.resize(small)
+        cells.buildSprites(small, 0, writer(small))
+        assertTrue(cells.spriteCount > 0)
+
+        val bigger = frame(columns = 5, viewportRows = 3)
+        cells.resize(bigger)
+        assertEquals(0, cells.spriteCount)
+        assertEquals(5 * (3 + 1 + 1), cells.columns * cells.rows)
+    }
+
 }
