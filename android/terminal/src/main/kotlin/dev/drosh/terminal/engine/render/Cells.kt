@@ -68,6 +68,9 @@ internal class Cells {
     var sprites: ByteBuffer = EMPTY
         private set
 
+    /** A heap scratch row for sprites; the direct buffer is filled from it. */
+    private var spriteScratch = ByteArray(0)
+
     /** Where each row's sprites start, in bytes. */
     private var rowStart = IntArray(0)
 
@@ -131,6 +134,7 @@ internal class Cells {
         sprites = ByteBuffer
             .allocateDirect(frame.cellCount * SPRITE_BYTES)
             .order(ByteOrder.LITTLE_ENDIAN)
+        spriteScratch = ByteArray(columns * SPRITE_BYTES)
         rowStart = IntArray(rows)
         rowSprites = IntArray(rows)
         spritesComplete = false
@@ -275,18 +279,27 @@ internal class Cells {
         start: Int,
         write: (buffer: ByteBuffer, index: Int, column: Int, gridRow: Int) -> Boolean,
     ): Int {
-        var at = start
         val gridRow = row + firstRowY
         val base = row * columns
+        if (spriteScratch.size < columns * SPRITE_BYTES) {
+            spriteScratch = ByteArray(columns * SPRITE_BYTES)
+        }
+        val scratch = ByteBuffer
+            .wrap(spriteScratch)
+            .order(ByteOrder.LITTLE_ENDIAN)
+        scratch.clear()
+        var count = 0
         for (column in 0 until columns) {
             val index = base + column
-            sprites.position(at)
-            if (!write(sprites, index, column, gridRow)) {
+            scratch.position(count * SPRITE_BYTES)
+            if (!write(scratch, index, column, gridRow)) {
                 continue
             }
-            at += SPRITE_BYTES
+            count += 1
         }
-        return (at - start) / SPRITE_BYTES
+        sprites.position(start)
+        sprites.put(spriteScratch, 0, count * SPRITE_BYTES)
+        return count
     }
 
     /** The byte offset the sprite upload should start at. */
