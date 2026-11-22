@@ -973,12 +973,16 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 event.actionMasked == MotionEvent.ACTION_CANCEL)
         ) {
             val session = sessionHandle
-            val cell = cellAt(event.x, event.y) ?: lastSelectionDragCell
+            val cell = cellAt(event.x, event.y)
+            val row = cell?.first ?: lastSelectionDragCell?.row ?: 0
+            val column = cell?.second
+                ?: lastSelectionDragCell?.column
+                ?: lastSelectionDragColumn
             if (session != 0L) {
                 val cells = NativeSelection.release(
                     session,
-                    cell?.row?.coerceAtLeast(0) ?: 0,
-                    cell?.column?.coerceAtLeast(0) ?: lastSelectionDragColumn,
+                    row.coerceAtLeast(0),
+                    column.coerceAtLeast(0),
                     NativeSelection.BEHAVIOR_WORD,
                 )
                 applySelectionSnapshot(cells, chrome = true)
@@ -1656,7 +1660,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         row: Int,
         column: Int,
         word: Boolean,
-        chrome: Boolean,
+        chrome: Boolean = true,
     ): Boolean {
         val session = sessionHandle
         if (session == 0L) return false
