@@ -1598,6 +1598,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         return selected.isNotEmpty()
     }
 
+    /** Records the selection's end, from the engine's own answer. */
+    private fun setSelectionEnd(row: Int, column: Int) {
+        selectionEnd = row to column
+    }
+
     /** Clear the selection. */
     fun clearSelection() {
         selected = ""
