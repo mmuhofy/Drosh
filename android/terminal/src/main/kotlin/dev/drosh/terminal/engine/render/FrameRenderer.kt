@@ -477,43 +477,47 @@ internal class FrameRenderer {
      * drawn one row from the cells it belongs to.
      */
     private fun buildBackgrounds(frame: Frame, dirty: BooleanArray) {
-        for (row in 0 until frame.rowCount) {
+        val backgrounds = cells.backgrounds
+        val columns = frame.columns
+        val firstRowY = frame.firstRowY
+        val rowCount = frame.rowCount
+        for (row in 0 until rowCount) {
             if (!dirty[row]) continue
-            cells.buildBackgroundRow(
-                frame = frame,
-                row = row,
-                colour = { index -> backgroundColour(frame, index) },
-                underline = { index ->
-                    val attributes = frame.attributes(index)
-                    val style = (attributes and FrameFormat.ATTR_UNDERLINE_MASK) shr
-                        FrameFormat.ATTR_UNDERLINE_SHIFT
-                    if (style == 0) {
-                        Cells.TRANSPARENT
-                    } else {
-                        // The style travels in the alpha byte: the shader
-                        // recovers it as an integer and draws the right rule.
-                        // The colour is the cell's own foreground, as before.
-                        (foregroundOf(frame, index) and 0x00ffffff) or (style shl 24)
-                    }
-                },
-                // The two rules the frame carries and nothing drew. They take
-                // the cell's own foreground, like the underline: a program that
-                // coloured the text expects the rule through it to match.
-                strikethrough = { index ->
-                    if (frame.attributes(index) and FrameFormat.ATTR_STRIKETHROUGH != 0) {
-                        foregroundOf(frame, index)
-                    } else {
-                        Cells.TRANSPARENT
-                    }
-                },
-                overline = { index ->
-                    if (frame.attributes(index) and FrameFormat.ATTR_OVERLINE != 0) {
-                        foregroundOf(frame, index)
-                    } else {
-                        Cells.TRANSPARENT
-                    }
-                },
-            )
+            val base = row * columns
+            var pos = base * Cells.BACKGROUND_BYTES
+            for (column in 0 until columns) {
+                val index = base + column
+                backgrounds.position(pos)
+                backgrounds.putShort(column.toShort())
+                backgrounds.putShort((row + firstRowY).toShort())
+                Cells.putColour(backgrounds, backgroundColour(frame, index))
+
+                val attributes = frame.attributes(index)
+                val underlineStyle = (attributes and FrameFormat.ATTR_UNDERLINE_MASK) shr
+                    FrameFormat.ATTR_UNDERLINE_SHIFT
+                val underline = if (underlineStyle == 0) {
+                    Cells.TRANSPARENT
+                } else {
+                    (foregroundOf(frame, index) and 0x00ffffff) or (underlineStyle shl 24)
+                }
+                Cells.putColour(backgrounds, underline)
+
+                val strikethrough = if (attributes and FrameFormat.ATTR_STRIKETHROUGH != 0) {
+                    foregroundOf(frame, index)
+                } else {
+                    Cells.TRANSPARENT
+                }
+                Cells.putColour(backgrounds, strikethrough)
+
+                val overline = if (attributes and FrameFormat.ATTR_OVERLINE != 0) {
+                    foregroundOf(frame, index)
+                } else {
+                    Cells.TRANSPARENT
+                }
+                Cells.putColour(backgrounds, overline)
+
+                pos += Cells.BACKGROUND_BYTES
+            }
         }
     }
 

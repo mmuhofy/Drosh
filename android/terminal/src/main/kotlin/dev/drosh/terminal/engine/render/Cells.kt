@@ -196,7 +196,7 @@ internal class Cells {
     /** The byte offset the sprite upload should start at. */
     fun spriteUploadStart(): Int = spriteUploadFrom
 
-    private fun putColour(buffer: ByteBuffer, packed: Int) {
+    fun putColour(buffer: ByteBuffer, packed: Int) {
         buffer.put(packed.toByte())
         buffer.put((packed ushr 8).toByte())
         buffer.put((packed ushr 16).toByte())
