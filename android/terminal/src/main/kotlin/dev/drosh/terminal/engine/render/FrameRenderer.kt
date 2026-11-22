@@ -319,6 +319,10 @@ internal class FrameRenderer {
         val drawCalls: Int,
         /** The atlas regions uploaded. */
         val atlasUploads: Int,
+        /** The background vertex building, in nanoseconds. */
+        val backgroundBuildNanos: Long,
+        /** The foreground vertex building, in nanoseconds. */
+        val foregroundBuildNanos: Long,
         /** The vertex building, in nanoseconds. */
         val buildNanos: Long,
         /** The uploads, in nanoseconds. */
@@ -335,6 +339,8 @@ internal class FrameRenderer {
                 images = 0,
                 drawCalls = 0,
                 atlasUploads = 0,
+                backgroundBuildNanos = 0L,
+                foregroundBuildNanos = 0L,
                 buildNanos = 0L,
                 uploadNanos = 0L,
                 drawNanos = 0L,
@@ -386,8 +392,15 @@ internal class FrameRenderer {
         // kept rendering.
         measureSelection(frame, size)
         cells.resize(frame)
+
+        val backgroundBuildStart = System.nanoTime()
         buildBackgrounds(frame, dirty)
+        val backgroundBuildEnd = System.nanoTime()
+
+        val foregroundBuildStart = backgroundBuildEnd
         val foregroundCount = buildForegrounds(frame, dirty)
+        val foregroundBuildEnd = System.nanoTime()
+
         buildColorGlyphs(frame)
 
         val buildEnd = System.nanoTime()
@@ -438,6 +451,8 @@ internal class FrameRenderer {
             images = images.size,
             drawCalls = drawCalls,
             atlasUploads = atlasUploads,
+            backgroundBuildNanos = backgroundBuildEnd - backgroundBuildStart,
+            foregroundBuildNanos = foregroundBuildEnd - foregroundBuildStart,
             buildNanos = buildEnd - buildStart,
             uploadNanos = uploadEnd - buildEnd,
             drawNanos = drawEnd - uploadEnd,

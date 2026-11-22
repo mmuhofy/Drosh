@@ -57,6 +57,8 @@ internal class FrameStats {
     private var frameBytesTotal = 0L
     private var atlasUploadsTotal = 0L
     private var dirtyRowsTotal = 0L
+    private var backgroundBuildTotal = 0f
+    private var foregroundBuildTotal = 0f
 
     /**
      * The frames by the engine's own dirty state.
@@ -119,6 +121,8 @@ internal class FrameStats {
         atlasUploads: Int,
         dirty: Int,
         dirtyRows: Int,
+        backgroundBuildNanos: Long,
+        foregroundBuildNanos: Long,
     ) {
         if (isFrozen) {
             return
@@ -147,6 +151,8 @@ internal class FrameStats {
         frameBytesTotal += frameBytes
         atlasUploadsTotal += atlasUploads
         dirtyRowsTotal += dirtyRows
+        backgroundBuildTotal += backgroundBuildNanos / NANOS_PER_MILLI
+        foregroundBuildTotal += foregroundBuildNanos / NANOS_PER_MILLI
         frames += 1
         maxWork = maxOf(maxWork, total)
         work[bucket(total)] += 1
@@ -199,6 +205,8 @@ internal class FrameStats {
         frameBytesTotal = 0
         atlasUploadsTotal = 0
         dirtyRowsTotal = 0
+        backgroundBuildTotal = 0f
+        foregroundBuildTotal = 0f
         cleanFrames = 0
         partialFrames = 0
         fullFrames = 0
@@ -252,6 +260,14 @@ internal class FrameStats {
     /** The rows rebuilt, per frame. */
     fun averageDirtyRows(): Float =
         if (frames == 0) 0f else dirtyRowsTotal.toFloat() / frames
+
+    /** The background vertex building, per frame, in milliseconds. */
+    fun averageBackgroundBuild(): Float =
+        if (frames == 0) 0f else backgroundBuildTotal / frames
+
+    /** The foreground vertex building, per frame, in milliseconds. */
+    fun averageForegroundBuild(): Float =
+        if (frames == 0) 0f else foregroundBuildTotal / frames
 
     /** The frames the engine said were clean. */
     fun cleanFrameCount(): Int = cleanFrames
@@ -330,6 +346,8 @@ internal class FrameStats {
             maxFrame(),
             averagePump(),
             averageBuild(),
+            averageBackgroundBuild(),
+            averageForegroundBuild(),
             averageUpload(),
             averageDraw(),
             janky(),
@@ -345,7 +363,7 @@ internal class FrameStats {
             Locale.ROOT,
             "frames=%d cells=%.0f sprites=%.0f images=%.1f calls=%.1f bytes=%.0f " +
                 "atlas=%.2f rows=%.0f clean=%d partial=%d full=%d slow8=%d (%.2f%%) max=%.1f " +
-                "pump=%.2f build=%.2f upload=%.2f draw=%.2f jank=%d interval_max=%.1f",
+                "pump=%.2f build=%.2f bg=%.2f fg=%.2f upload=%.2f draw=%.2f jank=%d interval_max=%.1f",
             frames,
             averageCells(),
             averageSprites(),

@@ -776,6 +776,8 @@ class RenderThread(
             atlasUploads = result.atlasUploads,
             dirty = frame?.dirty ?: 0,
             dirtyRows = result.dirtyRows,
+            backgroundBuildNanos = result.backgroundBuildNanos,
+            foregroundBuildNanos = result.foregroundBuildNanos,
         )?.let { line ->
             Log.i(BENCH_TAG, line)
             BenchmarkLog.sample(line)

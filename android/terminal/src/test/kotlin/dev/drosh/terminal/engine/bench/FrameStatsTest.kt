@@ -29,6 +29,8 @@ class FrameStatsTest {
             atlasUploads = 0,
             dirty = 2,
             dirtyRows = 4,
+            backgroundBuildNanos = 1_000_000L,
+            foregroundBuildNanos = 2_000_000L,
         )
         stats.record(
             startNanos = 4_000_000L,
@@ -44,6 +46,8 @@ class FrameStatsTest {
             atlasUploads = 0,
             dirty = 2,
             dirtyRows = 6,
+            backgroundBuildNanos = 1_500_000L,
+            foregroundBuildNanos = 2_500_000L,
         )
         assertEquals(5f, stats.averageDirtyRows(), 0.001f)
     }

@@ -103,6 +103,8 @@ object RenderBench {
         atlasUploads: Int,
         dirty: Int,
         dirtyRows: Int,
+        backgroundBuildNanos: Long,
+        foregroundBuildNanos: Long,
     ): String? {
         stats.record(
             startNanos = startNanos,
@@ -118,6 +120,8 @@ object RenderBench {
             atlasUploads = atlasUploads,
             dirty = dirty,
             dirtyRows = dirtyRows,
+            backgroundBuildNanos = backgroundBuildNanos,
+            foregroundBuildNanos = foregroundBuildNanos,
         )
         sinceLog += 1
         if (sinceLog < LOG_EVERY_FRAMES) return null
