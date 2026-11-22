@@ -116,3 +116,7 @@ android/terminal/src/main/jniLibs/
 # binary that does not change with our code, and a build that has to fetch it
 # is a build that can be made without one.
 # android/linux/src/main/jniLibs/
+
+# ai agents
+.opencode/
+.freebuff
