@@ -1,6 +1,7 @@
 package dev.drosh.terminal.engine.input
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -96,9 +97,13 @@ class SelectionSnapshotTest {
 
         assertNull(selection.topLeftHandle)
         assertNull(selection.bottomRightHandle)
-        // Word and line actions need a cell; the first visible one is the
-        // only honest fallback for a whole-transcript selection.
-        assertEquals(SelectionCell(0, 0), selection.actionAnchor())
+        // The menu still needs something to hang on even when neither grip has
+        // a row: the visible part of the selection is the box.
+        assertNotNull(selection.box(cellWidth = 10f, cellHeight = 20f, scrollOffsetPx = 0f))
+        // With no endpoint on screen there is no cell to grow a word or line
+        // from; the view supplies the first visible cell as its fallback.
+        assertNull(selection.actionAnchor())
+        assertEquals(SelectionCell(0, 0), selection.actionAnchor(SelectionCell(0, 0)))
     }
 
     @Test
