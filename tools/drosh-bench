@@ -1,0 +1,17 @@
+#!/bin/sh
+# Bridge for Drosh's render benchmark, meant to run inside the Ubuntu shell.
+#
+# The renderer writes its cumulative sample lines to
+# ~/.drosh/benchmark.log (see BenchmarkLog). This script turns the latest one
+# into a readable report without leaving the terminal.
+log="${DROSH_BENCH_LOG:-$HOME/.drosh/benchmark.log}"
+
+if [ ! -f "$log" ]; then
+    echo "no benchmark log: $log" >&2
+    exit 1
+fi
+
+echo "Drosh render benchmark"
+echo "log: $log"
+echo
+tail -n 1 "$log" | tr ' ' '\n' | sed 's/^/  /'
