@@ -185,6 +185,18 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace --max-workers=2
 
+      # The selection model and the clipboard normalizer are pure Kotlin, so
+      # their tests need no device and no emulator. They are named explicitly:
+      # the terminal module's other unit tests use Robolectric and native
+      # shadows, and a failure there is not a failure of this feature.
+      - name: Run selection unit tests
+        working-directory: android
+        run: |
+          ./gradlew :terminal:testDebugUnitTest \
+            --tests 'dev.drosh.terminal.engine.input.SelectionSnapshotTest' \
+            --tests 'dev.drosh.terminal.engine.input.SelectionTextTest' \
+            --no-daemon --stacktrace --max-workers=2
+
       # The identity hash in the migration is a hand-copied constant, and a stale
       # one is invisible here: the build passes and the app crashes on first
       # launch with "Room cannot verify the data integrity". Room writes the real
