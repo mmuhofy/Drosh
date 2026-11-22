@@ -657,6 +657,7 @@ fun GhosttyTerminalHost(
                 },
                 onExtend = { x, y, fromEnd -> pane.extendSelectionTo(x, y, fromEnd) },
                 terminalBackground = Color(backgroundColor),
+                cellHeight = cell.height,
             )
         }
 

@@ -311,17 +311,15 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     fun extendSelectionTo(x: Float, y: Float, fromEnd: Boolean): Boolean {
         val session = sessionHandle
         if (session == 0L) return false
-        val cells = selectedCells ?: return false
         val point = cellAt(x, y) ?: return false
 
         // The anchor is the end that stays: `fromEnd` true means the selection's
         // end is the part that moves, so the start anchors; false means the start
         // moves, so the end anchors.
-        val anchor = if (fromEnd) {
-            cells.first to cells.second
-        } else {
-            selectionEnd ?: (cells.first to cells.second)
-        }
+        val start = selectionStart
+        val end = selectionEnd
+        if (start == null || end == null) return false
+        val anchor = if (fromEnd) start else end
 
         // The gesture is the engine's own, and it is what installs the selection
         // the renderer draws. A snapshot (`selectWordBetween`) only returns text:
@@ -358,12 +356,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             )
             if (text.isEmpty()) return false
             selected = text
-            setSelectedCells(anchor.first, anchor.second, 1, chrome = true)
+            setSelectionRange(anchor.first, anchor.second, point.first, point.second, chrome = true)
             renderThread.invalidate()
             return true
         }
-        setSelectedCells(result[0], result[1], selectionLength(result), chrome = true)
-        setSelectionEnd(result[2], result[3])
+        setSelectionRange(result[0], result[1], result[2], result[3], chrome = true)
         val engineText = NativeSelection.text(session)
         if (engineText.isNotEmpty()) selected = engineText
         renderThread.invalidate()
@@ -828,10 +825,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     // the menu hangs on them, and the drag that follows grows
                     // the selection from the anchor.
                     if (pressed.size >= 4) {
-                        setSelectedCells(pressed[0], pressed[1], selectionLength(pressed), chrome = true)
+                        setSelectionRange(pressed[0], pressed[1], pressed[2], pressed[3], chrome = true)
                         setSelectionEnd(pressed[2], pressed[3])
                     } else {
-                        setSelectedCells(cell.first, cell.second, 1, chrome = true)
+                        setSelectionRange(cell.first, cell.second, cell.first, cell.second, chrome = true)
                     }
                     performHapticFeedback(
                         android.view.HapticFeedbackConstants.LONG_PRESS,
@@ -863,20 +860,29 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 val session = sessionHandle
                 if (longPressSelecting && session != 0L) {
                     val cell = cellAt(current.x, current.y)
-                    val anchor = selectionAnchor
-                    if (anchor != null && cell != null) {
-                        // The word between where the finger went down and where
-                        // it is now: the engine's own answer for a drag.
-                        val text = NativeSelection.selectWordBetween(
+                    if (cell != null) {
+                        // The engine's own drag: it extends the selection that
+                        // the long press began and answers with the cells it
+                        // now covers. A snapshot would only return text and
+                        // leave the rendered highlight where it was.
+                        val result = NativeSelection.drag(
                             session,
-                            anchor.first,
-                            anchor.second,
                             cell.first,
                             cell.second,
+                            (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1),
+                            cellWidth.toInt().coerceAtLeast(1),
+                            height.coerceAtLeast(1),
                         )
-                        if (text.isNotEmpty()) {
-                            selected = text
-                            setSelectedCells(anchor.first, anchor.second, 1, chrome = true)
+                        if (result != null && result.size >= 4) {
+                            setSelectionRange(
+                                result[0],
+                                result[1],
+                                result[2],
+                                result[3],
+                                chrome = true,
+                            )
+                            val text = NativeSelection.text(session)
+                            if (text.isNotEmpty()) selected = text
                         }
                         renderThread.invalidate()
                         return true
@@ -993,7 +999,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     NativeSelection.BEHAVIOR_WORD,
                 )
                 if (cells != null && cells.size >= 4) {
-                    setSelectedCells(cells[0], cells[1], selectionLength(cells), chrome = true)
+                    setSelectionRange(cells[0], cells[1], cells[2], cells[3], chrome = true)
                     setSelectionEnd(cells[2], cells[3])
                 }
             }
@@ -1105,27 +1111,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         selected = NativeSelection.text(session)
         selectionRect = null
-        setSelectedCells(cells[0], cells[1], selectionLength(cells), chrome = false)
+        setSelectionRange(cells[0], cells[1], cells[2], cells[3], chrome = false)
         setSelectionEnd(cells[2], cells[3])
         renderThread.invalidate()
         return selected.isNotEmpty()
-    }
-
-    /**
-     * How many cells the selection covers.
-     *
-     * The engine answers with the start and the end of the range; the width is
-     * the columns between them, and a selection that wraps to the next line
-     * covers that line's cells too.
-     */
-    private fun selectionLength(cells: IntArray): Int {
-        val startRow = cells[0]
-        val startColumn = cells[1]
-        val endRow = cells[2]
-        val endColumn = cells[3]
-        val columns = (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1)
-        if (startRow == endRow) return (endColumn - startColumn + 1).coerceAtLeast(1)
-        return (endRow - startRow + 1) * columns
     }
 
     /**
@@ -1504,13 +1493,14 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private var selectionRect: android.graphics.Rect? = null
 
     /**
-     * The selected cells, as a row, a column and a length.
+     * The selection's start and end cells.
      *
-     * The rectangle the chrome hangs the selection menu on is these cells'
-     * rectangle: the menu has to know where the selection is on the screen, and
-     * the cells are where it is.
+     * The rectangle the chrome hangs the selection menu on is the range
+     * between them: a selection can wrap across rows, and a single
+     * row/column/length cannot say where the far end is.
      */
-    private var selectedCells: Triple<Int, Int, Int>? = null
+    private var selectionStart: Pair<Int, Int>? = null
+    private var selectionEnd: Pair<Int, Int>? = null
 
     /**
      * Told that the selection changed.
@@ -1520,9 +1510,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * not exist.
      */
     var onSelectionChanged: ((Boolean) -> Unit)? = null
-
-    /** Where the selection ends, in cells: the other handle's anchor. */
-    private var selectionEnd: Pair<Int, Int>? = null
 
     /** The selected text, or "". */
     fun selectedText(): String {
@@ -1542,47 +1529,48 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     /** The selection's bounds in pixels, computed synchronously. */
     private fun computeSelectionBounds(): android.graphics.Rect? {
-        val cells = selectedCells ?: return null
+        val start = selectionStart ?: return null
+        val end = selectionEnd ?: return null
         val cellW = cellWidth.coerceAtLeast(1f)
         val cellH = cellHeight.coerceAtLeast(1f)
-        val top = cells.first * cellH - renderThread.scrollOffsetPx
+        val topRow = minOf(start.first, end.first)
+        val bottomRow = maxOf(start.first, end.first)
+        val top = topRow * cellH - renderThread.scrollOffsetPx
+        val left = minOf(start.second, end.second)
+        val right = maxOf(start.second, end.second)
         return android.graphics.Rect(
-            (cells.second * cellW).toInt(),
+            (left * cellW).toInt(),
             top.toInt(),
-            ((cells.second + cells.third) * cellW).toInt(),
-            (top + cellH).toInt(),
+            ((right + 1) * cellW).toInt(),
+            (top + (bottomRow - topRow + 1) * cellH).toInt(),
         )
     }
 
     /** The selection's bounds in pixels, or null. */
     fun selectionBounds(): android.graphics.Rect? {
-        // The renderer's rectangle first: the engine marks the selected cells
-        // and the renderer draws them, so it is the one that knows where they
-        // land. The cells this view remembers are the fallback for the moment
-        // before the next frame arrives.
+        // The view's own range first: it is updated the moment the gesture
+        // installs a selection, while the renderer's rectangle waits for the
+        // next frame. A handle that waits for a frame appears late.
+        computeSelectionBounds()?.let { return it }
         renderThread.selectionBounds?.let { return it }
-        val cells = selectedCells ?: return selectionRect
-        val cellW = cellWidth.coerceAtLeast(1f)
-        val cellH = cellHeight.coerceAtLeast(1f)
-        // The picture may be shifted inside the viewport, and the cells are
-        // where the *grid* is, so the shift comes off.
-        val top = cells.first * cellH - renderThread.scrollOffsetPx
-        return android.graphics.Rect(
-            (cells.second * cellW).toInt(),
-            top.toInt(),
-            ((cells.second + cells.third) * cellW).toInt(),
-            (top + cellH).toInt(),
-        )
+        return selectionRect
     }
 
     /**
-     * Records the selected cells and tells the chrome.
+     * Records the selection's range and tells the chrome.
      *
-     * The row and the column are the grid's; the length is how many cells the
-     * selection covers.
+     * The range is the engine's own answer: a start cell and an end cell, which
+     * may be on different rows. The chrome's rectangle is the box between them.
      */
-    private fun setSelectedCells(row: Int, column: Int, length: Int, chrome: Boolean) {
-        selectedCells = Triple(row, column, length.coerceAtLeast(1))
+    private fun setSelectionRange(
+        startRow: Int,
+        startColumn: Int,
+        endRow: Int,
+        endColumn: Int,
+        chrome: Boolean,
+    ) {
+        selectionStart = startRow to startColumn
+        selectionEnd = endRow to endColumn
         _selectionBounds.value = computeSelectionBounds()
         if (chrome) {
             chromeSelection = true
@@ -1591,11 +1579,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             chromeSelection = false
             onSelectionChanged?.invoke(false)
         }
-    }
-
-    /** Records the selection's end, from the engine's own answer. */
-    private fun setSelectionEnd(row: Int, column: Int) {
-        selectionEnd = row to column
     }
 
     /** Select the word under a cell; returns true when something was selected. */
@@ -1610,7 +1593,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (session == 0L) return false
         selected = NativeSelection.selectAll(session)
         selectionRect = null
-        setSelectedCells(0, 0, 1, chrome = true)
+        setSelectionRange(0, 0, (height / cellHeight.coerceAtLeast(1f)).toInt().coerceAtLeast(1) - 1, (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1) - 1, chrome = true)
         renderThread.invalidate()
         return selected.isNotEmpty()
     }
@@ -1619,7 +1602,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     fun clearSelection() {
         selected = ""
         selectionRect = null
-        selectedCells = null
         _selectionBounds.value = null
         if (chromeSelection) {
             chromeSelection = false
@@ -1651,7 +1633,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         selectionRect = null
         // The cells the selection covers: the text's own length is the width of
         // a word, and a line is as long as the text it holds.
-        setSelectedCells(row, column, selected.length.coerceAtLeast(1), chrome = false)
+        val columns = (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1)
+        val endColumn = (column + selected.length.coerceAtLeast(1) - 1).coerceAtMost(columns - 1)
+        setSelectionRange(row, column, row, endColumn, chrome = false)
         renderThread.invalidate()
         return selected.isNotEmpty()
     }

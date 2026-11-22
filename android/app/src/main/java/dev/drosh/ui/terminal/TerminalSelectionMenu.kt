@@ -71,6 +71,8 @@ fun TerminalSelectionMenu(
     onExtend: (x: Float, y: Float, fromEnd: Boolean) -> Unit,
     /** The terminal's background, so the handles can contrast with it. */
     terminalBackground: Color = Color.Black,
+    /** The cell's height in pixels, so the grips sit on their own rows. */
+    cellHeight: Float = 0f,
     modifier: Modifier = Modifier,
 ) {
     // Sized in dp and converted to pixels at draw time, so the handle keeps its
@@ -80,17 +82,19 @@ fun TerminalSelectionMenu(
     val density = LocalDensity.current
     val handleSizePx = with(density) { handleSize.toPx() }
 
-    // The handle hangs just below the selection, so it does not cover the text
-    // it is anchored to. The two grips sit at the selection's bottom corners:
-    // the left one moves the start of the selection, the right one the end.
-    val handleY = paneOrigin.y + bounds.bottom.toFloat() + handleSizePx / 2f
+    // The grips sit on the selection's own rows: the start grip on the first
+    // row, the end grip on the last. A single-row selection puts both at the
+    // same height, which is the usual case.
+    val cellH = if (cellHeight > 0f) cellHeight else bounds.height().toFloat()
+    val startCenterY = paneOrigin.y + bounds.top.toFloat() + cellH / 2f
+    val endCenterY = paneOrigin.y + bounds.bottom.toFloat() - cellH / 2f
 
     Box(modifier = modifier) {
         // The handles, at the selection's ends. `fromEnd` is true for the end
         // that the right grip moves: the left grip moves the start.
         Handle(
             centerX = paneOrigin.x + bounds.left.toFloat(),
-            centerY = handleY,
+            centerY = startCenterY,
             size = handleSize,
             paneOrigin = paneOrigin,
             terminalBackground = terminalBackground,
@@ -98,7 +102,7 @@ fun TerminalSelectionMenu(
         )
         Handle(
             centerX = paneOrigin.x + bounds.right.toFloat(),
-            centerY = handleY,
+            centerY = endCenterY,
             size = handleSize,
             paneOrigin = paneOrigin,
             terminalBackground = terminalBackground,
@@ -156,6 +160,9 @@ private fun Handle(
 ) {
     val density = LocalDensity.current
     val sizePx = with(density) { size.toPx() }
+    // The finger's target is larger than the grip: a 22 dp dot is hard to catch
+    // on the first try, and a missed grab reads as a handle that does not work.
+    val touchPx = with(density) { 44.dp.toPx() }
 
     // Contrast against whatever the terminal is drawn on: a light handle on a
     // dark terminal, a dark handle on a light one. The outline is the other way
@@ -169,38 +176,42 @@ private fun Handle(
         modifier = Modifier
             .offset {
                 IntOffset(
-                    (centerX - sizePx / 2f).roundToInt(),
-                    (centerY - sizePx / 2f).roundToInt(),
+                    (centerX - touchPx / 2f).roundToInt(),
+                    (centerY - touchPx / 2f).roundToInt(),
                 )
             }
-            .size(size)
-            .shadow(elevation = 5.dp, shape = CircleShape, clip = false)
-            .clip(CircleShape)
-            .background(handleFill)
-            .border(2.dp, handleStroke, CircleShape)
+            .size(44.dp)
             .pointerInput(Unit) {
                 detectDragGestures { change, _ ->
                     change.consume()
-                    // The handle's top-left corner is where the composable was
-                    // placed, so the finger's screen position is that corner plus
-                    // the gesture's local position. Taking the pane's origin off
-                    // turns it into the pane's own pixels, which is what the
-                    // engine expects.
-                    val screenX = (centerX - sizePx / 2f) + change.position.x
-                    val screenY = (centerY - sizePx / 2f) + change.position.y
+                    // The touch box is centred on the grip, so the finger's
+                    // screen position is the box's top-left plus the gesture's
+                    // local position.
+                    val screenX = (centerX - touchPx / 2f) + change.position.x
+                    val screenY = (centerY - touchPx / 2f) + change.position.y
                     onDrag(screenX - paneOrigin.x, screenY - paneOrigin.y)
                 }
             },
     ) {
-        // A small inner dot so the grip reads as a handle rather than a plain
-        // circle. Drawn in the contrasting colour.
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
-                .size((size.value * 0.35f).dp)
+                .size(size)
+                .shadow(elevation = 5.dp, shape = CircleShape, clip = false)
                 .clip(CircleShape)
-                .background(handleStroke),
-        )
+                .background(handleFill)
+                .border(2.dp, handleStroke, CircleShape),
+        ) {
+            // A small inner dot so the grip reads as a handle rather than a
+            // plain circle. Drawn in the contrasting colour.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size((size.value * 0.35f).dp)
+                    .clip(CircleShape)
+                    .background(handleStroke),
+            )
+        }
     }
 }
 
@@ -218,6 +229,7 @@ private fun TerminalSelectionMenuPreview() {
         onOpenUrl = {},
         onExtend = { _, _, _ -> },
         terminalBackground = Color(0xFF1E1E1E),
+        cellHeight = 24f,
     )
 }
 
