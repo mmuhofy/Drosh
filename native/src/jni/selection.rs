@@ -18,10 +18,10 @@
 use jni::objects::{JClass, JString};
 use jni::JNIEnv;
 
-use super::{jint, jlong, jstring, jintArray};
+use super::{jboolean, jint, jlong, jstring, jintArray};
 use super::{new_int_array, new_string, read_string, session_lock};
 use crate::ghostty;
-use crate::session::Session;
+use crate::session::{SelectionViewport, Session};
 
 /// Select the word under (`row`, `column`) and return the text.
 #[no_mangle]
@@ -128,22 +128,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
         None,
         Some(behavior.max(0) as u32),
     );
-    // The cells, when there are any. An empty array means the event was
-    // applied and produced no selection yet — the engine makes the selection
-    // when the gesture ends, not when it starts — and a null means the event
-    // was refused.
-    match cells {
-        Some(cells) => new_int_array(
-            &mut env,
-            &[
-                cells.start_row as i32,
-                cells.start_column as i32,
-                cells.end_row as i32,
-                cells.end_column as i32,
-            ],
-        ),
-        None => new_int_array(&mut env, &[]),
-    }
+    selection_array(&mut env, cells)
 }
 
 /// Feed the selection gesture a drag, with the geometry it reads cells with.
@@ -177,22 +162,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
         Some(geometry),
         Some(1),
     );
-    // The cells, when there are any. An empty array means the event was
-    // applied and produced no selection yet — the engine makes the selection
-    // when the gesture ends, not when it starts — and a null means the event
-    // was refused.
-    match cells {
-        Some(cells) => new_int_array(
-            &mut env,
-            &[
-                cells.start_row as i32,
-                cells.start_column as i32,
-                cells.end_row as i32,
-                cells.end_column as i32,
-            ],
-        ),
-        None => new_int_array(&mut env, &[]),
-    }
+    selection_array(&mut env, cells)
 }
 
 /// Feed the selection gesture a release.
@@ -218,21 +188,65 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
         None,
         Some(behavior.max(0) as u32),
     );
-    // The cells, when there are any. An empty array means the event was
-    // applied and produced no selection yet — the engine makes the selection
-    // when the gesture ends, not when it starts — and a null means the event
-    // was refused.
-    match cells {
-        Some(cells) => new_int_array(
-            &mut env,
-            &[
-                cells.start_row as i32,
-                cells.start_column as i32,
-                cells.end_row as i32,
-                cells.end_column as i32,
-            ],
-        ),
-        None => new_int_array(&mut env, &[]),
+    selection_array(&mut env, cells)
+}
+
+/// Move one of the selection's two grips to a viewport cell.
+///
+/// `top_left` names the grip, not the selection's internal direction: the
+/// order the user sees is what the two handles describe.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectionMoveBoundary(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    top_left: jboolean,
+    row: jint,
+    column: jint,
+) -> jintArray {
+    let Some(mut session) = session_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    if row < 0 || column < 0 {
+        return std::ptr::null_mut();
+    }
+    let cells = session.selection_move_boundary(top_left != 0, row as u16, column as u16);
+    selection_array(&mut env, cells)
+}
+
+/// The selection's visible box and handles, or an empty array.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectionViewport(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jintArray {
+    let Some(session) = session_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    selection_array(&mut env, session.selection_viewport())
+}
+
+/// Drop the terminal's selection.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectionClear(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) {
+    if let Some(mut session) = session_lock(handle) {
+        session.clear_selection();
+    }
+}
+
+/// A viewport answer, as the eight ints the Kotlin side reads.
+///
+/// An empty array means the engine had no answer — no selection, or a refusal
+/// — which the caller treats the same as "nothing is selected".
+fn selection_array(env: &mut JNIEnv, viewport: Option<SelectionViewport>) -> jintArray {
+    match viewport {
+        Some(viewport) => new_int_array(env, &viewport.to_array()),
+        None => new_int_array(env, &[]),
     }
 }
 
@@ -422,10 +436,33 @@ fn install(session: &Session, selection: &ghostty::GhosttySelection) {
     }
 }
 
-/// Format a selection snapshot into a string.
+/// Format a selection snapshot for the clipboard.
 fn format(session: &Session, selection: ghostty::GhosttySelection) -> Option<String> {
+    format_with(session, selection, true, true)
+}
+
+/// Format a selection snapshot into a string.
+///
+/// Plain text is the clipboard's contract: characters and the spaces between
+/// them, never colour, style or escape metadata. Unwrapping folds a
+/// soft-wrapped line back into one line, and trimming removes the empty cells
+/// that fill the rest of a row. Without both, a copied paragraph arrives with
+/// a ragged block of trailing spaces and a hard newline at every screen-width
+/// boundary.
+///
+/// The transcript keeps the layout (`unwrap = false`, `trim = false`): it is a
+/// picture of what was on screen, not a paste into a shell.
+fn format_with(
+    session: &Session,
+    selection: ghostty::GhosttySelection,
+    unwrap: bool,
+    trim: bool,
+) -> Option<String> {
     let mut options: ghostty::GhosttyTerminalSelectionFormatOptions = unsafe { std::mem::zeroed() };
     options.size = std::mem::size_of::<ghostty::GhosttyTerminalSelectionFormatOptions>();
+    options.emit = ghostty::GHOSTTY_FORMATTER_FORMAT_PLAIN;
+    options.unwrap = unwrap;
+    options.trim = trim;
     options.selection = &selection;
 
     let mut out_ptr: *mut u8 = std::ptr::null_mut();
@@ -462,7 +499,7 @@ pub fn transcript(session: &Session) -> Option<String> {
     if !ghostty::ok(result) {
         return None;
     }
-    format(session, selection)
+    format_with(session, selection, false, false)
 }
 
 /// Search the grid and return `(row, column, length)` triples.

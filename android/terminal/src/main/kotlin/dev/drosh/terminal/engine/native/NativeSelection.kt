@@ -71,6 +71,42 @@ object NativeSelection {
         return nativeSelectionRelease(handle, row, column, behavior)
     }
 
+    /**
+     * The selection's visible box and its two grips, in viewport cells.
+     *
+     * Eight values: first row/column and last row/column of the visible box,
+     * then the top-left and bottom-right endpoints of the selection. A `-1`
+     * endpoint has scrolled off the screen; the box can still have visible
+     * cells, which is why the two are answered separately.
+     */
+    fun viewport(handle: Long): IntArray? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeSelectionViewport(handle)
+    }
+
+    /**
+     * Move one grip to a cell.
+     *
+     * `topLeft` names the grip the user is dragging, not the selection's
+     * internal direction. The engine orders the selection first, so a range
+     * the user made upward still has its top grip on the top corner.
+     */
+    fun moveBoundary(
+        handle: Long,
+        topLeft: Boolean,
+        row: Int,
+        column: Int,
+    ): IntArray? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeSelectionMoveBoundary(handle, topLeft, row, column)
+    }
+
+    /** Drop the terminal's selection, so the highlight leaves the next frame. */
+    fun clear(handle: Long) {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return
+        nativeSelectionClear(handle)
+    }
+
     /** The text of the terminal's current selection, or "". */
     fun text(handle: Long): String {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return ""
@@ -137,4 +173,12 @@ object NativeSelection {
         behavior: Int,
     ): IntArray?
     private external fun nativeSelectionText(handle: Long): String?
+    private external fun nativeSelectionViewport(handle: Long): IntArray?
+    private external fun nativeSelectionMoveBoundary(
+        handle: Long,
+        topLeft: Boolean,
+        row: Int,
+        column: Int,
+    ): IntArray?
+    private external fun nativeSelectionClear(handle: Long)
 }

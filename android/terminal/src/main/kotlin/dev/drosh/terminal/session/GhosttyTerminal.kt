@@ -448,9 +448,23 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     @Volatile
     var atLiveEdge: () -> Boolean = { true }
 
-    /** Moves the selection's end to a point, in the pane's pixels. */
-    override fun extendSelectionTo(x: Float, y: Float, fromEnd: Boolean): Boolean =
-        view.extendSelectionTo(x, y, fromEnd)
+    /** Moves one selection grip to a point, in the pane's pixels. */
+    override fun extendSelectionTo(x: Float, y: Float, topLeft: Boolean): Boolean =
+        view.extendSelectionTo(x, y, topLeft)
+
+    /** The grip's finger lifted; edge auto-scroll can stop following it. */
+    fun endSelectionGripDrag() = view.endSelectionHandleDrag()
+
+    override fun selectionAnchorCell(): Pair<Int, Int>? = view.selectionAnchorCell()
+
+    /** The top grip's viewport cell, or null when scrolled off screen. */
+    fun selectionTopLeftCell(): Pair<Int, Int>? = view.selectionTopLeftCell()
+
+    /** The bottom grip's viewport cell, or null when scrolled off screen. */
+    fun selectionBottomRightCell(): Pair<Int, Int>? = view.selectionBottomRightCell()
+
+    /** The picture's sub-row shift, in pixels. */
+    fun selectionScrollOffsetPx(): Float = view.selectionScrollOffsetPx()
 
     /** The colour the bell's wash is in, from the theme. */
     fun setBellColour(argb: Int) {
@@ -564,9 +578,11 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
 
     override fun copySelection(): Boolean = view.copySelection()
 
-    override fun selectWord(row: Int, col: Int): Boolean = view.selectWord(row, col)
+    override fun selectWord(row: Int, col: Int, chrome: Boolean): Boolean =
+        view.selectWord(row, col, chrome)
 
-    override fun selectLine(row: Int, col: Int): Boolean = view.selectLine(row, col)
+    override fun selectLine(row: Int, col: Int, chrome: Boolean): Boolean =
+        view.selectLine(row, col, chrome)
 
     override fun selectAll(): Boolean = view.selectAll()
 

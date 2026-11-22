@@ -1,6 +1,5 @@
 package dev.drosh.ui.terminal
 
-import android.content.ClipboardManager
 import android.graphics.Bitmap
 import android.util.Log
 import android.os.Handler
@@ -18,7 +17,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
@@ -150,6 +148,13 @@ fun GhosttyTerminalHost(
      * the URI, and the caller decides what opening it means.
      */
     onUrlClick: (String) -> Unit = {},
+    /**
+     * Search the terminal for the selected text.
+     *
+     * The find bar belongs to the screen, not the pane: one bar serves both
+     * panes and remembers one query. The pane only hands the text up.
+     */
+    onSearchSelection: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -250,22 +255,6 @@ fun GhosttyTerminalHost(
     // appeared.
     val selectionBounds by pane.view.selectionBoundsFlow.collectAsStateWithLifecycle()
     val hasSelection = selectionBounds != null
-    val selectionText by remember(hasSelection, selectionBounds) {
-        derivedStateOf {
-            if (!hasSelection) {
-                null
-            } else {
-                pane.selectionText().takeIf { it.isNotEmpty() }
-            }
-        }
-    }
-    val selectionUrl = remember(selectionText) {
-        selectionText?.let { dev.drosh.domain.UrlDetector.findUrls(it).singleOrNull()?.url }
-    }
-    val hasClipboardText = remember(hasSelection) {
-        if (!hasSelection) return@remember false
-        context.getSystemService(ClipboardManager::class.java)?.hasPrimaryClip() == true
-    }
     var zoomSizeSp by remember { mutableStateOf(0f) }
 
     // The diagnostics eye. The panel is off by default: a terminal's surface
@@ -636,28 +625,54 @@ fun GhosttyTerminalHost(
         // on top of the text it is about; `paneOrigin` is zero because this Box
         // *is* the pane, and the bounds are already in the pane's pixels.
         if (hasSelection && selectionBounds != null) {
+            // The grips are placed from the engine's endpoints, not the box's
+            // corners: a wrapped selection that starts mid-row has its top
+            // endpoint there, while the box's left edge is column zero.
+            val scrollOffset = pane.selectionScrollOffsetPx()
+            val topLeft = pane.selectionTopLeftCell()?.let { (row, column) ->
+                Offset(column * cell.width, row * cell.height - scrollOffset)
+            }
+            val bottomRight = pane.selectionBottomRightCell()?.let { (row, column) ->
+                Offset(column * cell.width, row * cell.height - scrollOffset)
+            }
             TerminalSelectionMenu(
                 bounds = selectionBounds!!,
                 paneOrigin = Offset.Zero,
-                hasClipboardText = hasClipboardText,
-                url = selectionUrl,
                 onCopy = { pane.copySelection() },
-                onPaste = { pane.pasteClipboard() },
-                onSelectAll = { pane.selectAll() },
-                onOpenUrl = { /* handled by the host's own link tap */ },
-                onShare = {
-                    val text = pane.selectionText()
-                    if (text.isNotEmpty()) {
-                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(android.content.Intent.EXTRA_TEXT, text)
-                        }
-                        context.startActivity(android.content.Intent.createChooser(intent, null))
+                onSelectWord = {
+                    pane.selectionAnchorCell()?.let { (row, column) ->
+                        pane.selectWord(row, column, chrome = true)
                     }
                 },
-                onExtend = { x, y, fromEnd -> pane.extendSelectionTo(x, y, fromEnd) },
+                onSelectLine = {
+                    pane.selectionAnchorCell()?.let { (row, column) ->
+                        pane.selectLine(row, column, chrome = true)
+                    }
+                },
+                onSelectAll = { pane.selectAll() },
+                onSearch = {
+                    // The engine searches one terminal line at a time, so a
+                    // multi-line selection is searched by its first meaningful
+                    // line rather than by a needle that contains a newline and
+                    // can never match.
+                    val text = pane.selectionText()
+                        .lineSequence()
+                        .firstOrNull { it.isNotBlank() }
+                        ?.trim()
+                        .orEmpty()
+                    if (text.isNotEmpty()) onSearchSelection(text)
+                },
+                onDismiss = { pane.clearSelection() },
+                onExtend = { x, y, topLeft -> pane.extendSelectionTo(x, y, topLeft) },
+                onExtendEnd = { pane.endSelectionGripDrag() },
+                topLeftHandle = topLeft,
+                bottomRightHandle = bottomRight,
                 terminalBackground = Color(backgroundColor),
                 cellHeight = cell.height,
+                // The menu places and clamps itself against the pane's edges,
+                // so it has to be measured at the pane's size rather than at
+                // the size of its own two grips.
+                modifier = Modifier.fillMaxSize(),
             )
         }
 

@@ -1243,6 +1243,17 @@ private fun ReadyScreen(
                     customFontUri = customFontUri,
                     onBoundsChanged = { terminalBounds = it },
                     onUrlClick = { browserUrl = it },
+                    onSearchSelection = { query ->
+                        // One find bar serves both panes and one terminal's
+                        // matches at a time; opening it from a selection is
+                        // what makes "search what I just selected" a single
+                        // gesture instead of a copy, a bar and a paste.
+                        hideKeyboard()
+                        findState = null
+                        searchQuery = query
+                        scannedQuery = query
+                        searchActive = true
+                    },
                     onThumbnail = { id, bitmap ->
                         sessionSwitcherViewModel.setThumbnail(id, bitmap)
                     },
@@ -1304,6 +1315,13 @@ private fun ReadyScreen(
                     // not looking at.
                     onBoundsChanged = {},
                     onUrlClick = { browserUrl = it },
+                    onSearchSelection = { query ->
+                        hideKeyboard()
+                        findState = null
+                        searchQuery = query
+                        scannedQuery = query
+                        searchActive = true
+                    },
                     onThumbnail = { id, bitmap ->
                         sessionSwitcherViewModel.setThumbnail(id, bitmap)
                     },
@@ -1909,6 +1927,8 @@ private fun TerminalPaneBody(
     customFontUri: String,
     onBoundsChanged: (Rect) -> Unit,
     onUrlClick: (String) -> Unit,
+    /** The selection asked the screen's find bar to search its text. */
+    onSearchSelection: (String) -> Unit = {},
     /** Told this pane's last frame, for the session grid's card. */
     onThumbnail: (String, ImageBitmap) -> Unit,
 ) {
@@ -2047,6 +2067,7 @@ private fun TerminalPaneBody(
                 // resolves the cell against the engine and hands the URI up;
                 // the screen decides what opening it means.
                 onUrlClick = onUrlClick,
+                onSearchSelection = onSearchSelection,
                 onThumbnail = onThumbnail,
                 modifier = Modifier.fillMaxSize(),
             )

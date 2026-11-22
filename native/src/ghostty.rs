@@ -295,6 +295,14 @@ pub const GHOSTTY_TERMINAL_OPT_SELECTION: GhosttyTerminalOption =
 pub const GHOSTTY_TERMINAL_DATA_SELECTION: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_SELECTION;
 
+/// Top-left to bottom-right endpoint order, as the engine defines it.
+pub const GHOSTTY_SELECTION_ORDER_FORWARD: GhosttySelectionOrder =
+    GhosttySelectionOrder_GHOSTTY_SELECTION_ORDER_FORWARD;
+
+/// Plain text: no escape sequences and no style metadata.
+pub const GHOSTTY_FORMATTER_FORMAT_PLAIN: GhosttyFormatterFormat =
+    GhosttyFormatterFormat_GHOSTTY_FORMATTER_FORMAT_PLAIN;
+
 // --- the system interface ---------------------------------------------------
 
 /// Install a PNG decoder callback for the kitty graphics protocol.

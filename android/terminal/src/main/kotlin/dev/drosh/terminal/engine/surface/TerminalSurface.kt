@@ -12,6 +12,10 @@ import android.view.SurfaceView
 import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.terminal.engine.input.PinchMachine
 import dev.drosh.terminal.engine.input.ScrollMachine
+import dev.drosh.terminal.engine.input.SelectionCell
+import dev.drosh.terminal.engine.input.SelectionEdges
+import dev.drosh.terminal.engine.input.SelectionSnapshot
+import dev.drosh.terminal.engine.input.SelectionText
 import dev.drosh.terminal.engine.native.NativeInput
 import dev.drosh.terminal.engine.native.NativePty
 import dev.drosh.terminal.engine.native.NativeSelection
@@ -167,6 +171,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     // is still moving.
                     NativeSession.scroll(session, NativeSession.SCROLL_ROW, after.offset)
                 }
+                // Reflow changes every cell's row and column. The selection
+                // is kept by the engine in grid references, so it survives the
+                // change; only its viewport shape has to be read again.
+                syncSelectionAfterViewportChange()
                 // The picture's shift is measured in the old cell's pixels, and
                 // the cell is what changed: it starts again from a row.
                 scrollMachine.reset()
@@ -308,63 +316,40 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * selection they did not get right: the anchor is the *other* end, so the
      * drag grows the selection towards the finger.
      */
-    fun extendSelectionTo(x: Float, y: Float, fromEnd: Boolean): Boolean {
+    fun extendSelectionTo(x: Float, y: Float, topLeft: Boolean): Boolean {
         val session = sessionHandle
         if (session == 0L) return false
-        val point = cellAt(x, y) ?: return false
+        val cell = cellAt(x, y)
+        val rows = (height / cellHeight.coerceAtLeast(1f)).toInt().coerceAtLeast(1)
+        val row = (cell?.first ?: 0).coerceIn(0, rows - 1)
+        val column = (cell?.second ?: lastSelectionDragColumn)
+            .coerceIn(0, selectionColumns() - 1)
 
-        // The anchor is the end that stays: `fromEnd` true means the selection's
-        // end is the part that moves, so the start anchors; false means the start
-        // moves, so the end anchors.
-        val start = selectionStart
-        val end = selectionEnd
-        if (start == null || end == null) return false
-        val anchor = if (fromEnd) start else end
-
-        // The gesture is the engine's own, and it is what installs the selection
-        // the renderer draws. A snapshot (`selectWordBetween`) only returns text:
-        // it leaves the rendered highlight where it was, so the handle would
-        // appear to drag a single cell while the highlight stayed put. Feeding
-        // the gesture a press, a drag and a release installs the selection at
-        // the new range and answers with the cells it covers.
-        NativeSelection.press(session, anchor.first, anchor.second, NativeSelection.BEHAVIOR_WORD)
-        val dragged = NativeSelection.drag(
+        // The grip moves one endpoint of the selection that already exists.
+        // Starting a new gesture here would count a click, and a click after a
+        // word selection means "select a word again" — the grip would change
+        // the selection's behaviour instead of its size.
+        lastSelectionDragTopLeft = topLeft
+        lastSelectionDragColumn = column
+        lastSelectionDragCell = SelectionCell(row, column)
+        selectionGestureActive = true
+        val result = NativeSelection.moveBoundary(
             session,
-            point.first,
-            point.second,
-            (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1),
-            cellWidth.toInt().coerceAtLeast(1),
-            height.coerceAtLeast(1),
+            topLeft,
+            row,
+            column,
         )
-        val released = NativeSelection.release(
-            session,
-            point.first,
-            point.second,
-            NativeSelection.BEHAVIOR_WORD,
-        )
-        val result = released ?: dragged
-        if (result == null || result.size < 4) {
-            // The gesture refused the point (off the grid, scrolled out of
-            // range). Fall back to the snapshot so the drag still reports text,
-            // even though the rendered highlight cannot follow.
-            val text = NativeSelection.selectWordBetween(
-                session,
-                anchor.first,
-                anchor.second,
-                point.first,
-                point.second,
-            )
-            if (text.isEmpty()) return false
-            selected = text
-            setSelectionRange(anchor.first, anchor.second, point.first, point.second, chrome = true)
-            renderThread.invalidate()
-            return true
-        }
-        setSelectionRange(result[0], result[1], result[2], result[3], chrome = true)
-        val engineText = NativeSelection.text(session)
-        if (engineText.isNotEmpty()) selected = engineText
-        renderThread.invalidate()
+        if (!applySelectionSnapshot(result, chrome = true)) return false
+        updateSelectionEdge(y)
+        renderThread.invalidateFull()
         return true
+    }
+
+    /** The grip's finger lifted; edge auto-scroll has nothing left to follow. */
+    fun endSelectionHandleDrag() {
+        selectionGestureActive = false
+        stopSelectionAutoScroll()
+        longPressSelecting = false
     }
 
     /** The colour a search match is drawn in, from the theme. */
@@ -409,6 +394,12 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         mouseDragging = false
         mouseDragCellX = -1
         mouseDragCellY = -1
+        longPressSelecting = false
+        selectionGestureActive = false
+        stopSelectionAutoScroll()
+        selectionSnapshot = null
+        engineHasSelection = false
+        _selectionBounds.value = null
     }
 
     /** Tell the loop the font's cell changed, and the grid is laid out again. */
@@ -417,6 +408,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         cellHeight = height
         this.fontPx = fontPx
         renderThread.post(RenderThread.Command.Cell(width, height, fontPx))
+        // A cell is the unit the selection box is measured in. A new cell with
+        // the old rows would leave the menu and grips a cell away from the
+        // text they belong to.
+        if (selectionSnapshot != null) refreshSelectionFromEngine(chromeSelection)
     }
 
     /**
@@ -431,6 +426,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         cellHeight = height
         this.fontPx = fontPx
         renderThread.post(RenderThread.Command.Cell(width, height, fontPx, reflow = false))
+        if (selectionSnapshot != null) refreshSelectionFromEngine(chromeSelection)
     }
 
     /** The sub-line scroll remainder, in pixels — drawing only. */
@@ -820,16 +816,13 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 )
                 if (pressed != null) {
                     longPressSelecting = true
-                    selectionAnchor = cell
+                    selectionGestureActive = true
+                    lastSelectionDragCell = SelectionCell(cell.first, cell.second)
+                    lastSelectionDragColumn = cell.second
                     // The word the engine selected, and the cells it covers:
                     // the menu hangs on them, and the drag that follows grows
                     // the selection from the anchor.
-                    if (pressed.size >= 4) {
-                        setSelectionRange(pressed[0], pressed[1], pressed[2], pressed[3], chrome = true)
-                        setSelectionEnd(pressed[2], pressed[3])
-                    } else {
-                        setSelectionRange(cell.first, cell.second, cell.first, cell.second, chrome = true)
-                    }
+                    applySelectionSnapshot(pressed, chrome = true)
                     performHapticFeedback(
                         android.view.HapticFeedbackConstants.LONG_PRESS,
                     )
@@ -861,6 +854,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 if (longPressSelecting && session != 0L) {
                     val cell = cellAt(current.x, current.y)
                     if (cell != null) {
+                        lastSelectionDragCell = SelectionCell(cell.first, cell.second)
+                        lastSelectionDragColumn = cell.second
                         // The engine's own drag: it extends the selection that
                         // the long press began and answers with the cells it
                         // now covers. A snapshot would only return text and
@@ -869,21 +864,12 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                             session,
                             cell.first,
                             cell.second,
-                            (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1),
+                            selectionColumns(),
                             cellWidth.toInt().coerceAtLeast(1),
                             height.coerceAtLeast(1),
                         )
-                        if (result != null && result.size >= 4) {
-                            setSelectionRange(
-                                result[0],
-                                result[1],
-                                result[2],
-                                result[3],
-                                chrome = true,
-                            )
-                            val text = NativeSelection.text(session)
-                            if (text.isNotEmpty()) selected = text
-                        }
+                        applySelectionSnapshot(result, chrome = true)
+                        updateSelectionEdge(current.y)
                         renderThread.invalidate()
                         return true
                     }
@@ -927,9 +913,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * and it ends when the finger lifts.
      */
     private var longPressSelecting: Boolean = false
-
-    /** Where a selection gesture started, in cells. */
-    private var selectionAnchor: Pair<Int, Int>? = null
 
     /** The tap run: one tap, two taps, three taps. */
     private var tapCount: Int = 0
@@ -990,20 +973,19 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 event.actionMasked == MotionEvent.ACTION_CANCEL)
         ) {
             val session = sessionHandle
-            val cell = cellAt(event.x, event.y)
-            if (session != 0L && cell != null) {
+            val cell = cellAt(event.x, event.y) ?: lastSelectionDragCell
+            if (session != 0L) {
                 val cells = NativeSelection.release(
                     session,
-                    cell.first,
-                    cell.second,
+                    cell?.row?.coerceAtLeast(0) ?: 0,
+                    cell?.column?.coerceAtLeast(0) ?: lastSelectionDragColumn,
                     NativeSelection.BEHAVIOR_WORD,
                 )
-                if (cells != null && cells.size >= 4) {
-                    setSelectionRange(cells[0], cells[1], cells[2], cells[3], chrome = true)
-                    setSelectionEnd(cells[2], cells[3])
-                }
+                applySelectionSnapshot(cells, chrome = true)
             }
             longPressSelecting = false
+            selectionGestureActive = false
+            stopSelectionAutoScroll()
             renderThread.invalidate()
         }
 
@@ -1078,6 +1060,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         when (tapCount) {
             1 -> {
+                // A tap away from a selection is the platform's way of
+                // dismissing it: the user has moved on to the prompt, and
+                // leaving two grips and a menu on the screen would keep an
+                // old selection alive under the next command.
+                if (selectionSnapshot != null) clearSelection()
                 if (!hasFocus()) {
                     requestFocus()
                     requestKeyboard()
@@ -1107,13 +1094,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         val pressed = NativeSelection.press(session, cell.first, cell.second, behavior)
         val released = NativeSelection.release(session, cell.first, cell.second, behavior)
         val cells = released ?: pressed
-        if (cells == null || cells.size < 4) return false
+        if (!applySelectionSnapshot(cells, chrome = false)) return false
 
         selected = NativeSelection.text(session)
-        selectionRect = null
-        setSelectionRange(cells[0], cells[1], cells[2], cells[3], chrome = false)
-        setSelectionEnd(cells[2], cells[3])
-        renderThread.invalidate()
+        renderThread.invalidateFull()
         return selected.isNotEmpty()
     }
 
@@ -1179,6 +1163,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             val rows = (distancePx / spacing).toInt()
             if (rows != 0) {
                 NativeSession.scroll(session, NativeSession.SCROLL_DELTA, -rows)
+                syncSelectionAfterViewportChange()
                 renderThread.invalidate()
             }
             return
@@ -1236,6 +1221,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // The picture's shift goes to the render thread, which draws the grid
         // moved down by it — the row above the viewport filling the gap.
         renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
+        syncSelectionAfterViewportChange()
         renderThread.invalidate()
         lastScrollPinned = target.pinned
     }
@@ -1271,6 +1257,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             }
         }
         renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
+        syncSelectionAfterViewportChange()
         renderThread.invalidate()
     }
 
@@ -1442,6 +1429,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             NativeSession.scroll(session, NativeSession.SCROLL_BOTTOM, 0)
             scrollMachine.reset()
             renderThread.post(RenderThread.Command.ScrollOffset(0f))
+            syncSelectionAfterViewportChange()
         }
 
         write(bytes)
@@ -1468,13 +1456,19 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private var selected: String = ""
 
     /**
-     * The selection's rectangle in this pane's own pixels, updated the moment
-     * a selection is made — not after the next frame is drawn.
+     * The selection's last resolved viewport shape, or null.
      *
-     * The chrome's handles and menu hang on this. Driving them from the frame
-     * measurement (the old way) meant they waited for a frame that might never
-     * come, or came a blink later; the menu then had nothing to hang on and
-     * never appeared.
+     * Updated whenever the engine's answer is read — after a gesture, a grip
+     * drag, a scroll, a resize or Select All. The endpoints it holds are the
+     * only cells the grips draw on, and its box is the only rectangle the menu
+     * hangs on.
+     */
+    @Volatile
+    private var selectionSnapshot: SelectionSnapshot? = null
+
+    /**
+     * The selection's rectangle in this pane's own pixels, updated when the
+     * engine's answer is read.
      */
     private val _selectionBounds = MutableStateFlow<android.graphics.Rect?>(null)
     val selectionBoundsFlow: StateFlow<android.graphics.Rect?> = _selectionBounds.asStateFlow()
@@ -1489,18 +1483,35 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      */
     private var chromeSelection: Boolean = false
 
-    @Volatile
-    private var selectionRect: android.graphics.Rect? = null
+    /**
+     * The selection gesture is still alive.
+     *
+     * Edge auto-scroll may only keep feeding the engine while a finger is down.
+     * A tick after the finger lifts would grow the selection on its own.
+     */
+    private var selectionGestureActive: Boolean = false
 
     /**
-     * The selection's start and end cells.
+     * Whether the engine holds a selection, whether or not it is visible.
      *
-     * The rectangle the chrome hangs the selection menu on is the range
-     * between them: a selection can wrap across rows, and a single
-     * row/column/length cannot say where the far end is.
+     * A selection can scroll entirely off the screen and come back. Hiding the
+     * chrome when it leaves must not forget that it exists, or scrolling back
+     * would show the highlight with no way to copy or dismiss it.
      */
-    private var selectionStart: Pair<Int, Int>? = null
-    private var selectionEnd: Pair<Int, Int>? = null
+    private var engineHasSelection: Boolean = false
+
+    /** The finger's last cell, for a release that lands outside the grid. */
+    private var lastSelectionDragCell: SelectionCell? = null
+
+    /** The finger's column, for an auto-scroll tick at a viewport edge. */
+    private var lastSelectionDragColumn: Int = 0
+
+    /** Which grip the current finger drag is moving. */
+    private var lastSelectionDragTopLeft: Boolean = true
+
+    /** -1 while dragging near the top edge, +1 near the bottom, 0 otherwise. */
+    private var selectionAutoScrollEdge: Int = 0
+    private var selectionAutoScrollRunning: Boolean = false
 
     /**
      * Told that the selection changed.
@@ -1513,65 +1524,124 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     /** The selected text, or "". */
     fun selectedText(): String {
-        // The gesture's selection lives in the engine, and the engine is the
-        // only one that knows what it covers. The tap's selection is the
-        // snapshot this view took, because that one the engine does not keep.
+        // The selection lives in the engine, and the engine is the only one
+        // that knows what it covers. There is deliberately no cached fallback:
+        // a stale string would let a copy put text on the clipboard that the
+        // highlight on screen no longer agrees with.
         val session = sessionHandle
-        if (session != 0L) {
-            val engineText = NativeSelection.text(session)
-            if (engineText.isNotEmpty()) return engineText.lines().joinToString("\n") { it.trimEnd() }
-        }
-        return selected
+        if (session == 0L) return ""
+        return SelectionText.normalize(NativeSelection.text(session))
     }
 
     /** True when something is selected. */
     fun hasSelection(): Boolean = selectedText().isNotEmpty()
 
-    /** The selection's bounds in pixels, computed synchronously. */
-    private fun computeSelectionBounds(): android.graphics.Rect? {
-        val start = selectionStart ?: return null
-        val end = selectionEnd ?: return null
-        val cellW = cellWidth.coerceAtLeast(1f)
-        val cellH = cellHeight.coerceAtLeast(1f)
-        val topRow = minOf(start.first, end.first)
-        val bottomRow = maxOf(start.first, end.first)
-        val top = topRow * cellH - renderThread.scrollOffsetPx
-        val left = minOf(start.second, end.second)
-        val right = maxOf(start.second, end.second)
-        return android.graphics.Rect(
-            (left * cellW).toInt(),
-            top.toInt(),
-            ((right + 1) * cellW).toInt(),
-            (top + (bottomRow - topRow + 1) * cellH).toInt(),
-        )
+    /** The selection's bounds in pixels, or null. */
+    fun selectionBounds(): android.graphics.Rect? =
+        _selectionBounds.value ?: renderThread.selectionBounds
+
+    /**
+     * The cell the toolbar's word and line actions should grow from.
+     *
+     * The moving end is the user's last intent, and its visible cell is the
+     * one the action should apply to. A selection made entirely by Select All
+     * has no endpoint on screen; its first visible cell is the honest fallback.
+     */
+    fun selectionAnchorCell(): Pair<Int, Int>? {
+        val snapshot = selectionSnapshot ?: return null
+        val fallback = SelectionCell(snapshot.firstRow, snapshot.firstColumn)
+        return snapshot.actionAnchor(fallback)?.let { it.row to it.column }
     }
 
-    /** The selection's bounds in pixels, or null. */
-    fun selectionBounds(): android.graphics.Rect? {
-        // The view's own range first: it is updated the moment the gesture
-        // installs a selection, while the renderer's rectangle waits for the
-        // next frame. A handle that waits for a frame appears late.
-        computeSelectionBounds()?.let { return it }
-        renderThread.selectionBounds?.let { return it }
-        return selectionRect
+    /** The top grip's viewport cell, or null when that endpoint is off screen. */
+    fun selectionTopLeftCell(): Pair<Int, Int>? =
+        selectionSnapshot?.topLeftHandle?.let { it.row to it.column }
+
+    /** The bottom grip's viewport cell, or null when that endpoint is off screen. */
+    fun selectionBottomRightCell(): Pair<Int, Int>? =
+        selectionSnapshot?.bottomRightHandle?.let { it.row to it.column }
+
+    /** The sub-row shift the picture is drawn at, in pixels. */
+    fun selectionScrollOffsetPx(): Float = renderThread.scrollOffsetPx
+
+    /** Select the word under a cell; returns true when something was selected. */
+    fun selectWord(row: Int, column: Int, chrome: Boolean = false): Boolean =
+        applySelection(row, column, word = true, chrome = chrome)
+
+    /** Select the line under a cell. */
+    fun selectLine(row: Int, column: Int, chrome: Boolean = false): Boolean =
+        applySelection(row, column, word = false, chrome = chrome)
+
+    /** Select everything the engine holds. */
+    fun selectAll(): Boolean {
+        val session = sessionHandle
+        if (session == 0L) return false
+        val text = NativeSelection.selectAll(session)
+        selected = text
+        val visible = refreshSelectionFromEngine(chrome = true)
+        renderThread.invalidateFull()
+        return visible && text.isNotEmpty()
+    }
+
+    /** Clear the selection, in the engine as well as in the chrome. */
+    fun clearSelection() {
+        val session = sessionHandle
+        if (session != 0L) NativeSelection.clear(session)
+        selected = ""
+        selectionSnapshot = null
+        engineHasSelection = false
+        _selectionBounds.value = null
+        longPressSelecting = false
+        selectionGestureActive = false
+        stopSelectionAutoScroll()
+        chromeSelection = false
+        onSelectionChanged?.invoke(false)
+        renderThread.invalidateFull()
+    }
+
+    /** Copy the selection to the clipboard; true when there was something. */
+    fun copySelection(): Boolean {
+        val text = selectedText()
+        if (text.isEmpty()) return false
+        val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+            ?: return false
+        clipboard.setPrimaryClip(
+            android.content.ClipData.newPlainText("terminal", text),
+        )
+        return true
     }
 
     /**
-     * Records the selection's range and tells the chrome.
+     * Read the engine's selection back and publish it.
      *
-     * The range is the engine's own answer: a start cell and an end cell, which
-     * may be on different rows. The chrome's rectangle is the box between them.
+     * Returns false when the engine holds no selection, or none of it is on
+     * screen. The stored snapshot is left alone in that case when a gesture is
+     * still running: a drag that briefly maps outside the grid has not
+     * cancelled the selection the user is making.
      */
-    private fun setSelectionRange(
-        startRow: Int,
-        startColumn: Int,
-        endRow: Int,
-        endColumn: Int,
-        chrome: Boolean,
-    ) {
-        selectionStart = startRow to startColumn
-        selectionEnd = endRow to endColumn
-        _selectionBounds.value = computeSelectionBounds()
+    private fun refreshSelectionFromEngine(chrome: Boolean): Boolean {
+        val session = sessionHandle
+        if (session == 0L) return false
+        return applySelectionSnapshot(NativeSelection.viewport(session), chrome)
+    }
+
+    /**
+     * Publish the engine's eight-value selection answer.
+     *
+     * A null or empty answer is not treated as "clear": the caller decides
+     * when a selection ends. A drag can be refused for a frame while the finger
+     * is on the screen, and clearing the chrome then would make the menu blink
+     * under the user's hand.
+     */
+    private fun applySelectionSnapshot(values: IntArray?, chrome: Boolean): Boolean {
+        val snapshot = SelectionSnapshot.from(values) ?: return false
+        selectionSnapshot = snapshot
+        engineHasSelection = true
+        _selectionBounds.value = snapshot.bounds(
+            cellWidth,
+            cellHeight,
+            renderThread.scrollOffsetPx,
+        )
         if (chrome) {
             chromeSelection = true
             onSelectionChanged?.invoke(true)
@@ -1579,55 +1649,15 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             chromeSelection = false
             onSelectionChanged?.invoke(false)
         }
-    }
-
-    /** Select the word under a cell; returns true when something was selected. */
-    fun selectWord(row: Int, column: Int): Boolean = applySelection(row, column, word = true)
-
-    /** Select the line under a cell. */
-    fun selectLine(row: Int, column: Int): Boolean = applySelection(row, column, word = false)
-
-    /** Select everything the engine holds. */
-    fun selectAll(): Boolean {
-        val session = sessionHandle
-        if (session == 0L) return false
-        selected = NativeSelection.selectAll(session)
-        selectionRect = null
-        setSelectionRange(0, 0, (height / cellHeight.coerceAtLeast(1f)).toInt().coerceAtLeast(1) - 1, (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1) - 1, chrome = true)
-        renderThread.invalidate()
-        return selected.isNotEmpty()
-    }
-
-    /** Records the selection's end, from the engine's own answer. */
-    private fun setSelectionEnd(row: Int, column: Int) {
-        selectionEnd = row to column
-    }
-
-    /** Clear the selection. */
-    fun clearSelection() {
-        selected = ""
-        selectionRect = null
-        _selectionBounds.value = null
-        if (chromeSelection) {
-            chromeSelection = false
-            onSelectionChanged?.invoke(false)
-        }
-        onSelectionChanged?.invoke(false)
-        renderThread.invalidate()
-    }
-
-    /** Copy the selection to the clipboard; true when there was something. */
-    fun copySelection(): Boolean {
-        if (selected.isEmpty()) return false
-        val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
-            ?: return false
-        clipboard.setPrimaryClip(
-            android.content.ClipData.newPlainText("terminal", selected),
-        )
         return true
     }
 
-    private fun applySelection(row: Int, column: Int, word: Boolean): Boolean {
+    private fun applySelection(
+        row: Int,
+        column: Int,
+        word: Boolean,
+        chrome: Boolean,
+    ): Boolean {
         val session = sessionHandle
         if (session == 0L) return false
         selected = if (word) {
@@ -1635,14 +1665,138 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         } else {
             NativeSelection.selectLine(session, row, column)
         }
-        selectionRect = null
-        // The cells the selection covers: the text's own length is the width of
-        // a word, and a line is as long as the text it holds.
-        val columns = (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1)
-        val endColumn = (column + selected.length.coerceAtLeast(1) - 1).coerceAtMost(columns - 1)
-        setSelectionRange(row, column, row, endColumn, chrome = false)
+        if (selected.isEmpty()) return false
+        refreshSelectionFromEngine(chrome)
+        renderThread.invalidateFull()
+        return true
+    }
+
+    /** The number of columns the gesture geometry describes. */
+    private fun selectionColumns(): Int =
+        (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1)
+
+    /**
+     * Track whether the finger is close enough to an edge to scroll.
+     *
+     * The band is a finger's height, not a few pixels: a selection that needs
+     * to grow past the screen should not require the finger to be exactly on
+     * the last row while the terminal scrolls under it.
+     */
+    private fun updateSelectionEdge(y: Float) {
+        val band = SELECTION_EDGE_BAND_DP * resources.displayMetrics.density
+        val edge = SelectionEdges.at(y, height.toFloat(), band)
+        if (edge == SelectionEdges.NONE) {
+            stopSelectionAutoScroll()
+        } else {
+            startSelectionAutoScroll(edge)
+        }
+    }
+
+    private fun startSelectionAutoScroll(edge: Int) {
+        selectionAutoScrollEdge = edge
+        if (selectionAutoScrollRunning) return
+        selectionAutoScrollRunning = true
+        postOnAnimationDelayed(selectionAutoScrollTicker, SELECTION_AUTOSCROLL_FIRST_MS)
+    }
+
+    private fun stopSelectionAutoScroll() {
+        selectionAutoScrollEdge = 0
+        if (!selectionAutoScrollRunning) return
+        selectionAutoScrollRunning = false
+        removeCallbacks(selectionAutoScrollTicker)
+    }
+
+    /**
+     * One edge tick: scroll a row, then move the selection's end with it.
+     *
+     * The scroll has to happen first. The engine resolves the tick's cell
+     * against the viewport it can see now, so feeding the selection before the
+     * viewport moved would extend it into the row that is about to leave.
+     */
+    private val selectionAutoScrollTicker = object : Runnable {
+        override fun run() {
+            val edge = selectionAutoScrollEdge
+            if (edge == 0 || !selectionGestureActive) {
+                selectionAutoScrollRunning = false
+                return
+            }
+            if (!scrollSelectionRow(edge)) {
+                selectionAutoScrollEdge = 0
+                selectionAutoScrollRunning = false
+                return
+            }
+            applySelectionAtEdge(edge)
+            postOnAnimationDelayed(this, SELECTION_AUTOSCROLL_INTERVAL_MS)
+        }
+    }
+
+    /** Move the viewport one row into the history (negative) or live edge. */
+    private fun scrollSelectionRow(edge: Int): Boolean {
+        val session = sessionHandle
+        if (session == 0L) return false
+        val before = NativeSession.scrollbar(session) ?: return false
+        val lastRow = (before.total - before.len).coerceAtLeast(0)
+        if (edge < 0 && before.offset <= 0) return false
+        if (edge > 0 && before.offset >= lastRow) return false
+
+        NativeSession.scroll(session, NativeSession.SCROLL_DELTA, edge)
+        val after = NativeSession.scrollbar(session) ?: return false
+        // The engine clamps at both ends. A tick it refused is the edge the
+        // user has reached, and the loop has nothing left to scroll.
+        if (after.offset == before.offset) return false
+
+        scrollMachine.reset()
+        renderThread.post(RenderThread.Command.ScrollOffset(0f))
         renderThread.invalidate()
-        return selected.isNotEmpty()
+        return true
+    }
+
+    /** Extend the selection to the viewport row the finger is now over. */
+    private fun applySelectionAtEdge(edge: Int) {
+        val session = sessionHandle
+        if (session == 0L) return
+        val rows = (height / cellHeight.coerceAtLeast(1f)).toInt().coerceAtLeast(1)
+        val row = if (edge < 0) 0 else rows - 1
+        val column = lastSelectionDragColumn.coerceIn(0, selectionColumns() - 1)
+        lastSelectionDragCell = SelectionCell(row, column)
+
+        val values = if (longPressSelecting) {
+            NativeSelection.drag(
+                session,
+                row,
+                column,
+                selectionColumns(),
+                cellWidth.toInt().coerceAtLeast(1),
+                height.coerceAtLeast(1),
+            )
+        } else {
+            NativeSelection.moveBoundary(session, lastSelectionDragTopLeft, row, column)
+        }
+        applySelectionSnapshot(values, chrome = true)
+        renderThread.invalidateFull()
+    }
+
+    /**
+     * Keep the chrome's selection in step with a moved viewport.
+     *
+     * Scrolling changes which rows the selection's grid references resolve to;
+     * the highlight moves with the text because the engine draws it, but the
+     * menu and the grips are placed from viewport rows and would stay behind.
+     * Re-reading the engine is what makes them follow.
+     */
+    private fun syncSelectionAfterViewportChange() {
+        if (!engineHasSelection) return
+        // A drag is mid-flight, and a refusal for one frame is not a cleared
+        // selection. The drag's own answer is the next word.
+        if (selectionGestureActive) return
+        if (refreshSelectionFromEngine(chromeSelection)) return
+        if (selectionSnapshot == null) return
+        // The whole selection has scrolled out of view. The engine keeps it,
+        // so the chrome is hidden rather than forgotten; the next scroll that
+        // brings it back publishes it again with its grips and menu.
+        selectionSnapshot = null
+        _selectionBounds.value = null
+        onSelectionChanged?.invoke(false)
     }
 
     /**
@@ -1715,6 +1869,22 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
          * setting's own step.
          */
         const val LIVE_ZOOM_STEP_SP = 0.5f
+
+        /**
+         * How close to an edge a selection drag must be to auto-scroll.
+         *
+         * A finger is wider than a row, and the user is looking at the text
+         * under it, not at the screen's edge. A 56 dp band is roughly the last
+         * two rows on a phone — enough to be easy to reach, small enough that
+         * ordinary dragging does not scroll by accident.
+         */
+        const val SELECTION_EDGE_BAND_DP = 56f
+
+        /** Delay before the first auto-scroll row, so a tap near an edge does not scroll. */
+        const val SELECTION_AUTOSCROLL_FIRST_MS = 80L
+
+        /** Time between auto-scroll rows: about 16 rows a second. */
+        const val SELECTION_AUTOSCROLL_INTERVAL_MS = 60L
 
     }
 }

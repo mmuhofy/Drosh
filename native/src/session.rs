@@ -51,18 +51,63 @@ pub enum SessionError {
 }
 
 /// A session: a terminal and everything needed to draw it.
-/// The cells a selection covers.
+/// Where a selection sits on the screen.
 ///
-/// The engine's own answer: the start and the end of the range, in the
-/// viewport's rows and columns. The chrome hangs its menu on these, and the
-/// engine marks the cells in the frame, so the two cannot disagree about where
-/// the selection is.
+/// The engine's selection is made of grid references, which address cells in
+/// the scrollback and not in the viewport. The chrome, though, draws in view
+/// pixels, so every answer here is resolved through the engine's own
+/// grid-to-viewport conversion. A cell off the screen is `-1` rather than a
+/// guessed row: a handle drawn for a cell the user cannot see would sit on a
+/// line that has nothing to do with the selection.
+///
+/// `first`/`last` are the visible bounding box, which is what the menu hangs
+/// on. `top_left`/`bottom_right` are the selection's ordered endpoints, which
+/// is what the two grips sit on. They are separate because a selection can
+/// run off the screen at either end: the box stays visible while the endpoint
+/// that left the screen has no grip.
 #[derive(Clone, Copy)]
-pub struct SelectionCells {
-    pub start_row: u16,
-    pub start_column: u16,
-    pub end_row: u16,
-    pub end_column: u16,
+pub struct SelectionViewport {
+    pub first_row: i32,
+    pub first_column: i32,
+    pub last_row: i32,
+    pub last_column: i32,
+    pub top_left_row: i32,
+    pub top_left_column: i32,
+    pub bottom_right_row: i32,
+    pub bottom_right_column: i32,
+}
+
+impl SelectionViewport {
+    /// No selected cell is on the screen.
+    pub fn empty() -> Self {
+        Self {
+            first_row: -1,
+            first_column: -1,
+            last_row: -1,
+            last_column: -1,
+            top_left_row: -1,
+            top_left_column: -1,
+            bottom_right_row: -1,
+            bottom_right_column: -1,
+        }
+    }
+
+    pub fn visible(&self) -> bool {
+        self.first_row >= 0 && self.last_row >= self.first_row
+    }
+
+    pub fn to_array(self) -> [i32; 8] {
+        [
+            self.first_row,
+            self.first_column,
+            self.last_row,
+            self.last_column,
+            self.top_left_row,
+            self.top_left_column,
+            self.bottom_right_row,
+            self.bottom_right_column,
+        ]
+    }
 }
 
 /// The geometry the engine reads a selection drag event with.
@@ -665,7 +710,7 @@ impl Session {
         column: u16,
         geometry: Option<SelectionGeometry>,
         behavior: Option<u32>,
-    ) -> Option<SelectionCells> {
+    ) -> Option<SelectionViewport> {
         let gesture = match self.gesture {
             Some(gesture) => gesture,
             None => {
@@ -773,34 +818,221 @@ impl Session {
                     &selection as *const _ as *const c_void,
                 );
             }
-            return Some(SelectionCells {
-                start_row: selection.start.y,
-                start_column: selection.start.x,
-                end_row: selection.end.y,
-                end_column: selection.end.x,
-            });
+            return self.selection_viewport();
         }
 
         // The gesture ended. Report the selection that is installed now so the
         // host's handles and menu follow the final answer.
-        let mut current: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
-        current.size = std::mem::size_of::<ghostty::GhosttySelection>();
-        let current_result = unsafe {
+        self.selection_viewport()
+    }
+
+    /// The selection the terminal holds now, resolved to viewport cells.
+    ///
+    /// The endpoint order is normalised through the engine first: a selection
+    /// dragged upward has its start below its end, and a handle placed from
+    /// the raw direction would put the top grip on the bottom corner. Ordering
+    /// asks the engine, which is the only side that knows the terminal's row
+    /// order across page boundaries.
+    pub fn selection_viewport(&self) -> Option<SelectionViewport> {
+        let selection = self.active_selection()?;
+        let columns = self.columns();
+        let rows = self.rows();
+        if columns == 0 || rows == 0 {
+            return Some(SelectionViewport::empty());
+        }
+
+        let mut ordered: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
+        ordered.size = std::mem::size_of::<ghostty::GhosttySelection>();
+        let ordered_result = unsafe {
+            ghostty::ghostty_terminal_selection_ordered(
+                self.terminal,
+                &selection,
+                ghostty::GHOSTTY_SELECTION_ORDER_FORWARD,
+                &mut ordered,
+            )
+        };
+        if !ghostty::ok(ordered_result) {
+            // Without an ordering there is no honest way to say which endpoint
+            // is the top-left of the range on a terminal whose rows cross page
+            // boundaries. Reporting nothing is better than a handle on the
+            // wrong corner.
+            return None;
+        }
+
+        let top_left = self.viewport_cell(&ordered.start, columns, rows);
+        let bottom_right = self.viewport_cell(&ordered.end, columns, rows);
+
+        // With an endpoint on screen it is the edge of the box by definition:
+        // nothing of the selection can be above the top-left endpoint of a
+        // linear selection. When the endpoint has scrolled away, the selection
+        // either fills that side of the viewport or is not visible at all, and
+        // the engine's containment test answers which.
+        let top = match top_left {
+            Some((row, column)) => Some((row, column)),
+            None => {
+                if self.contains_viewport(&selection, 0, 0) {
+                    Some((0, 0))
+                } else {
+                    None
+                }
+            }
+        };
+        let bottom = match bottom_right {
+            Some((row, column)) => Some((row, column)),
+            None => {
+                if self.contains_viewport(&selection, rows - 1, columns - 1) {
+                    Some((i32::from(rows) - 1, i32::from(columns) - 1))
+                } else {
+                    None
+                }
+            }
+        };
+
+        let (Some((first_row, first_column)), Some((last_row, last_column))) = (top, bottom) else {
+            return Some(SelectionViewport::empty());
+        };
+
+        Some(SelectionViewport {
+            first_row,
+            first_column,
+            last_row,
+            last_column,
+            top_left_row: top_left.map(|cell| cell.0).unwrap_or(-1),
+            top_left_column: top_left.map(|cell| cell.1).unwrap_or(-1),
+            bottom_right_row: bottom_right.map(|cell| cell.0).unwrap_or(-1),
+            bottom_right_column: bottom_right.map(|cell| cell.1).unwrap_or(-1),
+        })
+    }
+
+    /// Move the selection's top-left or bottom-right endpoint to a cell.
+    ///
+    /// The engine's gesture is not used here: the two grips change a selection
+    /// that already exists, and starting a new gesture would count a click and
+    /// change a word selection into a different one. Ordering the selection
+    /// first makes "top-left" a real corner even for a selection the user made
+    /// upward, and the result is installed forward — direction is not part of
+    /// the text or the highlight, and a forward range is what the handles
+    /// describe.
+    pub fn selection_move_boundary(
+        &mut self,
+        top_left: bool,
+        row: u16,
+        column: u16,
+    ) -> Option<SelectionViewport> {
+        let selection = self.active_selection()?;
+        let mut ordered: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
+        ordered.size = std::mem::size_of::<ghostty::GhosttySelection>();
+        if !ghostty::ok(unsafe {
+            ghostty::ghostty_terminal_selection_ordered(
+                self.terminal,
+                &selection,
+                ghostty::GHOSTTY_SELECTION_ORDER_FORWARD,
+                &mut ordered,
+            )
+        }) {
+            return None;
+        }
+
+        let reference = self.viewport_reference(row, column)?;
+        if top_left {
+            ordered.start = reference;
+        } else {
+            ordered.end = reference;
+        }
+        ordered.size = std::mem::size_of::<ghostty::GhosttySelection>();
+        ordered.rectangle = false;
+        install_selection(self.terminal, &ordered);
+        self.selection_viewport()
+    }
+
+    /// Drop the terminal's selection, so the next frame draws no selected cell.
+    pub fn clear_selection(&mut self) {
+        unsafe {
+            ghostty::ghostty_terminal_set(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_SELECTION,
+                std::ptr::null(),
+            );
+        }
+    }
+
+    /// The active selection, or None when the terminal has none.
+    fn active_selection(&self) -> Option<ghostty::GhosttySelection> {
+        let mut selection: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
+        selection.size = std::mem::size_of::<ghostty::GhosttySelection>();
+        let result = unsafe {
             ghostty::ghostty_terminal_get(
                 self.terminal,
                 ghostty::GHOSTTY_TERMINAL_DATA_SELECTION,
-                &mut current as *mut _ as *mut c_void,
+                &mut selection as *mut _ as *mut c_void,
             )
         };
-        if !ghostty::ok(current_result) {
+        if ghostty::ok(result) {
+            Some(selection)
+        } else {
+            None
+        }
+    }
+
+    /// A selection endpoint's viewport cell, or None when it is off screen.
+    fn viewport_cell(
+        &self,
+        reference: &ghostty::GhosttyGridRef,
+        columns: u16,
+        rows: u16,
+    ) -> Option<(i32, i32)> {
+        let (row, column) = self.viewport_point(reference)?;
+        if row < 0 || row >= i32::from(rows) || column < 0 || column >= i32::from(columns) {
             return None;
         }
-        Some(SelectionCells {
-            start_row: current.start.y,
-            start_column: current.start.x,
-            end_row: current.end.y,
-            end_column: current.end.x,
-        })
+        Some((row, column))
+    }
+
+    /// Whether a selection covers a viewport cell.
+    fn contains_viewport(
+        &self,
+        selection: &ghostty::GhosttySelection,
+        row: u16,
+        column: u16,
+    ) -> bool {
+        let mut point: ghostty::GhosttyPoint = unsafe { std::mem::zeroed() };
+        unsafe {
+            crate::jni::set_enum(&mut point.tag, ghostty::GHOSTTY_POINT_TAG_VIEWPORT as u32);
+            point.value.coordinate.x = column;
+            point.value.coordinate.y = u32::from(row);
+        }
+        let mut contained = false;
+        let result = unsafe {
+            ghostty::ghostty_terminal_selection_contains(
+                self.terminal,
+                selection,
+                point,
+                &mut contained,
+            )
+        };
+        ghostty::ok(result) && contained
+    }
+
+    /// The grid reference of a viewport cell.
+    fn viewport_reference(
+        &self,
+        row: u16,
+        column: u16,
+    ) -> Option<ghostty::GhosttyGridRef> {
+        let mut point: ghostty::GhosttyPoint = unsafe { std::mem::zeroed() };
+        unsafe {
+            crate::jni::set_enum(&mut point.tag, ghostty::GHOSTTY_POINT_TAG_VIEWPORT as u32);
+            point.value.coordinate.x = column;
+            point.value.coordinate.y = u32::from(row);
+        }
+        let mut reference: ghostty::GhosttyGridRef = unsafe { std::mem::zeroed() };
+        reference.size = std::mem::size_of::<ghostty::GhosttyGridRef>();
+        if !ghostty::ok(unsafe {
+            ghostty::ghostty_terminal_grid_ref(self.terminal, point, &mut reference)
+        }) {
+            return None;
+        }
+        Some(reference)
     }
 
     /// The text of the terminal's current selection, or none.
@@ -808,8 +1040,13 @@ impl Session {
         let mut options: ghostty::GhosttyTerminalSelectionFormatOptions =
             unsafe { std::mem::zeroed() };
         options.size = std::mem::size_of::<ghostty::GhosttyTerminalSelectionFormatOptions>();
-        // No selection pointer: the terminal's own selection is what is asked
-        // for. The gesture is what installs it.
+        // The clipboard's own semantics, as the engine documents them: a
+        // copied paragraph is one logical line per source line, without the
+        // empty cells that pad every row. No selection pointer: the terminal's
+        // own selection is what is asked for, and the gesture installed it.
+        options.emit = ghostty::GHOSTTY_FORMATTER_FORMAT_PLAIN;
+        options.unwrap = true;
+        options.trim = true;
 
         let mut needed: usize = 0;
         let result = unsafe {
@@ -1137,6 +1374,20 @@ impl Session {
         }
 
         written
+    }
+}
+
+/// Install a selection snapshot as the terminal's active selection.
+fn install_selection(
+    terminal: ghostty::GhosttyTerminal,
+    selection: &ghostty::GhosttySelection,
+) {
+    unsafe {
+        ghostty::ghostty_terminal_set(
+            terminal,
+            ghostty::GHOSTTY_TERMINAL_OPT_SELECTION,
+            selection as *const _ as *const c_void,
+        );
     }
 }
 

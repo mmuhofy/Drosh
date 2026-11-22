@@ -213,9 +213,9 @@ interface TerminalEngine {
 
     fun copySelection(): Boolean
 
-    fun selectWord(row: Int, col: Int): Boolean
+    fun selectWord(row: Int, col: Int, chrome: Boolean = false): Boolean
 
-    fun selectLine(row: Int, col: Int): Boolean
+    fun selectLine(row: Int, col: Int, chrome: Boolean = false): Boolean
 
     fun selectAll(): Boolean
 
@@ -296,10 +296,13 @@ interface TerminalEngine {
      * Moves the selection's end to a point, in the pane's own pixels.
      *
      * The handles at the ends of a selection are how a user fixes a selection
-     * they did not get right. `fromEnd` says which end moves: the other one
-     * stays as the anchor.
+     * they did not get right. `topLeft` names the grip the finger is on: the
+     * other endpoint stays where it is.
      */
-    fun extendSelectionTo(x: Float, y: Float, fromEnd: Boolean): Boolean = false
+    fun extendSelectionTo(x: Float, y: Float, topLeft: Boolean): Boolean = false
+
+    /** The cell the toolbar's word and line actions grow from, or null. */
+    fun selectionAnchorCell(): Pair<Int, Int>? = null
 
     /**
      * A program rang the bell.
