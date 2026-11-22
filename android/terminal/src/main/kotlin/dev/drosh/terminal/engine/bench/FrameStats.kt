@@ -335,7 +335,7 @@ internal class FrameStats {
         return String.format(
             Locale.ROOT,
             "%s%d frames · %.0f cells/f · %.0f sprites/f · %.1f draw calls/f · " +
-                ">8ms %d (%.1f%%) · max %.0f · pump %.1f build %.1f up %.1f draw %.1f · jank %d",
+                ">8ms %d (%.1f%%) · max %.0f · pump %.1f build %.1f bg %.1f fg %.1f up %.1f draw %.1f · jank %d",
             if (isFrozen) "FROZEN " else "",
             frames,
             averageCells(),
