@@ -60,9 +60,10 @@ internal class Cells {
     /**
      * The sprites, packed in row order.
      *
-     * The sprites of a row start where the row before it ended, so a row's
-     * sprites move when the row above it grows or shrinks — which is why a
-     * changed row is built together with the rows after it.
+     * The sprites of a row start where the row before it ended, so a row that
+     * changes *size* moves every sprite after it. A row that keeps its count
+     * keeps its place, which is what lets a cursor blink rebuild one row
+     * instead of the whole screen.
      */
     var sprites: ByteBuffer = EMPTY
         private set
@@ -70,12 +71,34 @@ internal class Cells {
     /** Where each row's sprites start, in bytes. */
     private var rowStart = IntArray(0)
 
+    /** How many sprites each row holds, as the last build left them. */
+    private var rowSprites = IntArray(0)
+
+    /**
+     * Whether the whole buffer has been built at least once.
+     *
+     * The per-row starts are only meaningful after a full pass: a row built
+     * alone needs the start of the row before it, and before the first pass
+     * there is no such start.
+     */
+    private var spritesComplete = false
+
     /** How many sprites the buffer holds, all rows together. */
     var spriteCount = 0
         private set
 
     /** The byte the last build started writing the sprites at. */
     var spriteUploadFrom = 0
+        private set
+
+    /**
+     * The byte just past the last sprite the last build wrote.
+     *
+     * A row that kept its count is written where it was, so the bytes between
+     * it and the bottom of the screen are unchanged and do not have to be
+     * uploaded. This is the end of the range [spriteUploadFrom] starts.
+     */
+    var spriteUploadTo = 0
         private set
 
     /** Whether the sprites were built at all in the last call. */
@@ -109,8 +132,11 @@ internal class Cells {
             .allocateDirect(frame.cellCount * SPRITE_BYTES)
             .order(ByteOrder.LITTLE_ENDIAN)
         rowStart = IntArray(rows)
+        rowSprites = IntArray(rows)
+        spritesComplete = false
         spriteCount = 0
         spriteUploadFrom = 0
+        spriteUploadTo = 0
         spritesRebuilt = false
     }
 
@@ -149,54 +175,127 @@ internal class Cells {
     }
 
     /**
-     * Build the sprites from [firstRow] to the last row.
+     * Build the sprites of the rows the frame says changed.
      *
-     * A row's sprites move when the row above it changed size, so the rows
-     * after the first changed one are built again even if their own cells did
-     * not change. The rows before it are where they were, and are left alone.
+     * A row's sprites are packed behind the rows before it, so a row that
+     * changes *size* moves every sprite after it. A row that keeps its count
+     * is written where it already was, and the rows below it are left alone:
+     * the cursor's inversion, a colour change and a letter replaced by another
+     * letter are all the same size, and none of them is a reason to rebuild
+     * half the screen.
      *
-     * The writer is the caller's: it knows the atlas and the colours, and this
-     * class knows where the record goes.
-     *
-     * @param firstRow the first row to build, or `rows` for none.
+     * @param dirty the rows to build, in the frame's captured-row space.
+     * @param rebuildAll build every row from the top: a new cell size or a
+     *   grid whose shape changed. The per-row starts are not known until a
+     *   full pass has run.
      * @param write writes one sprite at the buffer's position, and returns
      *   whether it wrote one. A blank cell writes nothing.
      */
     fun buildSprites(
         frame: Frame,
-        firstRow: Int,
+        dirty: BooleanArray,
+        rebuildAll: Boolean,
         write: (buffer: ByteBuffer, index: Int, column: Int, gridRow: Int) -> Boolean,
     ) {
         spritesRebuilt = false
-        if (firstRow >= rows) {
+        if (rows == 0) return
+        if (rebuildAll || !spritesComplete) {
+            val end = rebuildFrom(frame, 0, 0, write)
+            spriteCount = end / SPRITE_BYTES
+            spriteUploadFrom = 0
+            spriteUploadTo = end
+            spritesRebuilt = true
             return
         }
-        val from = if (rowStart.size < rows) 0 else firstRow
-        var at = if (from == 0) 0 else rowStart[from]
-        spriteUploadFrom = at
 
-        for (row in from until rows) {
-            rowStart[row] = at
-            val gridRow = row + firstRowY
-            val base = row * columns
-            for (column in 0 until columns) {
-                val index = base + column
-                sprites.position(at)
-                if (!write(sprites, index, column, gridRow)) {
-                    continue
-                }
-                at += SPRITE_BYTES
+        var uploadFrom = Int.MAX_VALUE
+        var uploadTo = 0
+        var row = 0
+        while (row < rows) {
+            if (!dirty[row]) {
+                row += 1
+                continue
             }
+            val start = rowStart[row]
+            val count = writeRow(frame, row, start, write)
+            if (count != rowSprites[row]) {
+                // The row changed size: every row after it moves, so the tail
+                // is rebuilt from this row's new end. The rows before it kept
+                // their starts, and their bytes are still where they were.
+                rowSprites[row] = count
+                val end = rebuildFrom(frame, row + 1, start + count * SPRITE_BYTES, write)
+                spriteCount = end / SPRITE_BYTES
+                spriteUploadFrom = minOf(uploadFrom, start)
+                spriteUploadTo = end
+                spritesRebuilt = true
+                return
+            }
+            rowSprites[row] = count
+            uploadFrom = minOf(uploadFrom, start)
+            uploadTo = maxOf(uploadTo, start + count * SPRITE_BYTES)
+            row += 1
         }
 
-        spriteCount = at / SPRITE_BYTES
+        if (uploadFrom == Int.MAX_VALUE) return
+        spriteUploadFrom = uploadFrom
+        spriteUploadTo = uploadTo
         spritesRebuilt = true
+    }
+
+    /**
+     * Build every row from [firstRow], packed from [start].
+     *
+     * @return the byte just past the last sprite written.
+     */
+    private fun rebuildFrom(
+        frame: Frame,
+        firstRow: Int,
+        start: Int,
+        write: (buffer: ByteBuffer, index: Int, column: Int, gridRow: Int) -> Boolean,
+    ): Int {
+        var at = start
+        for (row in firstRow until rows) {
+            rowStart[row] = at
+            val count = writeRow(frame, row, at, write)
+            rowSprites[row] = count
+            at += count * SPRITE_BYTES
+        }
+        spritesComplete = true
+        return at
+    }
+
+    /**
+     * Write one row's sprites, starting at [start].
+     *
+     * @return how many sprites the row holds.
+     */
+    private fun writeRow(
+        frame: Frame,
+        row: Int,
+        start: Int,
+        write: (buffer: ByteBuffer, index: Int, column: Int, gridRow: Int) -> Boolean,
+    ): Int {
+        var at = start
+        val gridRow = row + firstRowY
+        val base = row * columns
+        for (column in 0 until columns) {
+            val index = base + column
+            sprites.position(at)
+            if (!write(sprites, index, column, gridRow)) {
+                continue
+            }
+            at += SPRITE_BYTES
+        }
+        return (at - start) / SPRITE_BYTES
     }
 
     /** The byte offset the sprite upload should start at. */
     fun spriteUploadStart(): Int = spriteUploadFrom
 
-    fun putColour(buffer: ByteBuffer, packed: Int) {
+    /** The byte just past the sprite upload's end. */
+    fun spriteUploadEnd(): Int = spriteUploadTo
+
+    private fun putColour(buffer: ByteBuffer, packed: Int) {
         buffer.put(packed.toByte())
         buffer.put((packed ushr 8).toByte())
         buffer.put((packed ushr 16).toByte())

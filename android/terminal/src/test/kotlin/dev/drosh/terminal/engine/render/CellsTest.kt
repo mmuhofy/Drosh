@@ -168,7 +168,7 @@ class CellsTest {
         val cells = Cells()
         val frame = frame(columns = 4, viewportRows = 3, text = { _, _ -> 'x' })
         cells.resize(frame)
-        cells.buildSprites(frame, 0, writer(frame))
+        cells.buildSprites(frame, BooleanArray(5) { true }, false, writer(frame))
 
         // Four columns of text in five captured rows — the viewport's three
         // and the overscan row above and below it: twenty sprites, packed.
@@ -180,19 +180,22 @@ class CellsTest {
     @Test
     fun `a row that did not change keeps its sprites`() {
         val cells = Cells()
-        val frame = frame(columns = 4, viewportRows = 4, text = { row, _ -> if (row == 2) ' ' else 'x' })
+        val frame = frame(columns = 4, viewportRows = 4, text = { _, _ -> 'x' })
         cells.resize(frame)
-        cells.buildSprites(frame, 0, writer(frame))
+        cells.buildSprites(frame, BooleanArray(6) { true }, false, writer(frame))
         val full = cells.spriteCount
-        assertEquals(4 * 6 - 4, full)
+        assertEquals(4 * 6, full)
 
-        // Only one row changed: the sprites built are that row's and the ones
-        // after it, and the upload starts where that row's sprites start — not
-        // at the top. Rows zero, one and two hold four sprites each, so the
-        // captured row three starts at the twelfth.
-        cells.buildSprites(frame, 3, writer(frame))
+        // Only one row changed, and it kept its count: its sprites are written
+        // where they already were. Rows zero, one and two hold four sprites
+        // each, so the captured row three starts at the twelfth, and the
+        // upload is that row and nothing below it.
+        val dirty = BooleanArray(6)
+        dirty[3] = true
+        cells.buildSprites(frame, dirty, false, writer(frame))
         assertEquals(full, cells.spriteCount)
         assertEquals(12 * Cells.SPRITE_BYTES, cells.spriteUploadStart())
+        assertEquals(16 * Cells.SPRITE_BYTES, cells.spriteUploadEnd())
     }
 
     @Test
@@ -200,14 +203,19 @@ class CellsTest {
         val cells = Cells()
         val empty = frame(columns = 4, viewportRows = 4, text = { row, _ -> if (row == 1) ' ' else 'x' })
         cells.resize(empty)
-        cells.buildSprites(empty, 0, writer(empty))
+        cells.buildSprites(empty, BooleanArray(6) { true }, false, writer(empty))
         val before = cells.spriteCount
 
         // The row that was blank now has text: every sprite after it moves.
+        // The frame marks that row dirty, and it is the one whose count grew.
         val filled = frame(columns = 4, viewportRows = 4, text = { _, _ -> 'x' })
         cells.resize(filled)
-        cells.buildSprites(filled, 1, writer(filled))
+        val dirty = BooleanArray(6)
+        dirty[2] = true
+        cells.buildSprites(filled, dirty, false, writer(filled))
         assertEquals(before + 4, cells.spriteCount)
+        assertEquals(8 * Cells.SPRITE_BYTES, cells.spriteUploadStart())
+        assertEquals(cells.spriteCount * Cells.SPRITE_BYTES, cells.spriteUploadEnd())
     }
 
     @Test
@@ -225,7 +233,7 @@ class CellsTest {
         val cells = Cells()
         val small = frame(columns = 4, viewportRows = 3, text = { _, _ -> 'x' })
         cells.resize(small)
-        cells.buildSprites(small, 0, writer(small))
+        cells.buildSprites(small, BooleanArray(5) { true }, false, writer(small))
         assertTrue(cells.spriteCount > 0)
 
         val bigger = frame(columns = 5, viewportRows = 3)

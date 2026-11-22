@@ -385,6 +385,13 @@ internal class FrameRenderer {
         // Which rows have to be drawn again.
         val dirty = dirtyRows(frame, previousInverted)
 
+        // Whether any row changed its *content*, as opposed to only the
+        // cursor's inversion. The cursor marks its rows dirty on every blink,
+        // and the emoji are derived from the cells alone: rebuilding them on a
+        // cursor-only frame is a walk of the whole grid for a picture that
+        // cannot have changed.
+        val contentDirty = rowsContentDirty
+
         // The cells are built here, once, and drawn by the passes below.
         // Building them in the passes would work too, but a buffer that nobody
         // fills is a pass that draws whatever was left in it — which is how the
@@ -394,14 +401,15 @@ internal class FrameRenderer {
         cells.resize(frame)
 
         val backgroundBuildStart = System.nanoTime()
-        buildBackgrounds(frame, dirty)
+        backgroundsRebuilt = dirty.any { it } || !frame.clean || forceFullFrame
+        if (backgroundsRebuilt) buildBackgrounds(frame, dirty)
         val backgroundBuildEnd = System.nanoTime()
 
         val foregroundBuildStart = backgroundBuildEnd
         val foregroundCount = buildForegrounds(frame, dirty)
         val foregroundBuildEnd = System.nanoTime()
 
-        buildColorGlyphs(frame)
+        buildColorGlyphs(frame, contentDirty)
 
         val buildEnd = System.nanoTime()
 
@@ -420,7 +428,7 @@ internal class FrameRenderer {
         if (atlas.dirty) {
             if (uploadAtlas()) atlasUploads += 1
         }
-        uploadBackgrounds(frame, dirty)
+        if (backgroundsRebuilt) uploadBackgrounds(frame, dirty)
         uploadForegrounds()
         if (colorAtlas.dirty) {
             uploadColorAtlas()
@@ -442,7 +450,12 @@ internal class FrameRenderer {
 
         val drawEnd = System.nanoTime()
 
-        val dirtyRowCount = dirty.count { it }
+        // The array is reused and may be wider than this frame's grid; only
+        // the rows the frame has are this frame's dirty rows.
+        var dirtyRowCount = 0
+        for (row in 0 until frame.rowCount) {
+            if (dirty[row]) dirtyRowCount += 1
+        }
 
         return DrawResult(
             cells = frame.cellCount,
@@ -462,71 +475,131 @@ internal class FrameRenderer {
     // --- geometry ----------------------------------------------------------
 
     /**
-     * One record per cell: `u16 column, i16 row, vec4 colour`.
-     *
-     * The row is signed because the frame's overscan rows sit above the
-     * viewport; the shader reinterprets the top half of the unsigned range.
-     */
-    /**
      * Build the backgrounds of the rows that changed.
+     *
+     * One record per cell: `u16 column, i16 row, vec4 colour, vec4 underline,
+     * vec4 strikethrough, vec4 overline`. The row is signed because the
+     * frame's overscan rows sit above the viewport; the shader reinterprets
+     * the top half of the unsigned range.
      *
      * The rows are the frame's captured rows: the first one is the overscan
      * row above the viewport, and the record of a cell is its row times the
      * columns plus its column. Nothing here translates a viewport row into a
      * captured one, because that translation is where a background ends up
      * drawn one row from the cells it belongs to.
+     *
+     * ## Why a row is written twice
+     *
+     * The buffer the GPU reads is a *direct* buffer, and every relative `put`
+     * on one is a virtual call that checks a limit and stores through an
+     * address. A cell is twenty bytes, so writing its fields one at a time is
+     * eighteen of those calls a cell — on a full screen that is the whole of
+     * this function's cost, and it is a cost of the buffer type, not of the
+     * data. The row is written into an ordinary byte array first, where a
+     * store is a store, and then handed to the direct buffer in one copy per
+     * row.
      */
     private fun buildBackgrounds(frame: Frame, dirty: BooleanArray) {
-        val backgrounds = cells.backgrounds
         val columns = frame.columns
+        if (columns <= 0) return
+        val rowBytes = columns * Cells.BACKGROUND_BYTES
+        if (backgroundScratch.size < rowBytes) {
+            backgroundScratch = ByteArray(rowBytes)
+        }
+        val scratch = backgroundScratch
+        val backgrounds = cells.backgrounds
         val firstRowY = frame.firstRowY
         val rowCount = frame.rowCount
         for (row in 0 until rowCount) {
             if (!dirty[row]) continue
             val base = row * columns
-            var pos = base * Cells.BACKGROUND_BYTES
+            val gridRow = row + firstRowY
+            val rowLow = gridRow.toByte()
+            val rowHigh = (gridRow ushr 8).toByte()
+            var at = 0
             for (column in 0 until columns) {
                 val index = base + column
-                backgrounds.position(pos)
-                backgrounds.putShort(column.toShort())
-                backgrounds.putShort((row + firstRowY).toShort())
-                Cells.putColour(backgrounds, backgroundColour(frame, index))
+                // `u16 column, i16 row`: the two little-endian halves the
+                // shader reads as one word.
+                scratch[at] = column.toByte()
+                scratch[at + 1] = (column ushr 8).toByte()
+                scratch[at + 2] = rowLow
+                scratch[at + 3] = rowHigh
+
+                // One flags read, not one per highlight question: the cell's
+                // two highlight bits live in the same byte, and a search that
+                // matches nothing must not pay for two lookups a cell.
+                val flags = frame.flags(index)
+                putColourBytes(scratch, at + 4, backgroundColour(frame, index, flags))
 
                 val attributes = frame.attributes(index)
                 val underlineStyle = (attributes and FrameFormat.ATTR_UNDERLINE_MASK) shr
                     FrameFormat.ATTR_UNDERLINE_SHIFT
-                val underline = if (underlineStyle == 0) {
-                    Cells.TRANSPARENT
+                // Most cells carry no rule. The foreground is only read when
+                // one of the three rules needs it, which is what keeps the
+                // common cell to three frame reads instead of four.
+                val hasRule = underlineStyle != 0 ||
+                    attributes and (FrameFormat.ATTR_STRIKETHROUGH or FrameFormat.ATTR_OVERLINE) != 0
+                if (hasRule) {
+                    val foreground = foregroundOf(frame, index)
+                    val underline = if (underlineStyle == 0) {
+                        Cells.TRANSPARENT
+                    } else {
+                        (foreground and 0x00ffffff) or (underlineStyle shl 24)
+                    }
+                    putColourBytes(scratch, at + 8, underline)
+                    putColourBytes(
+                        scratch,
+                        at + 12,
+                        if (attributes and FrameFormat.ATTR_STRIKETHROUGH != 0) {
+                            foreground
+                        } else {
+                            Cells.TRANSPARENT
+                        },
+                    )
+                    putColourBytes(
+                        scratch,
+                        at + 16,
+                        if (attributes and FrameFormat.ATTR_OVERLINE != 0) {
+                            foreground
+                        } else {
+                            Cells.TRANSPARENT
+                        },
+                    )
                 } else {
-                    (foregroundOf(frame, index) and 0x00ffffff) or (underlineStyle shl 24)
+                    // The three rule records are transparent, which draws
+                    // nothing. A run of zeros is the cheapest way to say so.
+                    scratch.fill(0.toByte(), at + 8, at + Cells.BACKGROUND_BYTES)
                 }
-                Cells.putColour(backgrounds, underline)
-
-                val strikethrough = if (attributes and FrameFormat.ATTR_STRIKETHROUGH != 0) {
-                    foregroundOf(frame, index)
-                } else {
-                    Cells.TRANSPARENT
-                }
-                Cells.putColour(backgrounds, strikethrough)
-
-                val overline = if (attributes and FrameFormat.ATTR_OVERLINE != 0) {
-                    foregroundOf(frame, index)
-                } else {
-                    Cells.TRANSPARENT
-                }
-                Cells.putColour(backgrounds, overline)
-
-                pos += Cells.BACKGROUND_BYTES
+                at += Cells.BACKGROUND_BYTES
             }
+            backgrounds.position(base * Cells.BACKGROUND_BYTES)
+            backgrounds.put(scratch, 0, rowBytes)
         }
     }
 
+    /**
+     * A row's background records, written as bytes before they reach the GPU.
+     *
+     * Sized to the widest row seen, so a steady terminal never allocates here.
+     */
+    private var backgroundScratch = ByteArray(0)
+
+    /** Write a packed colour's four bytes into a heap array. */
+    private fun putColourBytes(array: ByteArray, at: Int, packed: Int) {
+        array[at] = packed.toByte()
+        array[at + 1] = (packed ushr 8).toByte()
+        array[at + 2] = (packed ushr 16).toByte()
+        array[at + 3] = (packed ushr 24).toByte()
+    }
+
     /** The colour a cell's own background is painted with. */
-    private fun backgroundColour(frame: Frame, index: Int): Int {
+    private fun backgroundColour(frame: Frame, index: Int, flags: Int): Int {
         val background = backgroundOf(frame, index)
         return when {
-            frame.isHighlighted(index) -> mix(background, highlightR, highlightG, highlightB, HIGHLIGHT_TINT)
-            frame.isHighlightedAll(index) ->
+            flags and FrameFormat.CELL_FLAG_HIGHLIGHT != 0 ->
+                mix(background, highlightR, highlightG, highlightB, HIGHLIGHT_TINT)
+            flags and FrameFormat.CELL_FLAG_HIGHLIGHT_ALL != 0 ->
                 mix(background, highlightAllR, highlightAllG, highlightAllB, HIGHLIGHT_ALL_TINT)
             else -> background
         }
@@ -562,18 +635,34 @@ internal class FrameRenderer {
             dirtyRowFlags = BooleanArray(frame.rowCount)
         }
         val dirty = dirtyRowFlags
+        var contentDirty = false
         if (forceFullFrame) {
             forceFullFrame = false
             for (row in 0 until frame.rowCount) dirty[row] = true
+            contentDirty = true
         } else {
             for (row in 0 until frame.rowCount) {
-                dirty[row] = frame.isRowDirty(row)
+                val changed = frame.isRowDirty(row)
+                dirty[row] = changed
+                if (changed) contentDirty = true
             }
         }
+        rowsContentDirty = contentDirty
         markCursorRow(dirty, frame, previousInverted)
         markCursorRow(dirty, frame, invertedCell)
         return dirty
     }
+
+    /**
+     * Whether the engine reported a row whose cells changed.
+     *
+     * The cursor marks its own rows dirty after this is decided, because a
+     * block cursor is drawn by inverting a cell and that is a change to the
+     * *picture* rather than to the cell's content. The emoji are derived from
+     * the cells alone, so this is the flag that says whether they have to be
+     * rebuilt at all.
+     */
+    private var rowsContentDirty = false
 
     /** The row a cell is on, marked as needing to be drawn again. */
     private fun markCursorRow(dirty: BooleanArray, frame: Frame, cell: Int) {
@@ -589,6 +678,9 @@ internal class FrameRenderer {
 
     /** Force every row to be rebuilt on the next frame. */
     var forceFullFrame = false
+
+    /** Whether backgrounds were rebuilt this frame. */
+    private var backgroundsRebuilt = false
 
     /** The cell the sprites were last built at. */
     private var spriteCellWidth = -1f
@@ -1168,35 +1260,30 @@ internal class FrameRenderer {
         if (index == invertedCell) frame.background(index) else frame.foreground(index)
 
     /**
-     * Build the sprites of the rows from the first changed one.
+     * Build the sprites of the rows that changed.
      *
      * A row's sprites are packed behind the rows before it, so a row that
-     * changed size moves every sprite after it. The rows from the first
-     * changed one are therefore built again; the rows before it are where they
-     * were and are left alone.
+     * changed *size* moves every sprite after it. A row that kept its count —
+     * a cursor's inversion, a colour change, a letter replaced by another
+     * letter — is written where it already was, and the rows below it are left
+     * alone. That is the difference between a cursor blink costing one row and
+     * costing half the screen.
      *
      * @return how many sprites the buffer holds.
      */
     private fun buildForegrounds(frame: Frame, dirty: BooleanArray): Int {
-        var first = frame.rowCount
-        for (row in 0 until frame.rowCount) {
-            if (dirty[row]) {
-                first = row
-                break
-            }
-        }
         // The cell's size is part of a sprite: a glyph is rasterised at the
         // font's size, and the quad it is drawn in is the cell's. A pinch
         // changes the size without changing a single cell of the engine's
         // grid, so a pinch is a frame where no row is dirty and every sprite
         // is new. Without this the cells grew and the masks kept the old size
         // — the letters' spacing opening and closing under the fingers.
-        if (cellWidth != spriteCellWidth || cellHeight != spriteCellHeight) {
+        val cellSizeChanged = cellWidth != spriteCellWidth || cellHeight != spriteCellHeight
+        if (cellSizeChanged) {
             spriteCellWidth = cellWidth
             spriteCellHeight = cellHeight
-            first = 0
         }
-        cells.buildSprites(frame, first) { buffer, index, column, gridRow ->
+        cells.buildSprites(frame, dirty, cellSizeChanged) { buffer, index, column, gridRow ->
             val codepoint = frame.codepoint(index)
             if (codepoint == 0 || codepoint == ' '.code || Emoji.isEmoji(codepoint)) {
                 // An emoji is the colour pass's: a mask of it is a silhouette.
@@ -1382,11 +1469,14 @@ internal class FrameRenderer {
     }
 
     /**
-     * Hand the sprites to the GPU, from the first row that changed.
+     * Hand the sprites to the GPU.
      *
      * A row's sprites move when the row above it changes size, so the rows
      * after the first changed one are written again as well. The sprites
-     * before it are where they were, and the GPU has them.
+     * before it are where they were, and the GPU has them. A frame that only
+     * rewrote some rows in place uploads exactly those rows — the range the
+     * build recorded — rather than everything from the first changed row to
+     * the bottom of the screen.
      */
     private fun uploadForegrounds() {
         if (!cells.spritesRebuilt) return
@@ -1402,7 +1492,7 @@ internal class FrameRenderer {
         }
 
         val offset = cells.spriteUploadStart()
-        val size = cells.spriteCount * Cells.SPRITE_BYTES - offset
+        val size = cells.spriteUploadEnd() - offset
         if (size <= 0) return
         buffer.position(offset)
         foregroundBuffer.subData(offset, size, buffer)
@@ -1455,18 +1545,35 @@ internal class FrameRenderer {
     }
 
     /**
-     * Build the emoji of the rows that changed.
+     * Build the emoji of the frame.
      *
-     * An emoji is a square the cell's height, centred in the columns it
-     * covers: a terminal gives it two columns and one row, and an emoji
-     * stretched into that rectangle is a wide face rather than a face.
+     * The list is kept from frame to frame: an emoji is derived from the
+     * cell's codepoint and the cell's size, so a frame whose rows did not
+     * change — the cursor's blink, a redraw of the same picture — already has
+     * the list it would build. Rebuilding it there is a walk of every cell for
+     * a picture that cannot have moved.
+     *
+     * A frame whose *content* changed, or whose geometry did, rebuilds the
+     * whole list. A per-row list would rebuild fewer cells, but the walk is a
+     * codepoint read and a range check per cell, and the dirty rows are
+     * usually the ones the foreground pass is walking anyway.
      */
-    private fun buildColorGlyphs(frame: Frame) {
-        // Every row, not just the dirty ones. The engine's dirty flags answer
-        // "did the text change", and a frame with no new output has no dirty
-        // rows at all — but it still has to draw the emoji it already had.
-        // Walking a few thousand cells is cheap; losing the emoji the moment
-        // the shell goes quiet is not.
+    private fun buildColorGlyphs(frame: Frame, contentDirty: Boolean) {
+        val geometryChanged = !colorGlyphsBuilt ||
+            frame.columns != colorGlyphColumns ||
+            frame.rowCount != colorGlyphRows ||
+            frame.firstRowY != colorGlyphFirstRowY ||
+            cellWidth != colorGlyphCellWidth ||
+            cellHeight != colorGlyphCellHeight
+        if (!geometryChanged && !contentDirty) return
+
+        colorGlyphsBuilt = true
+        colorGlyphColumns = frame.columns
+        colorGlyphRows = frame.rowCount
+        colorGlyphFirstRowY = frame.firstRowY
+        colorGlyphCellWidth = cellWidth
+        colorGlyphCellHeight = cellHeight
+
         colorGlyphs.clear()
         for (row in 0 until frame.rowCount) {
             val gridRow = row + frame.firstRowY
@@ -1501,6 +1608,14 @@ internal class FrameRenderer {
             }
         }
     }
+
+    /** The emoji of the last build, and the geometry it was built for. */
+    private var colorGlyphsBuilt = false
+    private var colorGlyphColumns = 0
+    private var colorGlyphRows = 0
+    private var colorGlyphFirstRowY = 0
+    private var colorGlyphCellWidth = 0f
+    private var colorGlyphCellHeight = 0f
 
     /** Hand the emoji to the GPU: the rows that changed, or all of them. */
     private fun uploadColorAtlas() {
