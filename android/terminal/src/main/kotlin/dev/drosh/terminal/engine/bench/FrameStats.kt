@@ -380,6 +380,8 @@ internal class FrameStats {
             maxFrame(),
             averagePump(),
             averageBuild(),
+            averageBackgroundBuild(),
+            averageForegroundBuild(),
             averageUpload(),
             averageDraw(),
             longs,
