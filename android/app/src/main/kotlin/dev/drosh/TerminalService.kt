@@ -18,7 +18,7 @@ import dev.drosh.domain.session.PersistentSessionStore
 import dev.drosh.domain.session.SessionRepository
 import dev.drosh.core.TerminalConstants
 import dev.drosh.data.di.ApplicationScope
-import dev.drosh.terminal.session.TerminalManager
+import dev.drosh.terminal.session.TerminalSessionCoordinator
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
@@ -35,7 +35,7 @@ import dev.drosh.data.state.CommandStateProvider
 class TerminalService : LifecycleService() {
 
     @Inject
-    lateinit var terminalManager: TerminalManager
+    lateinit var terminalManager: TerminalSessionCoordinator
 
     @Inject
     lateinit var sessionRepository: SessionRepository

@@ -563,4 +563,12 @@ terminal session açmana gerek yok.</string>
     <string name="agent_scope_row_desc">Bu sohbetin çalışma dizini ve araç izinleri.</string>
 
     <!-- Projeler -->
+    <string name="selection_copy">Copy</string>
+    <string name="selection_select_word">Word</string>
+    <string name="selection_select_line">Line</string>
+    <string name="selection_select_all">All</string>
+    <string name="selection_search">Search</string>
+    <string name="selection_dismiss">Close</string>
+    <string name="selection_share">Share</string>
+    <string name="selection_paste">Paste</string>
 </resources>

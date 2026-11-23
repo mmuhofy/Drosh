@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
  * The provider catalog, as fetched from models.dev.
  *
  * Drosh used to ship a hardcoded list with exactly one entry in it
- * (`LlmProviderRepositoryImpl.BUILT_IN_PROVIDERS`). This replaces that with the
+ * (`CatalogLlmProviderRepository.BUILT_IN_PROVIDERS`). This replaces that with the
  * same source OpenCode reads: 225 providers and 8453 models, trimmed to the
  * fields Drosh actually uses.
  *
@@ -25,7 +25,7 @@ import kotlinx.serialization.Serializable
  * [CatalogModel.reasoningEfforts] is the model's own declaration and is the
  * source of truth for what the user may pick. Which of those a protocol can
  * actually send is a different question, answered by
- * `dev.drosh.agent.provider.EffortMapper`.
+ * `dev.drosh.feature.agent.provider.EffortMapper`.
  */
 /**
  * A `${VAR}` placeholder in a catalog endpoint.
@@ -192,7 +192,7 @@ object ProviderCatalogIds {
  * Derived from the models.dev package name, which is the only field that
  * distinguishes, say, OpenRouter from every other OpenAI-compatible gateway —
  * both are `@ai-sdk/openai-compatible`-shaped on the wire to us but
- * [EffortMapper][dev.drosh.agent.provider.EffortMapper] needs the package name
+ * [EffortMapper][dev.drosh.feature.agent.provider.EffortMapper] needs the package name
  * to spell effort correctly.
  */
 object CatalogProtocol {

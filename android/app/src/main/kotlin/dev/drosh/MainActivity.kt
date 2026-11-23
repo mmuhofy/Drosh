@@ -4,7 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import dev.drosh.core.LocaleHelper
+import dev.drosh.core.AppLocale
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshSurfaceVariant
@@ -72,9 +72,9 @@ import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.settings.toMillis
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
-import dev.drosh.editor.EditorScreen
+import dev.drosh.feature.editor.EditorScreen
 import dev.drosh.terminal.session.ExtraKeyState
-import dev.drosh.terminal.session.TerminalManager
+import dev.drosh.terminal.session.TerminalSessionCoordinator
 import dev.drosh.feature.terminal.TerminalSessionLogSource
 import dev.drosh.linux.UbuntuSetupState
 import dev.drosh.ui.setup.SetupFlowScreen
@@ -128,10 +128,10 @@ class MainActivity : ComponentActivity() {
         // The settings file, not DataStore: the language lives in the TOML now
         // and this runs before injection, so it is read straight off disk.
         val language = readStoredLocaleTag(base)
-        super.attachBaseContext(LocaleHelper.applyLocale(base, language))
+        super.attachBaseContext(AppLocale.applyLocale(base, language))
     }
 
-    @Inject lateinit var terminalManager: TerminalManager
+    @Inject lateinit var terminalManager: TerminalSessionCoordinator
     @Inject lateinit var firstLaunchUseCase: ObserveFirstLaunchUseCase
     @Inject lateinit var triggerBootstrap: TriggerBootstrapUseCase
     @Inject lateinit var extraKeyState: ExtraKeyState

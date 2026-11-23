@@ -39,10 +39,10 @@ import javax.inject.Singleton
  * (`filesDir/.drosh`), which survives a rootfs reset. The app reads the guest
  * copy when there is one and falls back to the mirror otherwise — see
  * [dev.drosh.data.settings.toml.SettingsPaths] and
- * [dev.drosh.data.theme.ThemeRepositoryImpl], which own that arrangement.
+ * [dev.drosh.data.theme.FileThemeRepository], which own that arrangement.
  *
  * This class exists so the backup code can be pointed at a temp directory in a
- * JVM test: the default graph (see the module in `BackupRepositoryImpl.kt`)
+ * JVM test: the default graph (see the module in `FileBackupRepository.kt`)
  * builds one from the real paths, and every other caller simply receives one.
  */
 data class BackupPaths(
@@ -927,7 +927,7 @@ class AppDataBackup @Inject constructor(
      * contract has no section of their own (`BackupSectionKind` has no
      * BACKGROUND) and they are appearance state exactly like the settings they
      * are set from. Their blurred caches are left behind: they are regenerated
-     * on demand by `BackgroundImageStoreImpl`, and megabytes of derived pixels
+     * on demand by `FileBackgroundImageStore`, and megabytes of derived pixels
      * have no business in a backup.
      */
     private suspend fun writeSettings(sink: SectionSink): BackupSection? = withContext(Dispatchers.IO) {
@@ -991,7 +991,7 @@ class AppDataBackup @Inject constructor(
      * Installed theme files, from both copies.
      *
      * The guest copy wins per file name, matching the precedence
-     * `ThemeRepositoryImpl.refreshInstalled()` applies when it reads the two
+     * `FileThemeRepository.refreshInstalled()` applies when it reads the two
      * directories — so the archive holds what the app would actually load. A
      * backup that also includes the rootfs therefore holds each theme file
      * twice (once here, once inside the rootfs member), which is a few
@@ -1127,7 +1127,7 @@ class AppDataBackup @Inject constructor(
      *
      * Unlike the settings file, theme files are per-id files rather than one
      * document the whole app reads, and the guest copy is the one
-     * `ThemeRepositoryImpl` consults first — so a user who restores themes
+     * `FileThemeRepository` consults first — so a user who restores themes
      * while keeping their rootfs gets the archived themes in both places, not
      * only in the mirror the app falls back to.
      */

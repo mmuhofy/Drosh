@@ -56,7 +56,7 @@ Rust half: `native/` (`libdrosh.so`); Kotlin half: `android/terminal/.../engine/
 | [~] | Kitty keyboard protocol | flags in `ghostty.rs:164-165`, `jni/session.rs:429`; full behavior unverified |
 | [x] | OSC 133 prompt/command/**exit status**, OSC 7 cwd, OSC 1339 editor | `native/src/shell.rs:3-13`; `DroshShellIntegration.kt:159-194` |
 | [x] | Real exit codes in block mode (old hardcoded-0 bug gone) | `domain/block/ShellState.kt:18` ← OSC 133 `D`; `CommandStatePublisher.kt:123-149` |
-| [x] | Block engine, prompt cards, per-block menu | `BlockEngineWire.kt` + `ShellStateSource` |
+| [x] | Block engine, prompt cards, per-block menu | `BlockEventBridge.kt` + `ShellStateSource` |
 | [x] | Search (viewport matches, next/prev, count), URL detection | `jni/search.rs:12-156`; `engine/shell/Scanner.kt` |
 | [x] | Selection: word, line, all, drag handles | `jni/selection.rs:28-241` |
 | [x] | Pinch-to-zoom (0.1sp, focal anchor, chip, double-tap reset) | `engine/input/PinchMachine.kt:29-92` |
@@ -76,7 +76,7 @@ Rust half: `native/` (`libdrosh.so`); Kotlin half: `android/terminal/.../engine/
 | [x] | 8 agent tools: `shell`, `read_file`, `write_file`, `grep`, `move_file`, `ask_user`, `update_todo`, `web_search` | `features/agent/.../tool/impl/*Tool.kt` |
 | [x] | 4 provider protocols, 225-provider catalog, per-model effort, encrypted keys | `agent/provider/*Adapter.kt`, `EffortMapper.kt:19`, `Safety.kt:13-28` (PLAN/BUILD/AUTO) |
 | [x] | Bounded loop, streaming, diff+approval, ask cards, todos, image input, session logs, compaction | `features/agent/`, `ui/agent/` |
-| [x] | SSH hosts/keys/vault/TOFU, bridged sessions; editor with TextMate grammars | `data/ssh/*`, `features/ssh/SshSessionFactoryImpl.kt`, `features/editor/src/main/assets/textmate/` |
+| [x] | SSH hosts/keys/vault/TOFU, bridged sessions; editor with TextMate grammars | `data/ssh/*`, `features/ssh/SshjSessionFactory.kt`, `features/editor/src/main/assets/textmate/` |
 | [x] | Backup/restore incl. rootfs archive and Termux→chroot migration | `data/backup/*`, `ui/.../BackupRestoreScreen.kt` |
 | [x] | Sessions/projects, split panes, floating overlay, theme store, fonts, backgrounds, PIN/biometric, service, DocumentsProvider, in-app browser, onboarding/recovery | `ui/` screens, `SplitPaneHost.kt`, `PinEntryScreen.kt` |
 | [x] | 765 Kotlin tests + 12 Rust tests; CI green on `main` | `grep @Test` / `grep '#[test]'`; `gh run list` 2026-11-18 |

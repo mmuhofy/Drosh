@@ -1,36 +1,36 @@
 package dev.drosh.data.di
 
-import dev.drosh.data.input.HardwareKeyboardPresenceImpl
-import dev.drosh.data.input.ImePresenceImpl
-import dev.drosh.data.input.InputPreferencesRepositoryImpl
-import dev.drosh.data.input.SubmitRawByteUseCaseImpl
-import dev.drosh.data.session.ObserveActiveSessionUseCaseImpl
-import dev.drosh.data.session.DeviceIdentityRepositoryImpl
-import dev.drosh.data.session.PersistentSessionStoreImpl
+import dev.drosh.data.input.AndroidHardwareKeyboardPresence
+import dev.drosh.data.input.AndroidImePresence
+import dev.drosh.data.input.SettingsInputPreferencesRepository
+import dev.drosh.data.input.TerminalSubmitRawByteUseCase
+import dev.drosh.data.session.DefaultObserveActiveSessionUseCase
+import dev.drosh.data.session.DataStoreDeviceIdentityRepository
+import dev.drosh.data.session.DataStorePersistentSessionStore
 import dev.drosh.data.session.SessionManagerAdapter
-import dev.drosh.data.session.SessionRepositoryImpl
-import dev.drosh.data.agent.AgentChatRepositoryImpl
-import dev.drosh.data.agent.LlmProviderRepositoryImpl
-import dev.drosh.data.agent.ToolCredentialRepositoryImpl
-import dev.drosh.data.agent.TranscriptStoreImpl
-import dev.drosh.data.backup.BackupRepositoryImpl
-import dev.drosh.data.block.BlockRepositoryImpl
+import dev.drosh.data.session.RoomSessionRepository
+import dev.drosh.data.agent.RoomAgentChatRepository
+import dev.drosh.data.agent.CatalogLlmProviderRepository
+import dev.drosh.data.agent.EncryptedToolCredentialRepository
+import dev.drosh.data.agent.RoomTranscriptStore
+import dev.drosh.data.backup.FileBackupRepository
+import dev.drosh.data.block.InMemoryBlockRepository
 import dev.drosh.data.block.TrafficStatsCollector
-import dev.drosh.data.settings.PinLockRepositoryImpl
-import dev.drosh.data.settings.FirstLaunchRepositoryImpl
-import dev.drosh.data.settings.BackgroundImageStoreImpl
-import dev.drosh.data.settings.SettingsRepositoryImpl
+import dev.drosh.data.settings.DataStorePinLockRepository
+import dev.drosh.data.settings.DataStoreFirstLaunchRepository
+import dev.drosh.data.settings.FileBackgroundImageStore
+import dev.drosh.data.settings.TomlSettingsRepository
 import dev.drosh.data.settings.toml.TomlSettingsStore
 import dev.drosh.data.theme.ApplyTheme
-import dev.drosh.data.theme.ThemeRepositoryImpl
+import dev.drosh.data.theme.FileThemeRepository
 import dev.drosh.data.terminal.BootstrapObserver
-import dev.drosh.data.terminal.PaneLayoutRepositoryImpl
-import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
+import dev.drosh.data.terminal.DataStorePaneLayoutRepository
+import dev.drosh.data.terminal.TerminalSubmitBlockCommandUseCase
 import dev.drosh.data.terminal.TriggerBootstrap
-import dev.drosh.data.ssh.SshHostRepositoryImpl
-import dev.drosh.data.ssh.SshKeyRepositoryImpl
-import dev.drosh.data.ssh.SshCredentialVaultImpl
-import dev.drosh.data.ssh.SshSessionLauncherImpl
+import dev.drosh.data.ssh.RoomSshHostRepository
+import dev.drosh.data.ssh.RoomSshKeyRepository
+import dev.drosh.data.ssh.EncryptedSshCredentialVault
+import dev.drosh.data.ssh.SshjSessionLauncher
 import dev.drosh.domain.agent.AgentChatRepository
 import dev.drosh.domain.agent.AgentSession
 import dev.drosh.domain.agent.LlmProviderRepository
@@ -83,7 +83,7 @@ abstract class BindingsModule {
     @Binds
     @Singleton
     abstract fun bindDeviceIdentityRepository(
-        impl: DeviceIdentityRepositoryImpl,
+        impl: DataStoreDeviceIdentityRepository,
     ): DeviceIdentityRepository
 
     @Binds
@@ -101,25 +101,25 @@ abstract class BindingsModule {
     @Binds
     @Singleton
     abstract fun bindObserveFirstLaunch(
-        impl: FirstLaunchRepositoryImpl,
+        impl: DataStoreFirstLaunchRepository,
     ): ObserveFirstLaunchUseCase
 
     @Binds
     @Singleton
     abstract fun bindSessionRepository(
-        impl: SessionRepositoryImpl,
+        impl: RoomSessionRepository,
     ): SessionRepository
 
     @Binds
     @Singleton
     abstract fun bindObserveActiveSession(
-        impl: ObserveActiveSessionUseCaseImpl,
+        impl: DefaultObserveActiveSessionUseCase,
     ): ObserveActiveSessionUseCase
 
     @Binds
     @Singleton
     abstract fun bindPersistentSessionStore(
-        impl: PersistentSessionStoreImpl,
+        impl: DataStorePersistentSessionStore,
     ): PersistentSessionStore
 
     @Binds
@@ -131,31 +131,31 @@ abstract class BindingsModule {
     @Binds
     @Singleton
     abstract fun bindSshHostRepository(
-        impl: SshHostRepositoryImpl,
+        impl: RoomSshHostRepository,
     ): SshHostRepository
 
     @Binds
     @Singleton
     abstract fun bindSshKeyRepository(
-        impl: SshKeyRepositoryImpl,
+        impl: RoomSshKeyRepository,
     ): SshKeyRepository
 
     @Binds
     @Singleton
     abstract fun bindSshCredentialVault(
-        impl: SshCredentialVaultImpl,
+        impl: EncryptedSshCredentialVault,
     ): SshCredentialVault
 
     @Binds
     @Singleton
     abstract fun bindSshSessionLauncher(
-        impl: SshSessionLauncherImpl,
+        impl: SshjSessionLauncher,
     ): SshSessionLauncher
 
     @Binds
     @Singleton
     abstract fun bindSettingsRepository(
-        impl: SettingsRepositoryImpl,
+        impl: TomlSettingsRepository,
     ): SettingsRepository
 
     /** The TOML file behind the facade above. */
@@ -168,7 +168,7 @@ abstract class BindingsModule {
     @Binds
     @Singleton
     abstract fun bindThemeRepository(
-        impl: ThemeRepositoryImpl,
+        impl: FileThemeRepository,
     ): ThemeRepository
 
     /**
@@ -185,26 +185,26 @@ abstract class BindingsModule {
     @Binds
     @Singleton
     abstract fun bindBackgroundImageStore(
-        impl: BackgroundImageStoreImpl,
+        impl: FileBackgroundImageStore,
     ): BackgroundImageStore
 
     @Binds
     @Singleton
     abstract fun bindPinLockRepository(
-        impl: PinLockRepositoryImpl,
+        impl: DataStorePinLockRepository,
     ): PinLockRepository
 
 
     @Binds
     @Singleton
     abstract fun bindPaneLayoutRepository(
-        impl: PaneLayoutRepositoryImpl,
+        impl: DataStorePaneLayoutRepository,
     ): PaneLayoutRepository
 
     @Binds
     @Singleton
     abstract fun bindBlockRepository(
-        impl: BlockRepositoryImpl,
+        impl: InMemoryBlockRepository,
     ): BlockRepository
 
     @Binds
@@ -216,61 +216,61 @@ abstract class BindingsModule {
     @Binds
     @Singleton
     abstract fun bindSubmitBlockCommand(
-        impl: SubmitBlockCommandUseCaseImpl,
+        impl: TerminalSubmitBlockCommandUseCase,
     ): SubmitBlockCommandUseCase
 
     @Binds
     @Singleton
     abstract fun bindInputPreferencesRepository(
-        impl: InputPreferencesRepositoryImpl,
+        impl: SettingsInputPreferencesRepository,
     ): InputPreferencesRepository
 
     @Binds
     @Singleton
     abstract fun bindSubmitRawByte(
-        impl: SubmitRawByteUseCaseImpl,
+        impl: TerminalSubmitRawByteUseCase,
     ): SubmitRawByteUseCase
 
     @Binds
     @Singleton
     abstract fun bindHardwareKeyboardPresence(
-        impl: HardwareKeyboardPresenceImpl,
+        impl: AndroidHardwareKeyboardPresence,
     ): HardwareKeyboardPresence
 
     @Binds
     @Singleton
     abstract fun bindImePresence(
-        impl: ImePresenceImpl,
+        impl: AndroidImePresence,
     ): ImePresence
 
     @Binds
     @Singleton
     abstract fun bindLlmProviderRepository(
-        impl: LlmProviderRepositoryImpl,
+        impl: CatalogLlmProviderRepository,
     ): LlmProviderRepository
 
     @Binds
     @Singleton
     abstract fun bindAgentChatRepository(
-        impl: AgentChatRepositoryImpl,
+        impl: RoomAgentChatRepository,
     ): AgentChatRepository
 
     @Binds
     @Singleton
     abstract fun bindTranscriptStore(
-        impl: TranscriptStoreImpl,
+        impl: RoomTranscriptStore,
     ): TranscriptStore
 
     @Binds
     @Singleton
     abstract fun bindToolCredentialRepository(
-        impl: ToolCredentialRepositoryImpl,
+        impl: EncryptedToolCredentialRepository,
     ): ToolCredentialRepository
 
     @Binds
     @Singleton
     abstract fun bindAgentSession(
-        impl: dev.drosh.agent.runtime.AgentLoop,
+        impl: dev.drosh.feature.agent.runtime.AgentLoop,
     ): AgentSession
 
     /**
@@ -284,6 +284,6 @@ abstract class BindingsModule {
     @Binds
     @Singleton
     abstract fun bindBackupRepository(
-        impl: BackupRepositoryImpl,
+        impl: FileBackupRepository,
     ): BackupRepository
 }

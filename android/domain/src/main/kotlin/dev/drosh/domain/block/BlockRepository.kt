@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
  * Public interface of the block engine, exposed to `:ui`.
  *
  * The implementation lives in `:data` and is injected via Hilt
- * (`BlockRepositoryImpl`). UI consumers observe the block list and
+ * (`InMemoryBlockRepository`). UI consumers observe the block list and
  * forward user actions (run/cancel) through the same interface.
  *
  * State transitions are exposed as `StateFlow` for Compose collection.

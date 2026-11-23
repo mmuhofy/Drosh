@@ -3,8 +3,8 @@ package dev.drosh.data.di
 import dev.drosh.domain.input.SendKeyIntentUseCase
 import dev.drosh.domain.input.StickyModifierState
 import dev.drosh.terminal.session.ExtraKeyState
-import dev.drosh.terminal.session.TerminalManager
-import dev.drosh.terminal.session.input.SendKeyIntentUseCaseImpl
+import dev.drosh.terminal.session.TerminalSessionCoordinator
+import dev.drosh.terminal.session.input.TerminalSendKeyIntentUseCase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -37,6 +37,6 @@ object TerminalInputModule {
     @Singleton
     fun provideSendKeyIntentUseCase(
         state: ExtraKeyState,
-        manager: TerminalManager,
-    ): SendKeyIntentUseCase = SendKeyIntentUseCaseImpl(state, manager)
+        manager: TerminalSessionCoordinator,
+    ): SendKeyIntentUseCase = TerminalSendKeyIntentUseCase(state, manager)
 }

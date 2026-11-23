@@ -277,7 +277,7 @@ data class AgentToolSettings(
      * Reasoning effort, spelled the way the model names it.
      *
      * Empty means the model's own default, which is what a user who has never
-     * thought about it wants. See `dev.drosh.agent.provider.EffortMapper` for
+     * thought about it wants. See `dev.drosh.feature.agent.provider.EffortMapper` for
      * how each protocol spells the same value.
      */
     val effort: String = "",

@@ -103,7 +103,7 @@ import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.terminal.session.GhosttySession
 import dev.drosh.terminal.session.GhosttyTerminal
-import dev.drosh.terminal.session.TerminalManager
+import dev.drosh.terminal.session.TerminalSessionCoordinator
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.linux.UbuntuSetupState
@@ -126,9 +126,6 @@ import dev.drosh.ui.session.rememberSidebarPushState
 import dev.drosh.ui.session.sidebarPush
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
-import dev.drosh.feature.terminal.topbar.SelectionMenuSurface
-import dev.drosh.feature.terminal.topbar.SelectionMenuBackdrop
-import dev.drosh.feature.terminal.topbar.menuWidthFor
 import dev.drosh.terminal.session.chromeCollapsed
 import dev.drosh.ClipboardSink
 import dev.drosh.TerminalBell
@@ -174,30 +171,9 @@ private const val PROGRAM_PROMPT_MARKER = "›"
 private fun statusBarInset(): Dp =
     WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
 
-/** Selection menu metrics. */
-private val MENU_GUTTER = 12.dp
-private val MENU_GAP = 10.dp
-private val MENU_MIN_WIDTH = 210.dp
-
-/** Light blur, not an Apple-style frosted slab. */
-private val MENU_BLUR = 10.dp
-
-/**
- * How hard the selection menu's backdrop is blurred.
- *
- * The Termux picture is a picture, and blurring it smears the output behind
- * the menu — which is the whole point of the glass. The engine's picture of
- * the region is one flat colour, the region's average, and blurring a flat
- * colour changes nothing at all: so there the blur is not paid for.
- */
-private fun menuBlurRadius(kind: TerminalAppearanceKind?): Dp =
-    if (kind == TerminalAppearanceKind.ENGINE) 0.dp else MENU_BLUR
-
-private val MENU_HEIGHT_PX = 64.dp
-
 @Composable
 fun TerminalScreen(
-    terminalManager: TerminalManager,
+    terminalManager: TerminalSessionCoordinator,
     settingsRepository: SettingsRepository,
     ubuntuSetupState: UbuntuSetupState,
     onRetry: () -> Unit,
@@ -221,7 +197,7 @@ fun TerminalScreen(
     var showProgress by remember { mutableStateOf(false) }
 
     // `editor <path>` arrives as an escape sequence from the shell, parsed by the
-    // emulator and republished by TerminalManager. Collected here because this is
+    // emulator and republished by TerminalSessionCoordinator. Collected here because this is
     // the screen the user is looking at when they type the command.
     LaunchedEffect(terminalManager) {
         terminalManager.editorRequests.requests.collect { guestPath ->
@@ -276,7 +252,7 @@ fun TerminalScreen(
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun ReadyScreen(
-    terminalManager: TerminalManager,
+    terminalManager: TerminalSessionCoordinator,
     terminalViewModel: TerminalViewModel,
     settingsRepository: SettingsRepository,
     onOpenSettings: () -> Unit,
@@ -1335,7 +1311,7 @@ private fun ReadyScreen(
          * answering for a keyboard that only ever types into one of them. A
          * special key is not a property of a pane; it is a property of *the*
          * keyboard. `inputBarViewModel` already routes an intent to whichever
-         * pane `TerminalManager.focusedPane` names, so one bar is both correct
+         * pane `TerminalSessionCoordinator.focusedPane` names, so one bar is both correct
          * and sufficient.
          *
          * Drawn outside [SplitPaneHost] so it stays put when the divider moves —
@@ -1848,7 +1824,7 @@ private fun SetupFailure(
 @Composable
 private fun TerminalPaneBody(
     paneSlot: PaneSlot,
-    terminalManager: TerminalManager,
+    terminalManager: TerminalSessionCoordinator,
     fontSizeSp: Float,
     defaultFontSizeSp: Float,
     /**

@@ -1,7 +1,6 @@
 package dev.drosh.terminal.session
 
 import android.content.Context
-import android.graphics.Rect
 import android.util.Log
 import android.view.View
 import dev.drosh.linux.GuestCommand
@@ -112,14 +111,6 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     override var cellWidth: Float = 1f
     override var cellHeight: Float = 1f
 
-    /**
-     * Told when the selection changes, so the chrome can show its menu.
-     *
-     * The surface knows when a selection starts, ends or moves; the chrome
-     * hangs its menu on the selection's rectangle.
-     */
-    override var selectionListener: ((Boolean) -> Unit)? = null
-
     init {
         view.onExit = { status ->
             state = state.exited()
@@ -130,17 +121,6 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         // The surface asks the app, not the engine, whether the viewport is at
         // the live edge.
         view.atLiveEdge = { atLiveEdge() }
-        // The chrome's selection menu hangs off this.
-        view.onSelectionChanged = { hasSelection ->
-            selectionListener?.invoke(hasSelection)
-        }
-        // The bounds arrive from the render thread after the frame that drew
-        // them. Without this the chrome is told "there is a selection" while
-        // the rectangle is still null, and never told again — which is why a
-        // long press highlighted the word but drew no grips or menu.
-        view.onSelectionBounds = { bounds ->
-            selectionListener?.invoke(bounds != null)
-        }
     }
 
     // --- identity ----------------------------------------------------------
@@ -574,8 +554,6 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
 
     override fun selectionText(): String = view.selectedText()
 
-    override fun hasSelection(): Boolean = view.hasSelection()
-
     override fun copySelection(): Boolean = view.copySelection()
 
     override fun selectWord(row: Int, col: Int, chrome: Boolean): Boolean =
@@ -587,8 +565,6 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     override fun selectAll(): Boolean = view.selectAll()
 
     override fun clearSelection() = view.clearSelection()
-
-    override fun selectionBounds(): Rect? = view.selectionBounds()
 
     // --- find --------------------------------------------------------------
 

@@ -2,12 +2,6 @@ package dev.drosh.feature.terminal
 
 import android.graphics.Bitmap
 import android.util.Log
-import android.os.Handler
-import android.os.Looper
-import android.os.SystemClock
-import android.view.MotionEvent
-import android.view.PixelCopy
-import android.view.Surface
 import android.view.View
 import android.view.ViewConfiguration
 import androidx.compose.foundation.layout.Box
@@ -28,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalContext
@@ -41,7 +34,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.drosh.domain.terminal.PaneSlot
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.terminal.session.GhosttyTerminal
-import dev.drosh.terminal.session.TerminalManager
+import dev.drosh.terminal.session.TerminalSessionCoordinator
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import kotlinx.coroutines.Dispatchers
@@ -73,7 +66,7 @@ import kotlin.math.abs
 @Composable
 fun GhosttyTerminalHost(
     paneSlot: PaneSlot,
-    terminalManager: TerminalManager,
+    terminalManager: TerminalSessionCoordinator,
     sessionId: String = "",
     sessionName: String = "",
     fontSizeSp: Float,
@@ -635,7 +628,7 @@ fun GhosttyTerminalHost(
             val bottomRight = pane.selectionBottomRightCell()?.let { (row, column) ->
                 Offset(column * cell.width, row * cell.height - scrollOffset)
             }
-            TerminalSelectionMenu(
+            TerminalSelectionOverlay(
                 bounds = selectionBounds!!,
                 paneOrigin = Offset.Zero,
                 onCopy = { pane.copySelection() },
@@ -745,144 +738,6 @@ fun GhosttyTerminalHost(
 
 private const val TAG = "GhosttyTerminalHost"
 
-/** How often a visible session's last frame is refreshed. */
-private const val THUMBNAIL_CAPTURE_INTERVAL_MS = 2_000L
-
-/**
- * Capture width for a session card.
- *
- * A card is a few hundred dp wide on the grid, and the old 160px capture was
- * being scaled up into it — the source of the soft, shifting previews. Capture
- * above the card's size so the downscale is done by the decoder, at a fixed
- * width so the bitmap's shape does not change with the pane's layout.
- */
-private const val THUMBNAIL_WIDTH = 480
-
-/** Guard against an absurdly tall bitmap for a very narrow pane. */
-private const val THUMBNAIL_MAX_HEIGHT = 960
-
-/**
- * Copy one frame from the pane's surface into a stable bitmap and hand it up.
- *
- * // UNTESTED — verify before use
- * PixelCopy is asynchronous and reports through a listener on the main looper;
- * neither the copy nor a failure waits on the render thread. A secure or already
- * destroyed surface can refuse the request — that is logged and dropped, never
- * retried in a tight loop and never allowed to block a frame.
- */
-private fun captureSessionThumbnail(
-    surface: Surface,
-    viewWidth: Int,
-    viewHeight: Int,
-    sessionId: String,
-    shouldPublish: (String, Bitmap) -> Boolean,
-    onThumbnail: (String, ImageBitmap) -> Unit,
-) {
-    // UNTESTED — verify before use
-    if (sessionId.isEmpty() || viewWidth <= 0 || viewHeight <= 0 || !surface.isValid) return
-    val width = THUMBNAIL_WIDTH
-    val height = (width.toFloat() * viewHeight / viewWidth)
-        .toInt()
-        .coerceIn(1, THUMBNAIL_MAX_HEIGHT)
-    val bitmap = runCatching {
-        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    }.getOrElse { error ->
-        Log.w(TAG, "thumbnail bitmap allocation failed: ${error.message}")
-        return
-    }
-    PixelCopy.request(
-        surface,
-        bitmap,
-        { result ->
-            if (result == PixelCopy.SUCCESS) {
-                // UNTESTED — verify before use: an idle terminal returns the same
-                // pixels on every tick, and republishing those reallocated the
-                // card's image at 2s intervals, which read as a flicker.
-                if (shouldPublish(sessionId, bitmap)) {
-                    onThumbnail(sessionId, bitmap.asImageBitmap())
-                } else {
-                    Log.d(TAG, "thumbnail unchanged for $sessionId — not published")
-                }
-            } else {
-                Log.w(TAG, "PixelCopy failed for $sessionId: $result")
-            }
-        },
-        Handler(Looper.getMainLooper()),
-    )
-}
-
-/**
- * De-duplicates and throttles thumbnails before they reach the session grid.
- *
- * // UNTESTED — verify before use
- * A signature is a sparse sample of the frame rather than a full pixel compare:
- * a terminal is mostly still between keystrokes, and two 480px bitmaps are
- * cheap to compare this way on the main looper. A transparent capture is dropped
- * because the surface can exist before its first frame — publishing that gave
- * the card an empty picture.
- *
- * State is kept per session: this single publisher serves every live session's
- * captures (polled ones and the final frames of ones going background), so a
- * global "last session" would either throttle the wrong card or republish an
- * unchanged one. All calls arrive on the main looper — PixelCopy's listener and
- * the polling coroutine both run there — so the map needs no lock.
- */
-private class ThumbnailPublisher(private val minIntervalMs: Long) {
-    private data class Published(val signature: IntArray, val atMs: Long)
-
-    private val published = HashMap<String, Published>()
-
-    /**
-     * [force] skips only the throttle: a final capture of a session leaving the
-     * pane must land even when its last normal capture was seconds ago. Dedupe
-     * and the transparency check are unchanged, so an unchanged or empty frame
-     * is never published.
-     */
-    fun shouldPublish(sessionId: String, bitmap: Bitmap, force: Boolean = false): Boolean {
-        if (sessionId.isEmpty() || bitmap.isRecycled) return false
-        if (bitmap.width <= 0 || bitmap.height <= 0 || !bitmap.hasVisiblePixels()) return false
-
-        val signature = bitmap.signature()
-        val previous = published[sessionId]
-        if (previous != null && signature.contentEquals(previous.signature)) return false
-        val now = SystemClock.elapsedRealtime()
-        if (!force && previous != null && now - previous.atMs < minIntervalMs) return false
-
-        published[sessionId] = Published(signature, now)
-        return true
-    }
-}
-
-/** Sparse sample of a bitmap, stable enough to tell a changed frame from a still one. */
-private fun Bitmap.signature(): IntArray {
-    val samples = THUMBNAIL_SIGNATURE_SAMPLES
-    val out = IntArray(samples * samples)
-    for (y in 0 until samples) {
-        val py = y * (height - 1) / (samples - 1)
-        for (x in 0 until samples) {
-            val px = x * (width - 1) / (samples - 1)
-            out[y * samples + x] = getPixel(px, py)
-        }
-    }
-    return out
-}
-
-/** True when any sampled pixel is not fully transparent. */
-private fun Bitmap.hasVisiblePixels(): Boolean {
-    val samples = THUMBNAIL_SIGNATURE_SAMPLES
-    for (y in 0 until samples) {
-        val py = y * (height - 1) / (samples - 1)
-        for (x in 0 until samples) {
-            val px = x * (width - 1) / (samples - 1)
-            if (getPixel(px, py) and OPAQUE_ALPHA_MASK != 0) return true
-        }
-    }
-    return false
-}
-
-private const val THUMBNAIL_SIGNATURE_SAMPLES = 16
-private const val OPAQUE_ALPHA_MASK = -0x1000000
-
 /** How often the open panel reads the moving numbers again. */
 private const val DIAGNOSTICS_REFRESH_MS = 500L
 
@@ -892,111 +747,8 @@ private const val BENCHMARK_SAMPLE_MS = 1_000L
 /** How many half-seconds the status line stays up before it gets out of the way. */
 private const val STATUS_TICKS = 40
 
-/**
- * How long a touch may last and still count as a tap.
- *
- * A terminal's own gestures are drags and pinches; a tap is the short, still
- * one between them. The window is short because a long press that happened to
- * move a pixel should scroll, not follow a link.
- */
-private const val TAP_TIMEOUT_MILLIS = 250L
-
 /** The cell a font measured, in pixels. */
 private data class CellMetrics(val width: Float, val height: Float, val fontPx: Float)
-
-/**
- * Follows the hyperlink, if any, under a tap on the terminal.
- *
- * ## Why a listener that returns false
- *
- * The surface handles its own touches — scroll, fling, pinch, focus — and this
- * must not take any of that away. An `OnTouchListener` runs before the view's
- * own `onTouchEvent`, and returning false hands the event straight on, so the
- * surface behaves exactly as it did. What is left here is the one thing the
- * surface does not do: spotting a tap and asking the engine about the cell
- * under it.
- *
- * ## Why the cell is read at tap time
- *
- * The cell size and the resolver are functions, not values: a pinch or a font
- * change moves the cell, and a listener built once would otherwise resolve the
- * tap against the cell it was built with. They are read when the tap lands.
- */
-private class HyperlinkTap(
-    /** How far a touch may wander and still be a tap. */
-    private val slop: Int,
-    /** How long a touch may last and still be a tap. */
-    private val timeoutMillis: Long,
-    /** The pane's cell, in pixels, read at tap time. */
-    private val cellSize: () -> Pair<Float, Float>,
-    /** Whether touch is being reported to the program as mouse events. */
-    private val mouseActive: () -> Boolean,
-    /** The engine's link for a viewport cell, or null. */
-    private val resolve: (row: Int, column: Int) -> String?,
-    /** Told the URI that was found. */
-    private val onLink: (String) -> Unit,
-) : View.OnTouchListener {
-
-    private var downX = 0f
-    private var downY = 0f
-    private var downAt = 0L
-
-    /** True while the touch could still become a tap. */
-    private var candidate = false
-
-    override fun onTouch(view: View, event: MotionEvent): Boolean {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                downX = event.x
-                downY = event.y
-                downAt = SystemClock.uptimeMillis()
-                // One finger only: a two-finger touch is a pinch's beginning,
-                // and a pinch is not a tap on a link.
-                candidate = event.pointerCount == 1
-            }
-
-            MotionEvent.ACTION_POINTER_DOWN -> candidate = false
-
-            MotionEvent.ACTION_MOVE -> {
-                if (candidate &&
-                    (abs(event.x - downX) > slop || abs(event.y - downY) > slop)
-                ) {
-                    candidate = false
-                }
-            }
-
-            MotionEvent.ACTION_UP -> {
-                val wasTap = candidate && SystemClock.uptimeMillis() - downAt <= timeoutMillis
-                candidate = false
-                // Under mouse reporting the tap is the program's click: the
-                // surface has already sent it, and opening a link on top of
-                // the click the user did not ask for would be two actions for
-                // one touch.
-                if (wasTap && !mouseActive()) followLink(event.x, event.y)
-            }
-
-            MotionEvent.ACTION_CANCEL -> candidate = false
-        }
-        // Never consume: the surface's own gestures must go on receiving every
-        // event exactly as they did before.
-        return false
-    }
-
-    /** Resolve the tapped cell and report its link, if it has one. */
-    private fun followLink(x: Float, y: Float) {
-        val (width, height) = cellSize()
-        if (width <= 0f || height <= 0f) return
-        // Viewport coordinates: the grid is drawn from the surface's origin, so
-        // the cell under the finger is the finger divided by the cell. The
-        // sub-line scroll remainder is not applied — a tap after a scroll can
-        // be one row out until the picture has settled on a whole row.
-        val column = (x / width).toInt()
-        val row = (y / height).toInt()
-        if (column < 0 || row < 0) return
-        val uri = resolve(row, column) ?: return
-        if (uri.isNotEmpty()) onLink(uri)
-    }
-}
 
 /** The grid a PTY starts with before the surface has been measured. */
 private const val DEFAULT_COLUMNS = 100

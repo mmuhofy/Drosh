@@ -1,7 +1,7 @@
 package dev.drosh.feature.terminal
 
 import dev.drosh.terminal.session.SessionTranscript
-import dev.drosh.terminal.session.TerminalManager
+import dev.drosh.terminal.session.TerminalSessionCoordinator
 import dev.drosh.ui.session.SessionLogSource
 
 /**
@@ -30,7 +30,7 @@ import dev.drosh.ui.session.SessionLogSource
  * sheet. The wiring therefore belongs here, not in `:app`.
  */
 class TerminalSessionLogSource(
-    private val terminalManager: TerminalManager,
+    private val terminalManager: TerminalSessionCoordinator,
 ) : SessionLogSource {
 
     override fun lines(sessionId: String): List<String> =

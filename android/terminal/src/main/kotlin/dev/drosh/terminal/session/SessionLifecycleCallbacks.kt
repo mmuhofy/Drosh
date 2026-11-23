@@ -1,7 +1,7 @@
 package dev.drosh.terminal.session
 
 /**
- * Callback interface allowing [TerminalManager] to notify the data/session
+ * Callback interface allowing [TerminalSessionCoordinator] to notify the data/session
  * layer about terminal session lifecycle events.
  *
  * Inspired by Termux's `TerminalSessionClient` callback pattern
@@ -11,7 +11,7 @@ package dev.drosh.terminal.session
  * events flow through [TerminalSessionClientImpl], and the session-level
  * events (keyed by persistent id) flow through this interface.
  *
- * Ported from: mmuhofy/IrisCode — terminal/TerminalManager.kt
+ * Ported from: mmuhofy/IrisCode — terminal/TerminalSessionCoordinator.kt
  * Adapted for Drosh — dev.drosh
  */
 interface SessionLifecycleCallbacks {

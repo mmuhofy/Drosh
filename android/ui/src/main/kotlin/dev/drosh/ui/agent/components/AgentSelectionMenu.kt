@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -40,6 +41,7 @@ import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
 
 /**
  * The text selection menu for the agent screens.
@@ -120,17 +122,17 @@ fun AgentSelectionMenu(
     ) {
         AgentSelectionAction(
             icon = DroshIcons.Copy,
-            label = "Kopyala",
+            label = stringResource(R.string.selection_copy),
             onClick = { onCopy(selectedText) },
         )
         AgentSelectionAction(
             icon = DroshIcons.Type,
-            label = "Tümü",
+            label = stringResource(R.string.selection_select_all),
             onClick = onSelectAll,
         )
         AgentSelectionAction(
             icon = DroshIcons.Share,
-            label = "Paylaş",
+            label = stringResource(R.string.selection_share),
             onClick = { onShare(selectedText) },
         )
     }

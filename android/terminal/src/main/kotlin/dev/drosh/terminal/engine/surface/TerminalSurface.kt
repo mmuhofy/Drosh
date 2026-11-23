@@ -269,13 +269,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.post(RenderThread.Command.BellColour(argb))
     }
 
-    /** The selection's rectangle, published after the frame that drew it. */
-    var onSelectionBounds: ((android.graphics.Rect?) -> Unit)?
-        get() = renderThread.onSelectionBounds
-        set(value) {
-            renderThread.onSelectionBounds = value
-        }
-
     fun bell() {
         renderThread.post(RenderThread.Command.Bell)
         renderThread.invalidate()
@@ -1517,15 +1510,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private var selectionAutoScrollEdge: Int = 0
     private var selectionAutoScrollRunning: Boolean = false
 
-    /**
-     * Told that the selection changed.
-     *
-     * The chrome's selection menu hangs off this: without it the menu never
-     * comes up, and a selection that cannot be copied is a selection that does
-     * not exist.
-     */
-    var onSelectionChanged: ((Boolean) -> Unit)? = null
-
     /** The selected text, or "". */
     fun selectedText(): String {
         // The selection lives in the engine, and the engine is the only one
@@ -1536,13 +1520,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (session == 0L) return ""
         return SelectionText.normalize(NativeSelection.text(session))
     }
-
-    /** True when something is selected. */
-    fun hasSelection(): Boolean = selectedText().isNotEmpty()
-
-    /** The selection's bounds in pixels, or null. */
-    fun selectionBounds(): android.graphics.Rect? =
-        _selectionBounds.value ?: renderThread.selectionBounds
 
     /**
      * The cell the toolbar's word and line actions should grow from.
@@ -1599,7 +1576,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         selectionGestureActive = false
         stopSelectionAutoScroll()
         chromeSelection = false
-        onSelectionChanged?.invoke(false)
         renderThread.invalidateFull()
     }
 
@@ -1648,10 +1624,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         )
         if (chrome) {
             chromeSelection = true
-            onSelectionChanged?.invoke(true)
         } else if (chromeSelection) {
             chromeSelection = false
-            onSelectionChanged?.invoke(false)
         }
         return true
     }
@@ -1800,7 +1774,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // brings it back publishes it again with its grips and menu.
         selectionSnapshot = null
         _selectionBounds.value = null
-        onSelectionChanged?.invoke(false)
     }
 
     /**

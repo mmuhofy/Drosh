@@ -6,7 +6,7 @@ package dev.drosh.domain.terminal
  * Used by the Block Mode UI: the Compose-only sticky input field calls
  * [submit] when the user presses Enter. The implementation in `:data`
  * writes the command (followed by CR) into the active session via
- * `TerminalManager`.
+ * `TerminalSessionCoordinator`.
  *
  * Implementation detail: callers do not need to append a newline — the
  * use case handles line termination itself.

@@ -87,8 +87,8 @@ val boundaryRules = listOf(
     "domain|dev.drosh.terminal.engine|0",
     "domain|dev.drosh.linux|0",
     "domain|dev.drosh.ui|0",
-    "domain|dev.drosh.ssh|0",
-    "domain|dev.drosh.agent|0",
+    "domain|dev.drosh.feature.ssh|0",
+    "domain|dev.drosh.feature.agent|0",
     // :linux is the Linux userland — no UI, no session, no engine.
     "linux|dev.drosh.terminal|0",
     "linux|dev.drosh.terminal.engine|0",
@@ -125,8 +125,8 @@ val internalRules = listOf(
     "dev.drosh.terminal.engine|dev.drosh.terminal.session",
     "dev.drosh.terminal.engine|dev.drosh.linux",
     "dev.drosh.terminal.engine|dev.drosh.data",
-    "dev.drosh.terminal.engine|dev.drosh.agent",
-    "dev.drosh.terminal.engine|dev.drosh.ssh",
+    "dev.drosh.terminal.engine|dev.drosh.feature.agent",
+    "dev.drosh.terminal.engine|dev.drosh.feature.ssh",
     "dev.drosh.terminal.engine|dev.drosh.ui",
 )
 

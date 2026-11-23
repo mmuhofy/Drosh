@@ -209,8 +209,6 @@ interface TerminalEngine {
 
     fun selectionText(): String
 
-    fun hasSelection(): Boolean
-
     fun copySelection(): Boolean
 
     fun selectWord(row: Int, col: Int, chrome: Boolean = false): Boolean
@@ -220,8 +218,6 @@ interface TerminalEngine {
     fun selectAll(): Boolean
 
     fun clearSelection()
-
-    fun selectionBounds(): android.graphics.Rect?
 
     // --- find --------------------------------------------------------------
 
@@ -329,12 +325,4 @@ interface TerminalEngine {
      */
     fun notifyFocus(focused: Boolean) {}
 
-    /**
-     * The manager's selection listener — chrome feedback for "is there a
-     * selection".
-     *
-     * A pane that cannot report selection events keeps the default and never
-     * fires; the chrome simply never comes up.
-     */
-    var selectionListener: ((Boolean) -> Unit)?
 }

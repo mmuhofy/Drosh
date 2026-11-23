@@ -397,7 +397,6 @@ internal class FrameRenderer {
         // fills is a pass that draws whatever was left in it — which is how the
         // coloured bars of a full-screen program went missing while the text
         // kept rendering.
-        measureSelection(frame, size)
         cells.resize(frame)
 
         val backgroundBuildStart = System.nanoTime()
@@ -922,52 +921,8 @@ internal class FrameRenderer {
 
     private val imageTextures = HashMap<Int, ImageTexture>()
 
-    /**
-     * The cells the engine says are selected, in view pixels.
-     *
-     * The renderer is the one that sees the selected cells — the engine marks
-     * them in the frame — so it is the one that can say where they are. The
-     * chrome hangs its selection menu on that rectangle.
-     */
-    @Volatile
-    var selectionBounds: android.graphics.Rect? = null
-        private set
-
     /** The pictures of the last frame, in the order they are drawn. */
     private val images = ArrayList<ImageDraw>()
-
-    /**
-     * Where the selected cells are, in view pixels.
-     *
-     * The engine marks the selected cells and the renderer draws them, so this
-     * is the one place that knows both the cells and where they land. The
-     * rectangle is what the chrome's menu hangs on.
-     */
-    private fun measureSelection(frame: Frame, size: SizeInfo) {
-        var left = Int.MAX_VALUE
-        var top = Int.MAX_VALUE
-        var right = Int.MIN_VALUE
-        var bottom = Int.MIN_VALUE
-        for (index in 0 until frame.cellCount) {
-            if (!frame.isSelected(index)) continue
-            val column = index % frame.columns
-            val row = index / frame.columns - frame.overscanAbove
-            if (column < left) left = column
-            if (column > right) right = column
-            if (row < top) top = row
-            if (row > bottom) bottom = row
-        }
-        selectionBounds = if (left == Int.MAX_VALUE) {
-            null
-        } else {
-            android.graphics.Rect(
-                (left * cellWidth).toInt(),
-                (top * cellHeight).toInt(),
-                ((right + 1) * cellWidth).toInt(),
-                ((bottom + 1) * cellHeight).toInt(),
-            )
-        }
-    }
 
     /**
      * The pictures, sorted the way they are drawn.

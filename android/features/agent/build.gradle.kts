@@ -18,7 +18,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.drosh.agent"
+    namespace = "dev.drosh.feature.agent"
 }
 
 dependencies {

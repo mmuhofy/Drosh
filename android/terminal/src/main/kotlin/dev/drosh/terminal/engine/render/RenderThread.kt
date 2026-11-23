@@ -195,20 +195,6 @@ class RenderThread(
     var focused: Boolean = true
 
     /**
-     * The selection's rectangle changed.
-     *
-     * The bounds are measured while the frame is drawn, so the chrome cannot
-     * ask for them when the finger goes down — at that moment they still
-     * describe the previous frame. Publishing them here, once per change, is
-     * what makes the menu and its handles appear on the selection that was
-     * just drawn.
-     */
-    @Volatile
-    var onSelectionBounds: ((android.graphics.Rect?) -> Unit)? = null
-
-    private var publishedSelection: android.graphics.Rect? = null
-
-    /**
      * Where the cells come from. Set before [start], cleared after [stop].
      *
      * A function rather than an object so the loop does not need to know what a
@@ -235,16 +221,6 @@ class RenderThread(
      * is bigger than the guess.
      */
     private var frameBuffer: java.nio.ByteBuffer? = null
-
-    /**
-     * Where the selected cells are, in view pixels.
-     *
-     * The renderer measures them — it is the one that sees the engine's
-     * selected cells — and the chrome's menu hangs on that rectangle.
-     */
-    @Volatile
-    var selectionBounds: android.graphics.Rect? = null
-        private set
 
     /**
      * The pictures a program drew, and where they are.
@@ -688,8 +664,6 @@ class RenderThread(
         // whether it worked.
         val pumpEnd = System.nanoTime()
 
-        // The selected cells, measured while the last frame was drawn.
-        selectionBounds = renderer?.selectionBounds
         frame?.let {
             // The first few cells' colours, so a cell that should be coloured
             // and is not says so on the screen: the engine's answer and the
@@ -728,16 +702,6 @@ class RenderThread(
             )
         }
         val result = current.draw(frame, layout.size)
-
-        // The renderer measured the selection as part of this frame. Only a
-        // change is published: the chrome's flow compares rectangles by their
-        // edges, and a fresh Rect with the same edges is still a new object.
-        val bounds = current.selectionBounds
-        val previous = publishedSelection
-        if (!sameSelection(previous, bounds)) {
-            publishedSelection = bounds
-            onSelectionBounds?.invoke(bounds)
-        }
 
         // Only a drawn frame is presented. A frame that drew nothing leaves
         // the previous picture alone, which is what stops the screen from
@@ -818,12 +782,6 @@ class RenderThread(
     /** A direct buffer, in the frame's byte order. */
     private fun newFrameBuffer(bytes: Int): java.nio.ByteBuffer =
         java.nio.ByteBuffer.allocateDirect(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-
-    /** Two rectangles with the same edges are the same selection. */
-    private fun sameSelection(a: android.graphics.Rect?, b: android.graphics.Rect?): Boolean {
-        if (a == null || b == null) return a === b
-        return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom
-    }
 
     private fun drainCommands(): List<Command> = lock.withLock {
         if (pending.isEmpty()) return emptyList()

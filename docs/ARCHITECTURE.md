@@ -149,6 +149,8 @@ failure. A rule nobody can check is a comment, not a rule.
 |---|---|
 | File name = the single public type | `SessionCoordinator.kt` |
 | Package = `dev.drosh.<module>.<area>` | `dev.drosh.terminal.session` |
+| Feature package = `dev.drosh.feature.<feature>.<area>` | `dev.drosh.feature.agent.chat` |
+| Test file = the subject + `Test` | `SelectionTextTest.kt` |
 | Port (contract) ends in `*Port` | `TransportPort` |
 | Persistence ends in `*Store` | `SnippetStore` |
 | Lifecycle owner ends in `*Coordinator` | `SessionCoordinator` |
@@ -157,9 +159,14 @@ failure. A rule nobody can check is a comment, not a rule.
 | Android View `*View`, Compose `*Overlay`, GL `*Renderer` | |
 | **Banned suffixes** | `*Manager`, `*Impl`, `*Helper`, `*Util`, `*Wire`, `*Handler` |
 
-The banned list is not taste. Each of those names currently marks a class whose
-responsibility is unclear: `TerminalManager` (1808 lines), `BlockEngineWire`,
-`MouseInputHandler`, `TerminalViewClientImpl`, `TerminalSessionClientImpl`.
+The banned list is not taste. Each of those names marked a class whose
+responsibility was unclear. The current tree has removed the suffixes: the
+session coordinator is `TerminalSessionCoordinator`, the block bridge is
+`BlockEventBridge`, and the data implementations name their storage
+(`RoomSessionRepository`, `TomlSettingsRepository`, `FileThemeRepository`).
+
+`tools/check-kotlin-layout.py` enforces package paths, banned file suffixes and
+duplicate file names; it runs in the unit-test workflow before Gradle.
 
 ### 4.2 Rust
 
@@ -186,8 +193,12 @@ rather than a comment. `ffi/*.rs` stays boring by keeping the behaviour in
 | `ffi/*.rs` | ≤ 120 lines | boundary files should be boring |
 | Public types per file | 1 | keeps the file name honest |
 
-Current overruns, all scheduled: `TerminalScreen.kt` 2238 (P6), `TerminalManager.kt` 1808 (P3),
-`RootfsArchiveWriter.kt` 860 (P4), `RootfsArchiveReader.kt` 614 (P4).
+Current overruns, all scheduled: `TerminalSessionCoordinator.kt` 2763 (P3),
+`TerminalScreen.kt` 2203 (P6), `AgentChatScreen.kt` 2133 (P6),
+`TerminalSurface.kt` 1867 (P3), `FrameRenderer.kt` 1714 (P3),
+`AppDataBackup.kt` 1213 (P4), `AgentChatViewModel.kt` 1148 (P6),
+`SettingsCategories.kt` 1122 (P6), `SplitPaneHost.kt` 1018 (P6),
+`GhosttyTerminalHost.kt` 755 (P6), `MainActivity.kt` 951 (P6).
 
 ---
 

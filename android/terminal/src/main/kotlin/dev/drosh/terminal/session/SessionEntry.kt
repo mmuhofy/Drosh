@@ -11,7 +11,7 @@ package dev.drosh.terminal.session
  * interface keeps the session grid free of the drawing code; the one place
  * that needs the session behind the pane casts for it.
  *
- * Ported from: mmuhofy/IrisCode — terminal/TerminalManager.kt
+ * Ported from: mmuhofy/IrisCode — terminal/TerminalSessionCoordinator.kt
  * Adapted for Drosh — dev.drosh
  */
 class SessionEntry(

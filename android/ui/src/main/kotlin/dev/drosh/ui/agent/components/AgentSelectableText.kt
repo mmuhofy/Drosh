@@ -44,9 +44,9 @@ private enum class Grabber { START, END }
  *
  * On a long press it raises the platform's own ActionMode toolbar, and that toolbar
  * is Android's: it cannot carry this app's type, its tint, or a blur, and it sits
- * on a solid slab. `SelectionMenu.kt` in the app module replaced it for exactly
- * this reason. Using the container here would put that toolbar back on the agent
- * screens, which is the one thing this design is avoiding.
+ * on a solid slab. The terminal's custom selection overlay replaced it for
+ * exactly this reason. Using the container here would put that toolbar back on
+ * the agent screens, which is the one thing this design is avoiding.
  *
  * So the gesture is handled here: long press selects the word under the finger, and
  * either end of the selection can then be dragged to grow or shrink it.

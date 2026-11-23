@@ -9,7 +9,7 @@ import org.junit.Test
 /**
  * End-to-end scenario tests for the block engine pipeline.
  *
- * These simulate the actual terminal transcript that BlockEngineWire
+ * These simulate the actual terminal transcript that BlockEventBridge
  * would see — prompt, echoed command, output, new prompt — and assert
  * that the diff + prompt detection produce the right slices.
  */
@@ -83,7 +83,7 @@ class BlockEngineScenarioTest {
     }
 
     /**
-     * Mirror of BlockEngineWire.computeNewLines — reproduced here so the
+     * Mirror of BlockEventBridge.computeNewLines — reproduced here so the
      * scenarios can be tested without instantiating the wire (which lives
      * in the :terminal module and depends on Android APIs).
      */

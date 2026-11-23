@@ -4,7 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
-import dev.drosh.core.LocaleHelper
+import dev.drosh.core.AppLocale
 import dev.drosh.data.session.SessionManagerAdapter
 import dev.drosh.terminal.engine.native.NativeLibraries
 import dev.drosh.domain.settings.SettingsStore
@@ -34,7 +34,7 @@ class DroshApplication : Application() {
     @Inject lateinit var sessionManagerAdapter: SessionManagerAdapter
     @Inject lateinit var settingsStore: SettingsStore
     override fun attachBaseContext(base: Context) {
-        super.attachBaseContext(LocaleHelper.applyLocale(base, ""))
+        super.attachBaseContext(AppLocale.applyLocale(base, ""))
     }
 
     override fun onCreate() {

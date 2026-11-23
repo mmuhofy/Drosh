@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.drosh.ssh"
+    namespace = "dev.drosh.feature.ssh"
 }
 
 dependencies {
