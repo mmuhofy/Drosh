@@ -55,11 +55,8 @@
     <string name="topbar_show_keyboard">Ipakita ang keyboard</string>
     <string name="topbar_hide_keyboard">Itago ang keyboard</string>
     <string name="topbar_open_agent">AI agent</string>
-    <string name="topbar_more_actions">Higit pang aksyon</string>
-    <string name="topbar_refresh">I-refresh ang terminal</string>
     <string name="topbar_enter_fullscreen">Pumasok sa fullscreen</string>
     <string name="topbar_exit_fullscreen">Lumabas sa fullscreen</string>
-    <string name="topbar_find">Maghanap sa output</string>
     <string name="topbar_new_session">Bagong session</string>
     <string name="topbar_close_session">Isara ang session</string>
     <string name="settings_cursor_style_thin">Manipis na block</string>
@@ -232,19 +229,8 @@
     <string name="settings_font_increase_cd">Palakihin ang laki ng font</string>
     <string name="settings_speed_slow">Mabagal</string>
     <string name="settings_speed_fast">Mabilis</string>
-    <string name="terminal_delete_last_session_title">I-delete ang huling session?</string>
     <string name="terminal_engine_session_exited">Nagtatapos ang session ng terminal (exit %1$d).</string>
     <string name="terminal_engine_unavailable">Hindi nagsimula ang terminal engine: %1$s</string>
-    <string name="terminal_guest_runtime_missing">Hindi nasa ang runtime ng bisita %1$s sa build na ito, kaya\'t hindi na mapatakbo ang bisita. Bukas ang isang simpleng shell.</string>
-    <string name="terminal_delete_last_session_ended_body">Natapos ito sa exit code na %1$d. Ang pag-delete dito ay magsasara ng app; magsisimula mula sa simula ang bagong session.</string>
-    <string name="terminal_delete_last_session_body">Ang pag-delete dito ay magsasara ng app; magsisimula mula sa simula ang bagong session.</string>
-    <string name="terminal_preparing">Naghahanda…</string>
-    <string name="terminal_extracting_rootfs">Kinukuha ang Ubuntu rootfs…</string>
-    <string name="terminal_configuring">Kino-configure ang system…</string>
-    <string name="terminal_cleaning">Nililinis…</string>
-    <string name="terminal_ready">Handa na</string>
-    <string name="terminal_setting_up">Sineset up ang terminal</string>
-    <string name="terminal_setup_failed">Nabigo ang pag-setup ng terminal</string>
     <string name="terminal_find_engine_note">Binibilang sa output log ang mga tugma, hindi gumagalaw ang screen sa kanila.</string>
     <string name="action_apply">Ilapat</string>
     <string name="action_close">Isara</string>
@@ -315,7 +301,6 @@
     <string name="agent_waiting">HINIHINTAY KA</string>
     <string name="agent_working_directory">Working directory</string>
     <string name="agent_working_directory_cd">Working directory: %1$s. I-tap para palitan.</string>
-    <string name="motd_dismiss">Isara ang MOTD</string>
     <string name="sidebar_clear_count">linisin ang %1$d</string>
     <string name="sidebar_empty_sessions">Walang bukás na session</string>
     <string name="sidebar_ended">NATAPOS</string>
@@ -329,5 +314,4 @@
     <string name="sidebar_ssh">SSH</string>
     <string name="sidebar_swap_split">Ilipat sa split</string>
     <string name="sidebar_this_device">Ang device na ito</string>
-    <string name="topbar_open_sessions">Buksan ang mga session</string>
 </resources>

@@ -141,6 +141,7 @@ dependencies {
     implementation(project(":domain"))
     implementation(project(":data"))
     implementation(project(":features:agent"))
+    implementation(project(":features:terminal"))
     implementation(project(":terminal"))
     implementation(project(":linux"))
     implementation(project(":features:ssh"))

@@ -102,6 +102,8 @@ val boundaryRules = listOf(
     // :ui is presentation over domain only.
     "ui|dev.drosh.terminal|0",
     "ui|dev.drosh.terminal.engine|0",
+    "ui|dev.drosh.feature.terminal|0",
+    "terminal|dev.drosh.feature.terminal|0",
     // Known debt — must reach 0. `data -> terminal` clears in P3, `ssh` in P5.
     // It was 22 before the guest moved to its own module: the nine imports of
     // the rootfs, the bootstrap and the archive were part of it.

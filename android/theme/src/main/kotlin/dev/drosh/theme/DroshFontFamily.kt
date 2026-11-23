@@ -126,7 +126,7 @@ object DroshFonts {
  * ```
  *
  * Defaults to Geist so a preview, a test, or any screen rendered outside
- * [dev.drosh.ui.theme.DroshTheme] still draws in a real bundled font rather
+ * [dev.drosh.ui.theme.DroshAppTheme] still draws in a real bundled font rather
  * than the platform default.
  */
 val LocalFontSet = staticCompositionLocalOf { DroshFonts.Geist }

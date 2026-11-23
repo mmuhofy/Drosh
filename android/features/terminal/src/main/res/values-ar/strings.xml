@@ -1,0 +1,18 @@
+<resources>
+    <string name="topbar_more_actions">إجراءات أخرى</string>
+    <string name="topbar_refresh">تحديث الطرفية</string>
+    <string name="topbar_find">البحث في المخرجات</string>
+    <string name="terminal_delete_last_session_title">هل تريد حذف الـ session الأخيرة؟</string>
+    <string name="terminal_guest_runtime_missing">بيئة تشغيل الضيف %1$s غير موجودة في هذه النسخة، لذلك تعذر تشغيل الضيف. بدلا من ذلك فُتحت الصدفة بسيطة.</string>
+    <string name="terminal_delete_last_session_ended_body">انتهت برمز الخروج %1$d. حذفها يغلق التطبيق؛ وستبدأ session جديدة من الصفر.</string>
+    <string name="terminal_delete_last_session_body">حذفها يغلق التطبيق؛ وستبدأ session جديدة من الصفر.</string>
+    <string name="terminal_preparing">جارٍ التحضير…</string>
+    <string name="terminal_extracting_rootfs">جارٍ استخراج rootfs الخاص بـ Ubuntu…</string>
+    <string name="terminal_configuring">جارٍ تهيئة النظام…</string>
+    <string name="terminal_cleaning">جارٍ التنظيف…</string>
+    <string name="terminal_ready">جاهز</string>
+    <string name="terminal_setting_up">جارٍ إعداد الطرفية</string>
+    <string name="terminal_setup_failed">فشل إعداد الطرفية</string>
+    <string name="motd_dismiss">إخفاء MOTD</string>
+    <string name="topbar_open_sessions">فتح الـ session</string>
+</resources>

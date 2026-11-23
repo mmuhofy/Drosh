@@ -22,6 +22,7 @@ unchanged by that split: `android/data/` is still `project(":data")`.
 :app  ──► everything (composition root only: Activity, NavHost, Hilt wiring)
 
  ├── :ui --------------► :domain, :theme
+ ├── :features:terminal ─► :ui, :theme, :terminal, :linux, :domain
  ├── :terminal --------► :linux, :domain
  ├── :features:agent --► :terminal, :domain
  ├── :features:ssh ----► :domain, :terminal  (implements TransportPort)
@@ -39,7 +40,8 @@ unchanged by that split: `android/data/` is still `project(":data")`.
 | `:features:ssh` | SSH transport implementing the domain port | `:terminal` |
 | `:data` | Room, DataStore, TOML, vault | `:terminal`, Compose |
 | `:features:agent` | LLM providers, tools, chat | Compose (screen lives in `:ui`) |
-| `:ui` | Screens and chrome over domain | `:terminal` |
+| `:features:terminal` | Terminal screen, chrome, find/zoom/selection and its ViewModel | `:data`, `:app` |
+| `:ui` | Screens and chrome over domain | `:terminal`, `:features:terminal` |
 | `:theme` | Tokens, typography | any feature module |
 
 `:app` is the only module allowed to know everything; it wires ports to
@@ -103,9 +105,10 @@ or panic may cross the boundary; the panic hook is installed at load.
 2. `:terminal` imports nothing above it (`:terminal`, `:linux`, `:data`, `:agent`, `:ssh`, `:ui`).
 3. `:linux` imports no UI, no `:terminal`, no `:terminal`.
 4. `:terminal` imports no Compose, no `:ui`, no `:app`.
-5. `:ui` imports neither `:terminal` nor `:terminal`.
-6. Only `android/terminal/engine/.../native/` (today `android/terminal/engine/.../core/`) declares `external fun`.
-7. The only VT core is `libghostty-vt`, driven from `native/`.
+5. `:ui` imports neither `:terminal` nor `:features:terminal`.
+6. `:features:terminal` may import `:terminal`, `:linux` and `:ui`; it never imports `:data` or `:app`.
+7. Only `android/terminal/engine/.../native/` (today `android/terminal/engine/.../core/`) declares `external fun`.
+8. The only VT core is `libghostty-vt`, driven from `native/`.
 
 Run `./gradlew checkModuleBoundaries` (it is also part of every `check`).
 

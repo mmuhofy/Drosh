@@ -55,11 +55,8 @@
     <string name="topbar_show_keyboard">Tastatur anzeigen</string>
     <string name="topbar_hide_keyboard">Tastatur ausblenden</string>
     <string name="topbar_open_agent">KI-agent</string>
-    <string name="topbar_more_actions">Weitere Aktionen</string>
-    <string name="topbar_refresh">Terminal aktualisieren</string>
     <string name="topbar_enter_fullscreen">Vollbild aktivieren</string>
     <string name="topbar_exit_fullscreen">Vollbild beenden</string>
-    <string name="topbar_find">In Ausgabe suchen</string>
     <string name="topbar_new_session">Neue session</string>
     <string name="topbar_close_session">Session schließen</string>
     <string name="settings_cursor_style_thin">Dünner block</string>
@@ -232,19 +229,8 @@
     <string name="settings_font_increase_cd">Schriftgröße vergrößern</string>
     <string name="settings_speed_slow">Langsam</string>
     <string name="settings_speed_fast">Schnell</string>
-    <string name="terminal_delete_last_session_title">Die letzte session löschen?</string>
     <string name="terminal_engine_session_exited">Die Sitzung des Terminals endete (Exit %1$d).</string>
     <string name="terminal_engine_unavailable">Die Terminal-Engine konnte nicht starten: %1$s</string>
-    <string name="terminal_guest_runtime_missing">Die %1$s-Laufzeitumgebung des Gasts ist in diesem Build nicht enthalten, der Gast konnte also nicht laufen. Stattdessen wurde eine einfache Shell geöffnet.</string>
-    <string name="terminal_delete_last_session_ended_body">Sie endete mit Exit-Code %1$d. Das Löschen schließt die App; eine neue session startet von vorn.</string>
-    <string name="terminal_delete_last_session_body">Das Löschen schließt die App; eine neue session startet von vorn.</string>
-    <string name="terminal_preparing">Wird vorbereitet…</string>
-    <string name="terminal_extracting_rootfs">Ubuntu rootfs wird entpackt…</string>
-    <string name="terminal_configuring">System wird konfiguriert…</string>
-    <string name="terminal_cleaning">Wird aufgeräumt…</string>
-    <string name="terminal_ready">Bereit</string>
-    <string name="terminal_setting_up">Terminal wird eingerichtet</string>
-    <string name="terminal_setup_failed">Terminaleinrichtung fehlgeschlagen</string>
     <string name="terminal_find_engine_note">Treffer werden im Ausgabeprotokoll gezählt, der Bildschirm springt nicht zu ihnen.</string>
     <string name="action_apply">Anwenden</string>
     <string name="action_close">Schließen</string>
@@ -315,7 +301,6 @@
     <string name="agent_waiting">WARTET AUF DICH</string>
     <string name="agent_working_directory">Arbeitsverzeichnis</string>
     <string name="agent_working_directory_cd">Arbeitsverzeichnis: %1$s. Zum Ändern tippen.</string>
-    <string name="motd_dismiss">MOTD ausblenden</string>
     <string name="sidebar_clear_count">%1$d löschen</string>
     <string name="sidebar_empty_sessions">Keine offenen Sessions</string>
     <string name="sidebar_ended">BEENDET</string>
@@ -329,5 +314,4 @@
     <string name="sidebar_ssh">SSH</string>
     <string name="sidebar_swap_split">In Teilung tauschen</string>
     <string name="sidebar_this_device">Dieses Gerät</string>
-    <string name="topbar_open_sessions">Sessions öffnen</string>
 </resources>

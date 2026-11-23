@@ -1,0 +1,30 @@
+<resources>
+  <string name="terminal_command_ok">Command finished</string>
+  <string name="terminal_command_failed">Command failed</string>
+  <string name="terminal_delete_last_session_title">Delete the last session?</string>
+  <string name="terminal_guest_runtime_missing">The %1$s guest runtime is not in this build, so the guest could not run. A plain shell opened instead.</string>
+  <string name="terminal_delete_last_session_ended_body">It ended with exit code %1$d. Deleting it closes the app; a new session starts from scratch.</string>
+  <string name="terminal_delete_last_session_body">Deleting it closes the app; a new session starts from scratch.</string>
+  <string name="terminal_extracting_rootfs">Extracting Ubuntu rootfs…</string>
+  <string name="terminal_configuring">Configuring system…</string>
+  <string name="terminal_cleaning">Cleaning up…</string>
+  <string name="terminal_setting_up">Setting up terminal</string>
+  <string name="terminal_setup_failed">Failed to set up terminal</string>
+  <string name="terminal_find_hint">Find in output</string>
+  <string name="terminal_find_previous">Previous match</string>
+  <string name="terminal_find_next">Next match</string>
+  <string name="terminal_find_close">Close search</string>
+  <string name="terminal_find_counter">Match %1$d of %2$d</string>
+  <string name="terminal_find_no_matches">No matches</string>
+  <string name="terminal_preparing">Preparing…</string>
+  <string name="terminal_ready">Ready</string>
+  <string name="topbar_open_sessions">Open sessions</string>
+  <string name="topbar_sessions">Sessions</string>
+  <string name="topbar_more_actions">More actions</string>
+  <string name="topbar_refresh">Refresh terminal</string>
+  <string name="topbar_find">Find in output</string>
+  <string name="topbar_previous_prompt">Previous prompt</string>
+  <string name="topbar_next_prompt">Next prompt</string>
+  <string name="topbar_shrink_buttons">Shrink the buttons</string>
+  <string name="motd_dismiss">Dismiss MOTD</string>
+</resources>

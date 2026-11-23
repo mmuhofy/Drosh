@@ -87,15 +87,6 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <service
-            android:name=".ui.overlay.FloatingPaneOverlayService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps a user-initiated terminal pane on screen while the user works in another app." />
-        </service>
-
         <provider
             android:name=".DroshDocumentsProvider"
             android:authorities="${applicationId}.documents"

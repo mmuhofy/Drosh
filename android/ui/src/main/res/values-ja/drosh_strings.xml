@@ -55,11 +55,8 @@
     <string name="topbar_show_keyboard">キーボードを表示</string>
     <string name="topbar_hide_keyboard">キーボードを非表示</string>
     <string name="topbar_open_agent">AI agent</string>
-    <string name="topbar_more_actions">その他の操作</string>
-    <string name="topbar_refresh">ターミナルを更新</string>
     <string name="topbar_enter_fullscreen">全画面表示にする</string>
     <string name="topbar_exit_fullscreen">全画面表示を終了</string>
-    <string name="topbar_find">出力内を検索</string>
     <string name="topbar_new_session">新しい session</string>
     <string name="topbar_close_session">session を閉じる</string>
     <string name="settings_cursor_style_thin">細い block</string>
@@ -232,19 +229,8 @@
     <string name="settings_font_increase_cd">フォントサイズを拡大</string>
     <string name="settings_speed_slow">遅い</string>
     <string name="settings_speed_fast">速い</string>
-    <string name="terminal_delete_last_session_title">最後の session を削除しますか？</string>
     <string name="terminal_engine_session_exited">ターミナルのセッションが終了しました（終了コード %1$d）。</string>
     <string name="terminal_engine_unavailable">ターミナルエンジンを起動できませんでした: %1$s</string>
-    <string name="terminal_guest_runtime_missing">ゲスト実行環境 %1$s はこのビルドに含まれていないため、ゲストを実行できませんでした。代わりに通常のシェルを開きました。</string>
-    <string name="terminal_delete_last_session_ended_body">終了コード %1$d で終了しました。削除するとアプリが閉じ、新しい session が最初から始まります。</string>
-    <string name="terminal_delete_last_session_body">削除するとアプリが閉じ、新しい session が最初から始まります。</string>
-    <string name="terminal_preparing">準備中…</string>
-    <string name="terminal_extracting_rootfs">Ubuntu rootfs を展開中…</string>
-    <string name="terminal_configuring">システムを設定中…</string>
-    <string name="terminal_cleaning">クリーンアップ中…</string>
-    <string name="terminal_ready">準備完了</string>
-    <string name="terminal_setting_up">ターミナルをセットアップ中</string>
-    <string name="terminal_setup_failed">ターミナルのセットアップに失敗しました</string>
     <string name="terminal_find_engine_note">一致は出力ログで数えられます。画面はその一致箇所には移動しません。</string>
     <string name="action_apply">適用</string>
     <string name="action_close">閉じる</string>
@@ -315,7 +301,6 @@
     <string name="agent_waiting">あなたを待っています</string>
     <string name="agent_working_directory">作業ディレクトリ</string>
     <string name="agent_working_directory_cd">作業ディレクトリ: %1$s。タップで変更。</string>
-    <string name="motd_dismiss">MOTD を閉じる</string>
     <string name="sidebar_clear_count">%1$d 件をクリア</string>
     <string name="sidebar_empty_sessions">開いている session はありません</string>
     <string name="sidebar_ended">終了済み</string>
@@ -329,5 +314,4 @@
     <string name="sidebar_ssh">SSH</string>
     <string name="sidebar_swap_split">分割に入れ替え</string>
     <string name="sidebar_this_device">この端末</string>
-    <string name="topbar_open_sessions">session を開く</string>
 </resources>

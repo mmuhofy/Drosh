@@ -1,0 +1,18 @@
+<resources>
+    <string name="topbar_more_actions">Weitere Aktionen</string>
+    <string name="topbar_refresh">Terminal aktualisieren</string>
+    <string name="topbar_find">In Ausgabe suchen</string>
+    <string name="terminal_delete_last_session_title">Die letzte session löschen?</string>
+    <string name="terminal_guest_runtime_missing">Die %1$s-Laufzeitumgebung des Gasts ist in diesem Build nicht enthalten, der Gast konnte also nicht laufen. Stattdessen wurde eine einfache Shell geöffnet.</string>
+    <string name="terminal_delete_last_session_ended_body">Sie endete mit Exit-Code %1$d. Das Löschen schließt die App; eine neue session startet von vorn.</string>
+    <string name="terminal_delete_last_session_body">Das Löschen schließt die App; eine neue session startet von vorn.</string>
+    <string name="terminal_preparing">Wird vorbereitet…</string>
+    <string name="terminal_extracting_rootfs">Ubuntu rootfs wird entpackt…</string>
+    <string name="terminal_configuring">System wird konfiguriert…</string>
+    <string name="terminal_cleaning">Wird aufgeräumt…</string>
+    <string name="terminal_ready">Bereit</string>
+    <string name="terminal_setting_up">Terminal wird eingerichtet</string>
+    <string name="terminal_setup_failed">Terminaleinrichtung fehlgeschlagen</string>
+    <string name="motd_dismiss">MOTD ausblenden</string>
+    <string name="topbar_open_sessions">Sessions öffnen</string>
+</resources>

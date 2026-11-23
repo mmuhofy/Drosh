@@ -55,11 +55,8 @@
     <string name="topbar_show_keyboard">إظهار لوحة المفاتيح</string>
     <string name="topbar_hide_keyboard">إخفاء لوحة المفاتيح</string>
     <string name="topbar_open_agent">agent الذكاء الاصطناعي</string>
-    <string name="topbar_more_actions">إجراءات أخرى</string>
-    <string name="topbar_refresh">تحديث الطرفية</string>
     <string name="topbar_enter_fullscreen">الدخول في وضع ملء الشاشة</string>
     <string name="topbar_exit_fullscreen">الخروج من وضع ملء الشاشة</string>
-    <string name="topbar_find">البحث في المخرجات</string>
     <string name="topbar_new_session">session جديدة</string>
     <string name="topbar_close_session">إغلاق الـ session</string>
     <string name="settings_cursor_style_thin">block رفيع</string>
@@ -232,19 +229,8 @@
     <string name="settings_font_increase_cd">تكبير حجم الخط</string>
     <string name="settings_speed_slow">بطيء</string>
     <string name="settings_speed_fast">سريع</string>
-    <string name="terminal_delete_last_session_title">هل تريد حذف الـ session الأخيرة؟</string>
     <string name="terminal_engine_session_exited">انتهت جلسة الطرفية (خروج %1$d).</string>
     <string name="terminal_engine_unavailable">تعذر تشغيل محرك الطرفية: %1$s</string>
-    <string name="terminal_guest_runtime_missing">بيئة تشغيل الضيف %1$s غير موجودة في هذه النسخة، لذلك تعذر تشغيل الضيف. بدلا من ذلك فُتحت الصدفة بسيطة.</string>
-    <string name="terminal_delete_last_session_ended_body">انتهت برمز الخروج %1$d. حذفها يغلق التطبيق؛ وستبدأ session جديدة من الصفر.</string>
-    <string name="terminal_delete_last_session_body">حذفها يغلق التطبيق؛ وستبدأ session جديدة من الصفر.</string>
-    <string name="terminal_preparing">جارٍ التحضير…</string>
-    <string name="terminal_extracting_rootfs">جارٍ استخراج rootfs الخاص بـ Ubuntu…</string>
-    <string name="terminal_configuring">جارٍ تهيئة النظام…</string>
-    <string name="terminal_cleaning">جارٍ التنظيف…</string>
-    <string name="terminal_ready">جاهز</string>
-    <string name="terminal_setting_up">جارٍ إعداد الطرفية</string>
-    <string name="terminal_setup_failed">فشل إعداد الطرفية</string>
     <string name="terminal_find_engine_note">تُعدّ المطابقات في سجل الإخراج، ولا تنتقل الشاشة إليها.</string>
     <string name="action_apply">تطبيق</string>
     <string name="action_close">إغلاق</string>
@@ -315,7 +301,6 @@
     <string name="agent_waiting">بانتظارك</string>
     <string name="agent_working_directory">مجلد العمل</string>
     <string name="agent_working_directory_cd">مجلد العمل: %1$s. اضغط للتغيير.</string>
-    <string name="motd_dismiss">إخفاء MOTD</string>
     <string name="sidebar_clear_count">مسح %1$d</string>
     <string name="sidebar_empty_sessions">لا توجد session مفتوحة</string>
     <string name="sidebar_ended">المنتهية</string>
@@ -329,5 +314,4 @@
     <string name="sidebar_ssh">SSH</string>
     <string name="sidebar_swap_split">تبديل إلى التقسيم</string>
     <string name="sidebar_this_device">هذا الجهاز</string>
-    <string name="topbar_open_sessions">فتح الـ session</string>
 </resources>

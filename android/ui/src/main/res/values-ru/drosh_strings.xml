@@ -55,11 +55,8 @@
     <string name="topbar_show_keyboard">Показать клавиатуру</string>
     <string name="topbar_hide_keyboard">Скрыть клавиатуру</string>
     <string name="topbar_open_agent">ИИ-agent</string>
-    <string name="topbar_more_actions">Другие действия</string>
-    <string name="topbar_refresh">Обновить терминал</string>
     <string name="topbar_enter_fullscreen">Во весь экран</string>
     <string name="topbar_exit_fullscreen">Выйти из полноэкранного режима</string>
-    <string name="topbar_find">Найти в выводе</string>
     <string name="topbar_new_session">Новая session</string>
     <string name="topbar_close_session">Закрыть session</string>
     <string name="settings_cursor_style_thin">Тонкий block</string>
@@ -232,19 +229,8 @@
     <string name="settings_font_increase_cd">Увеличить размер шрифта</string>
     <string name="settings_speed_slow">Медленно</string>
     <string name="settings_speed_fast">Быстро</string>
-    <string name="terminal_delete_last_session_title">Удалить последнюю session?</string>
     <string name="terminal_engine_session_exited">Сеанс терминала завершился (код %1$d).</string>
     <string name="terminal_engine_unavailable">Не удалось запустить терминальный движок: %1$s</string>
-    <string name="terminal_guest_runtime_missing">Среда выполнения гостя %1$s отсутствует в этой сборке, поэтому гостя запустить не удалось. Вместо него открылась обычная оболочка.</string>
-    <string name="terminal_delete_last_session_ended_body">Она завершилась с кодом выхода %1$d. Удаление закроет приложение; новая session начнётся с нуля.</string>
-    <string name="terminal_delete_last_session_body">Удаление закроет приложение; новая session начнётся с нуля.</string>
-    <string name="terminal_preparing">Подготовка…</string>
-    <string name="terminal_extracting_rootfs">Распаковка rootfs Ubuntu…</string>
-    <string name="terminal_configuring">Настройка системы…</string>
-    <string name="terminal_cleaning">Очистка…</string>
-    <string name="terminal_ready">Готово</string>
-    <string name="terminal_setting_up">Настройка терминала</string>
-    <string name="terminal_setup_failed">Не удалось настроить терминал</string>
     <string name="terminal_find_engine_note">Совпадения считаются в журнале вывода, экран к ним не переходит.</string>
     <string name="action_apply">Применить</string>
     <string name="action_close">Закрыть</string>
@@ -315,7 +301,6 @@
     <string name="agent_waiting">ЖДЁТ ВАС</string>
     <string name="agent_working_directory">Рабочий каталог</string>
     <string name="agent_working_directory_cd">Рабочий каталог: %1$s. Нажмите, чтобы изменить.</string>
-    <string name="motd_dismiss">Скрыть MOTD</string>
     <string name="sidebar_clear_count">очистить %1$d</string>
     <string name="sidebar_empty_sessions">Нет открытых session</string>
     <string name="sidebar_ended">ЗАВЕРШЁННЫЕ</string>
@@ -329,5 +314,4 @@
     <string name="sidebar_ssh">SSH</string>
     <string name="sidebar_swap_split">Переместить в разделение</string>
     <string name="sidebar_this_device">Это устройство</string>
-    <string name="topbar_open_sessions">Открыть session</string>
 </resources>
