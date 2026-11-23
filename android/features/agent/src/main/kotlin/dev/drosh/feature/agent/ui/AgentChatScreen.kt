@@ -1,5 +1,6 @@
 package dev.drosh.feature.agent.ui
 
+import dev.drosh.ui.components.MOTION_MS
 import dev.drosh.ui.components.glassRow
 import dev.drosh.ui.components.ActionButton
 import dev.drosh.ui.components.FlatButton
@@ -119,7 +120,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import dev.drosh.feature.agent.ui.components.MOTION_MS
 import dev.drosh.feature.agent.ui.components.MarkdownText
 import androidx.compose.ui.res.stringResource
 import dev.drosh.ui.R

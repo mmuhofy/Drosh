@@ -1,5 +1,6 @@
 package dev.drosh.feature.agent.ui.components
 
+import dev.drosh.ui.components.MOTION_MS
 import dev.drosh.ui.components.glassEdge
 import dev.drosh.ui.components.glassRow
 import androidx.compose.foundation.background

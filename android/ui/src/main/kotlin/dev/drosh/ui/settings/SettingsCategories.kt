@@ -66,7 +66,7 @@ import dev.drosh.ui.R
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-internal val GROUP_GAP = 18.dp
+val GROUP_GAP = 18.dp
 
 /** Content clearance for the system bar, without insetting the background. */
 @Composable

@@ -140,7 +140,7 @@ override val block: Dp get() = 6.dp
 }
 
 /** Matches the corner radius the code block draws itself with. */
-internal val CODE_BLOCK_CORNER = 10.dp
+val CODE_BLOCK_CORNER = 10.dp
 
 /**
  * The library's components, with the code block replaced by ours.
