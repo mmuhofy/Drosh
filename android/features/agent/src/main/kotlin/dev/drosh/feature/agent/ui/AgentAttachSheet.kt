@@ -1,5 +1,6 @@
 package dev.drosh.feature.agent.ui
 
+import dev.drosh.ui.components.glassRow
 import dev.drosh.ui.session.AgentLogAttach
 
 import android.content.Context
@@ -64,7 +65,6 @@ import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
-import dev.drosh.feature.agent.ui.components.glassRow
 import dev.drosh.ui.session.SessionLogSource
 import dev.drosh.ui.session.SessionLogTarget
 import dev.drosh.ui.settings.SettingsSwitch

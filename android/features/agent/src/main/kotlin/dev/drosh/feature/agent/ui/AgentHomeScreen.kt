@@ -1,5 +1,6 @@
 package dev.drosh.feature.agent.ui
 
+import dev.drosh.ui.components.glassRow
 import dev.drosh.ui.components.ActionButton
 import dev.drosh.ui.components.SectionHeader
 import androidx.compose.foundation.background
@@ -56,15 +57,12 @@ import dev.drosh.theme.LocalFontSet
 import dev.drosh.domain.agent.AgentChat
 import dev.drosh.domain.agent.ChatStatus
 import dev.drosh.ui.DroshIcons
-import dev.drosh.feature.agent.ui.components.ActionButton
 import dev.chrisbanes.haze.hazeSource
 import dev.drosh.feature.agent.ui.components.AgentIconPill
 import dev.drosh.feature.agent.ui.components.AgentPill
 import dev.drosh.feature.agent.ui.components.DroshStatusBarVisible
 import dev.drosh.feature.agent.ui.components.ProvideAgentGlass
 import dev.drosh.feature.agent.ui.components.rememberAgentGlass
-import dev.drosh.feature.agent.ui.components.glassRow
-import dev.drosh.feature.agent.ui.components.SectionHeader
 import androidx.compose.ui.res.stringResource
 import dev.drosh.ui.R
 

@@ -1,5 +1,6 @@
 package dev.drosh.feature.agent.ui
 
+import dev.drosh.ui.components.glassRow
 import dev.drosh.ui.components.FlatButton
 import dev.drosh.ui.components.TOUCH_TARGET
 import androidx.compose.foundation.background
@@ -47,9 +48,6 @@ import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.domain.agent.AgentChat
 import dev.drosh.ui.R
-import dev.drosh.feature.agent.ui.components.FlatButton
-import dev.drosh.feature.agent.ui.components.glassRow
-import dev.drosh.feature.agent.ui.components.TOUCH_TARGET
 
 /**
  * Rename a chat.

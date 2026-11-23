@@ -1,5 +1,6 @@
 package dev.drosh.feature.agent.ui
 
+import dev.drosh.ui.components.glassRow
 import dev.drosh.ui.components.ActionButton
 import dev.drosh.ui.components.FlatButton
 import dev.drosh.ui.components.IconAction
@@ -86,10 +87,7 @@ import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.DroshMenuItem
 import dev.drosh.ui.DroshDropdownMenu
 import dev.drosh.ui.settings.SettingsCheck
-import dev.drosh.feature.agent.ui.components.ActionButton
 import dev.drosh.feature.agent.ui.components.DiffBlock
-import dev.drosh.feature.agent.ui.components.FlatButton
-import dev.drosh.feature.agent.ui.components.IconAction
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -109,7 +107,6 @@ import dev.drosh.feature.agent.ui.components.AgentPill
 import dev.drosh.feature.agent.ui.components.AgentSelectableText
 import dev.drosh.feature.agent.ui.components.AgentToolPill
 import dev.drosh.feature.agent.ui.components.DroshStatusBarVisible
-import dev.drosh.feature.agent.ui.components.glassRow
 import dev.drosh.feature.agent.ui.components.ProvideAgentGlass
 import dev.drosh.ui.session.SessionLogSource
 import dev.drosh.ui.session.SessionLogTarget

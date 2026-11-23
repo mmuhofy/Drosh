@@ -1,5 +1,6 @@
 package dev.drosh.feature.agent.ui.components
 
+import dev.drosh.ui.components.glassRow
 import dev.drosh.ui.components.ActionButton
 import dev.drosh.ui.components.IconAction
 import dev.drosh.ui.components.SectionHeader
@@ -42,10 +43,6 @@ import dev.drosh.domain.agent.ConfigField
 import dev.drosh.domain.agent.LlmModel
 import dev.drosh.domain.agent.LlmProvider
 import dev.drosh.ui.DroshIcons
-import dev.drosh.feature.agent.ui.components.ActionButton
-import dev.drosh.feature.agent.ui.components.IconAction
-import dev.drosh.feature.agent.ui.components.SectionHeader
-import dev.drosh.feature.agent.ui.components.TOUCH_TARGET
 
 /**
  * Searchable pickers over the provider catalog.

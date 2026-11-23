@@ -1,5 +1,7 @@
 package dev.drosh.ui.components
 
+import dev.drosh.ui.components.glassEdge
+import dev.drosh.ui.components.glassRow
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically

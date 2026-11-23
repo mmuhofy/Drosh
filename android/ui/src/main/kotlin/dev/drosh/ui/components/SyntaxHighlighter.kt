@@ -1,6 +1,5 @@
-package dev.drosh.feature.agent.ui.components
+package dev.drosh.ui.components
 
-import dev.drosh.ui.components.CodePalette
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle

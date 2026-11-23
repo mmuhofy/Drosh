@@ -72,9 +72,7 @@ import dev.drosh.domain.agent.LlmProvider
 import dev.drosh.domain.agent.ProviderCatalogIds
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
-import dev.drosh.feature.agent.ui.components.IconAction
 import dev.drosh.feature.agent.ui.components.ProviderPicker
-import dev.drosh.feature.agent.ui.components.TOUCH_TARGET
 import dev.drosh.ui.settings.GROUP_GAP
 import dev.drosh.ui.settings.SettingsCategoryScreen
 import dev.drosh.ui.settings.SettingsCheck

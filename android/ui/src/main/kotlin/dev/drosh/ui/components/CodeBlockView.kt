@@ -1,7 +1,5 @@
-package dev.drosh.feature.agent.ui.components
+package dev.drosh.ui.components
 
-import dev.drosh.ui.components.CodeColors
-import dev.drosh.ui.components.CODE_BLOCK_CORNER
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll

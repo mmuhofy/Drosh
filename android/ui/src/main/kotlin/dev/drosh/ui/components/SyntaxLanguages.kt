@@ -1,4 +1,4 @@
-package dev.drosh.feature.agent.ui.components
+package dev.drosh.ui.components
 
 /**
  * The languages the highlighter knows.

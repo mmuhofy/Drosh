@@ -1,5 +1,7 @@
 package dev.drosh.feature.agent.ui.components
 
+import dev.drosh.ui.components.SyntaxHighlighter
+import dev.drosh.ui.components.SyntaxLanguages
 import dev.drosh.ui.components.CodeColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
