@@ -39,7 +39,7 @@ import dev.drosh.domain.backup.BackupProgress
 import dev.drosh.domain.backup.BackupSectionKind
 import dev.drosh.domain.backup.RestoreSelection
 import dev.drosh.ui.DroshIcons
-import dev.drosh.ui.agent.components.ActionButton
+import dev.drosh.ui.components.ActionButton
 import dev.drosh.ui.settings.GROUP_GAP
 import dev.drosh.ui.settings.SettingsCategoryScreen
 import dev.drosh.ui.settings.SettingsGroupColumn

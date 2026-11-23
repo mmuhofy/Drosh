@@ -91,8 +91,8 @@ import dev.drosh.ui.splash.SplashScreen
 import dev.drosh.feature.terminal.TerminalScreen
 import dev.drosh.ui.pin.PinEntryScreen
 import dev.drosh.ui.theme.DroshAppTheme
-import dev.drosh.ui.agent.AgentChatScreen
-import dev.drosh.ui.agent.AgentHomeScreen
+import dev.drosh.feature.agent.ui.AgentChatScreen
+import dev.drosh.feature.agent.ui.AgentHomeScreen
 import dev.drosh.ui.settings.AboutCategory
 import dev.drosh.ui.settings.AppearanceCategory
 import dev.drosh.domain.settings.DroshSettings
@@ -810,7 +810,7 @@ class MainActivity : ComponentActivity() {
             // SSH hosts: sidebar → SSH opens this route; tapping a host
             // connects and drops back into the terminal with the live session.
             composable("ssh") {
-                dev.drosh.ui.ssh.SshHomeScreen(
+                dev.drosh.feature.ssh.ui.SshHomeScreen(
                     onBack = { navController.popBackStack() },
                     onConnected = { navController.popBackStack() },
                 )

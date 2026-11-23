@@ -20,8 +20,8 @@ import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface
 import dev.drosh.theme.DroshSurfaceVariant
 import dev.drosh.theme.DroshTextSecondary
-import dev.drosh.ui.agent.components.provideCodePalette
-import dev.drosh.ui.agent.components.provideMarkdownTheme
+import dev.drosh.ui.components.provideCodePalette
+import dev.drosh.ui.components.provideMarkdownTheme
 import dev.drosh.theme.DroshFontSet
 import dev.drosh.theme.DroshFonts
 import dev.drosh.theme.LocalFontSet

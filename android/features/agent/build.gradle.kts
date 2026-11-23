@@ -13,6 +13,7 @@
 //
 plugins {
     alias(libs.plugins.dev.drosh.android.library)
+    alias(libs.plugins.dev.drosh.android.compose)
     alias(libs.plugins.dev.drosh.android.hilt)
     alias(libs.plugins.dev.drosh.kotlin.serialization)
 }
@@ -24,6 +25,8 @@ android {
 dependencies {
     api(project(":domain"))
     implementation(project(":core"))
+    implementation(project(":ui"))
+    implementation(project(":theme"))
     implementation(project(":terminal"))
     // The guest's rootfs, for the shell tool's working directory.
     implementation(project(":linux"))
@@ -39,6 +42,15 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     // coroutines
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.hilt.navigation.compose)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.haze)
+    implementation(libs.markdown.renderer)
+    implementation(libs.markdown.renderer.coil3)
     implementation(libs.kotlinx.coroutines.android)
 
     // logging
