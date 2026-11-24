@@ -44,6 +44,31 @@ fn pty_lock(handle: jlong) -> Option<MutexGuard<'static, Pty>> {
     }))
 }
 
+/// Write `bytes` to the PTY behind a handle, taking its lock.
+///
+/// The handle is a `Mutex<Pty>`, not a `Pty`: casting it to a `Pty` and
+/// writing through it reads the mutex's own header as the terminal's fields.
+/// The master descriptor then comes from the lock's word instead of the PTY,
+/// and the bytes go to whatever descriptor that happens to be — which is why a
+/// key path that took that shortcut looked like a keyboard that had stopped
+/// delivering Enter.
+///
+/// Returns false when the handle is not a PTY or the write failed. The caller
+/// is told nothing else: a key that cannot be delivered is not an error a
+/// terminal can show the user.
+pub(crate) fn write_locked(handle: jlong, bytes: &[u8]) -> bool {
+    match pty_lock(handle) {
+        Some(mut pty) => match pty.write(bytes) {
+            Ok(()) => true,
+            Err(error) => {
+                log::debug!("drosh-native: the pty write failed: {error}");
+                false
+            }
+        },
+        None => false,
+    }
+}
+
 /// Spawn a child on a new pseudoterminal.
 ///
 /// `argv` and `environment` are newline-separated, the shape the host already
