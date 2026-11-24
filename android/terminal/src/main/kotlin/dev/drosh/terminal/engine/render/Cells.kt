@@ -192,14 +192,17 @@ internal class Cells {
      * @param rebuildAll build every row from the top: a new cell size or a
      *   grid whose shape changed. The per-row starts are not known until a
      *   full pass has run.
-     * @param write writes one sprite at the buffer's position, and returns
-     *   whether it wrote one. A blank cell writes nothing.
+     * @param write writes one sprite at the buffer's position and returns how
+     *   many cells the sprite covers: 0 for a blank cell, 1 for a normal
+     *   glyph, and N for a shaped ligature that spans N cells. The caller can
+     *   therefore keep the per-row packing while a run occupies the cells it
+     *   replaces.
      */
     fun buildSprites(
         frame: Frame,
         dirty: BooleanArray,
         rebuildAll: Boolean,
-        write: (buffer: ByteBuffer, index: Int, column: Int, gridRow: Int) -> Boolean,
+        write: (buffer: ByteBuffer, index: Int, column: Int, gridRow: Int) -> Int,
     ) {
         spritesRebuilt = false
         if (rows == 0) return
@@ -255,7 +258,7 @@ internal class Cells {
         frame: Frame,
         firstRow: Int,
         start: Int,
-        write: (buffer: ByteBuffer, index: Int, column: Int, gridRow: Int) -> Boolean,
+        write: (buffer: ByteBuffer, index: Int, column: Int, gridRow: Int) -> Int,
     ): Int {
         var at = start
         for (row in firstRow until rows) {
@@ -277,7 +280,7 @@ internal class Cells {
         frame: Frame,
         row: Int,
         start: Int,
-        write: (buffer: ByteBuffer, index: Int, column: Int, gridRow: Int) -> Boolean,
+        write: (buffer: ByteBuffer, index: Int, column: Int, gridRow: Int) -> Int,
     ): Int {
         val gridRow = row + firstRowY
         val base = row * columns
@@ -289,13 +292,17 @@ internal class Cells {
             .order(ByteOrder.LITTLE_ENDIAN)
         scratch.clear()
         var count = 0
-        for (column in 0 until columns) {
+        var column = 0
+        while (column < columns) {
             val index = base + column
             scratch.position(count * SPRITE_BYTES)
-            if (!write(scratch, index, column, gridRow)) {
+            val covered = write(scratch, index, column, gridRow)
+            if (covered <= 0) {
+                column += 1
                 continue
             }
             count += 1
+            column += covered
         }
         sprites.position(start)
         sprites.put(spriteScratch, 0, count * SPRITE_BYTES)

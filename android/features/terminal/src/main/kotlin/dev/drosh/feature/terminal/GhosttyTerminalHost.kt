@@ -70,6 +70,8 @@ fun GhosttyTerminalHost(
     sessionId: String = "",
     sessionName: String = "",
     fontSizeSp: Float,
+    /** Whether the font may join adjacent operator cells into ligatures. */
+    ligatures: Boolean = true,
     /**
      * Whether touch is reported to programs that turned a tracking mode on.
      *
@@ -164,6 +166,12 @@ fun GhosttyTerminalHost(
         pane.view.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
             if (hasFocus) terminalManager.focusPane(paneSlot)
         }
+    }
+
+    // The renderer owns its shaping state, so the setting is pushed once per
+    // change rather than on every recomposition.
+    LaunchedEffect(pane, ligatures) {
+        pane.view.setLigatures(ligatures)
     }
 
     // Whether the viewport is at the live edge.

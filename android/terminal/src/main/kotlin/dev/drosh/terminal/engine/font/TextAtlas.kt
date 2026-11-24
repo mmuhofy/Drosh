@@ -132,6 +132,16 @@ internal class TextAtlas(
     /** Masks, keyed by codepoint and weight. */
     private val cache = HashMap<Long, GlyphMask?>(256)
 
+    /**
+     * Shaped runs, keyed by their text and the face they were shaped in.
+     *
+     * A ligature is a property of a *run*, not of a codepoint: `!` and `=`
+     * rasterised separately can never become `!=`. The key is the text because
+     * a hash of the codepoints would have collisions that draw the wrong
+     * ligature, and the number of distinct runs a terminal shows is tiny.
+     */
+    private val runCache = HashMap<String, GlyphMask?>(64)
+
     /** How much of the atlas is in use, for a diagnostic surface. */
     val usedPercent: Int
         get() = if (size <= 0) 0 else (packer.usedBottom * 100) / size
@@ -214,6 +224,7 @@ internal class TextAtlas(
     /** Drop every mask. The font changed, and a mask of the wrong face is the wrong mask. */
     fun reset() {
         cache.clear()
+        runCache.clear()
         packer.reset()
         pixels.clear()
         dirtyTopY = Int.MAX_VALUE
@@ -263,10 +274,43 @@ internal class TextAtlas(
         return mask
     }
 
+    /**
+     * The mask for a shaped run at the current size, or null.
+     *
+     * The run is shaped by the platform's text stack: one `drawText` call sees
+     * the whole sequence, so GSUB `calt`/`liga` substitutions (the programming
+     * ligatures) and contextual positioning happen before the mask exists.
+     * Drawing the same characters one cell at a time is what prevented them —
+     * a shaper only ligates what it is given in one run.
+     */
+    fun run(text: String, bold: Boolean, italic: Boolean, px: Float): GlyphMask? {
+        if (text.isEmpty()) return null
+        beginSize(px)
+        if (rasterPx <= 0f) return null
+
+        val key = buildString(text.length + 8) {
+            append(if (bold) 'b' else '-')
+            append(if (italic) 'i' else '-')
+            append(':')
+            append(rasterPx)
+            append(':')
+            append(text)
+        }
+        runCache[key]?.let { return it }
+        if (runCache.containsKey(key)) return null
+
+        val mask = rasteriseText(text, bold, italic)
+        runCache[key] = mask
+        return mask
+    }
+
     private fun rasterise(codepoint: Int, bold: Boolean, italic: Boolean): GlyphMask? {
         if (codepoint <= 0 || codepoint > Character.MAX_CODE_POINT) return null
+        return rasteriseText(String(Character.toChars(codepoint)), bold, italic)
+    }
 
-        val text = String(Character.toChars(codepoint))
+    /** Rasterise one shaped string, whether it is one cell or a ligature run. */
+    private fun rasteriseText(text: String, bold: Boolean, italic: Boolean): GlyphMask? {
         val p = paintFor(bold, italic)
 
         val advance = p.measureText(text)

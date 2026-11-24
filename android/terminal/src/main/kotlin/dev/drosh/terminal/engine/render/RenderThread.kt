@@ -149,6 +149,9 @@ class RenderThread(
          */
         data class Background(val argb: Int) : Command
 
+        /** Whether adjacent operator cells may shape into ligatures. */
+        data class Ligatures(val enabled: Boolean) : Command
+
         /**
          * Wipe the screen.
          *
@@ -261,6 +264,9 @@ class RenderThread(
     private var highlightAllColour: Int? = null
     private var bellColour: Int? = null
     private var transparentBackground: Boolean? = null
+
+    /** The setting can arrive before the renderer does. */
+    private var ligaturesEnabled: Boolean? = null
 
     /**
      * When the visual bell's flash is over.
@@ -513,6 +519,12 @@ class RenderThread(
                         dirty = true
                     }
 
+                    is Command.Ligatures -> {
+                        ligaturesEnabled = command.enabled
+                        renderer?.setLigatures(command.enabled)
+                        dirty = true
+                    }
+
                     is Command.Clear -> {
                         renderer?.clear(layout.size)
                         egl.swap()
@@ -557,6 +569,21 @@ class RenderThread(
             // surface has a size: a frame from either before is a frame of the
             // wrong shape, and one of them is the black square at the origin.
             if (dirty && egl.isReady && egl.windowSurface != null && layout.cellReady) {
+                // A frame budget, not a frame rate cap: input and commands are
+                // still drained on every wake, and only the *presentation* is
+                // paced. A cursor blink and a bell flash ask for their own
+                // frames, so they are never starved by a busy stream.
+                val sincePresent = System.nanoTime() - lastPresentNanos
+                val budgetLeft = FRAME_INTERVAL_NANOS - sincePresent
+                if (lastPresentNanos != 0L && budgetLeft > 0L) {
+                    lock.withLock {
+                        if (pending.isEmpty()) {
+                            work.await(budgetLeft, java.util.concurrent.TimeUnit.NANOSECONDS)
+                        }
+                    }
+                    continue
+                }
+
                 dirty = false
                 renderer?.focused = focused
                 if (forceFullFrame) {
@@ -564,6 +591,7 @@ class RenderThread(
                     forceFullFrame = false
                 }
                 drawFrame()
+                lastPresentNanos = System.nanoTime()
             }
 
             // The picture's shift is the loop's business, and a caller that
@@ -595,6 +623,16 @@ class RenderThread(
      * without changing the grid's shape.
      */
     private var rendererCellSize: SizeInfo? = null
+
+    /**
+     * When the last frame reached the screen, on the monotonic clock.
+     *
+     * Output can invalidate faster than the display can present: a build log
+     * is thousands of lines a second, and drawing each one is work the user
+     * never sees and heat the phone pays for. The loop keeps the newest state
+     * and presents at most one frame per [FRAME_INTERVAL_MS].
+     */
+    private var lastPresentNanos = 0L
 
     /** True when two sizes put the cells in the same places. */
     private fun sameStep(a: SizeInfo?, b: SizeInfo): Boolean {
@@ -633,6 +671,7 @@ class RenderThread(
             highlightAllColour?.let { argb -> it.setHighlightAllColour(argb) }
             bellColour?.let { argb -> it.setBellColour(argb) }
             transparentBackground?.let { transparent -> it.transparentBackground = transparent }
+            ligaturesEnabled?.let { enabled -> it.setLigatures(enabled) }
             renderer = it
         }
 
@@ -830,6 +869,16 @@ class RenderThread(
 
         /** How long [stop] waits for the loop to finish its frame. */
         const val STOP_TIMEOUT_MS = 2_000L
+
+        /**
+         * The shortest gap between presented frames.
+         *
+         * Ghostty's renderer targets 120 Hz. The surface's own swap chains the
+         * result, and on a 60 Hz panel the extra budget simply makes the loop
+         * wait for the display instead of queueing frames the compositor would
+         * drop.
+         */
+        const val FRAME_INTERVAL_NANOS = 8_333_333L
 
         /** How often the loop wakes while a surface is settling. */
         const val LAYOUT_POLL_MS = 16L

@@ -364,6 +364,18 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     }
 
     /**
+     * Enable or disable programming ligatures.
+     *
+     * The renderer shapes an operator run as one mask when this is on. It is a
+     * settings change, not a cell change: the grid stays the same and only the
+     * glyphs that cover more than one cell are rebuilt.
+     */
+    fun setLigatures(enabled: Boolean) {
+        renderThread.post(RenderThread.Command.Ligatures(enabled))
+        renderThread.invalidateFull()
+    }
+
+    /**
      * Ask the render loop to draw the session's next frame.
      *
      * Not [invalidate]: this view draws on its own EGL surface from a thread,
