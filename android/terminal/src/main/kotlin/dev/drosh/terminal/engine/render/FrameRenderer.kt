@@ -1335,23 +1335,18 @@ internal class FrameRenderer {
         val color = foregroundOf(frame, index)
         val base = index - column
         val limit = minOf(frame.columns, column + LigaturePolicy.MAX_CELLS)
-        val codepoints = IntArray(limit - column)
-        var count = 0
-        var at = column
-        while (at < limit) {
-            val cell = base + (at - column)
-            if (cell == invertedCell) break
-            val codepoint = frame.codepoint(cell)
-            if (!isShapable(codepoint)) break
-            if (frame.width(cell) != 1) break
-            if (frame.attributes(cell) != attributes) break
-            if (foregroundOf(frame, cell) != color) break
-            codepoints[count] = codepoint
-            count += 1
-            at += 1
+        // The scan is asked about the run's own column: `column` is where this
+        // run starts in the row, and the cells are read from there.
+        val count = LigaturePolicy.runLength(column, limit) { at ->
+            val cell = base + at
+            cell != invertedCell &&
+                isShapable(frame.codepoint(cell)) &&
+                frame.width(cell) == 1 &&
+                frame.attributes(cell) == attributes &&
+                foregroundOf(frame, cell) == color
         }
         if (count < 2) return null
-        val shaped = codepoints.copyOf(count)
+        val shaped = IntArray(count) { frame.codepoint(base + column + it) }
         if (!LigaturePolicy.canShape(shaped)) return null
         return LigatureRun(count, String(shaped, 0, count))
     }

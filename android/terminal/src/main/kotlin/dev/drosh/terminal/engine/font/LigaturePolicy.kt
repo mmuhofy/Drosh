@@ -49,6 +49,28 @@ internal object LigaturePolicy {
         return false
     }
 
+    /**
+     * How many cells the run that starts at [from] covers.
+     *
+     * [joinable] is asked about the run's own column in the row — the caller's
+     * cells are addressed from the row's first column, not from the run — and
+     * returns false at the first cell that breaks it: a blank, a wide cell, a
+     * style or colour change, the cursor, or the end of the row.
+     *
+     * The scan lives here rather than in the renderer so that "start where the
+     * run starts" is the signature, not something a caller can get wrong by
+     * subtracting the wrong base. A run read from the row's first cell instead
+     * of from the cell that triggered it redraws the row's opening text — a
+     * prompt, typically — at the column where the user is typing.
+     */
+    fun runLength(from: Int, limit: Int, joinable: (Int) -> Boolean): Int {
+        var at = from
+        while (at < limit && joinable(at)) {
+            at += 1
+        }
+        return at - from
+    }
+
     /** Whether one codepoint is part of the operator alphabet. */
     fun isTrigger(codepoint: Int): Boolean =
         codepoint in 0x21..0x7e && TRIGGERS.indexOf(codepoint.toChar()) >= 0
