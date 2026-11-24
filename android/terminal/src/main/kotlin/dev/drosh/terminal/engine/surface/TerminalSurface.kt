@@ -396,9 +396,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // An in-flight drag belonged to the old session: its press was never
         // released, and a release sent to the next one would be a click the
         // new program never asked for.
-        mouseDragging = false
-        mouseDragCellX = -1
-        mouseDragCellY = -1
+        mouse.forgetDrag()
         longPressSelecting = false
         selectionGestureActive = false
         stopSelectionAutoScroll()
@@ -454,240 +452,35 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     // --- gestures ------------------------------------------------------------
 
     /**
-     * The user's master switch for mouse reporting, pushed in by the host.
-     *
-     * Off, gestures always drive the local scrollback and the keyboard,
-     * whatever the running program asked for. On, gestures are reported to
-     * programs that turned a tracking mode on, and stay local otherwise.
+     * The mouse's gestures: taps, drags and wheels for a program that asked
+     * for them. See [TerminalMouse].
      */
-    @Volatile
-    var mouseReportingEnabled: Boolean = true
+    private val mouse = TerminalMouse(
+        object : TerminalMouse.Host {
+            override val session: Long get() = sessionHandle
+            override val pty: Long get() = ptyHandle
+            override val gridWidth: Int get() = width
+            override val gridHeight: Int get() = height
+            override val cellWidth: Float get() = this@TerminalSurface.cellWidth
+            override val cellHeight: Float get() = this@TerminalSurface.cellHeight
 
-    /** The wheel drag's axis lock: 0 none, 1 vertical, 2 horizontal. */
-    private var mouseAxis: Int = AXIS_NONE
+            override fun haptic() {
+                performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            }
+        },
+    )
 
-    /** The wheel's sub-cell remainder along the locked axis, in cells. */
-    private var mouseWheelRemainder: Float = 0f
+    /** The host's master switch for mouse reporting. See [TerminalMouse.enabled]. */
+    var mouseReportingEnabled: Boolean
+        get() = mouse.enabled
+        set(value) {
+            mouse.enabled = value
+        }
 
-    /**
-     * True while a long-press has the left button held for a drag.
-     *
-     * The whole touch stream is consumed while it runs: its moves are motion
-     * reports and must never reach the detectors, or a wheel scroll would fire
-     * underneath the drag the program is trying to read.
-     */
-    private var mouseDragging: Boolean = false
-
-    /** The last cell a motion report was sent for — the protocol is cell-grained. */
-    private var mouseDragCellX: Int = -1
-    private var mouseDragCellY: Int = -1
-
-    /** The mouse encoder's output, reused. SGR sequences are short. */
-
-
-    /** Encode one mouse event and write it to the child; true when bytes went out. */
-    private fun mouseReporting(): Boolean {
-        if (!mouseReportingEnabled) return false
-        val session = sessionHandle
-        if (session == 0L) return false
-        return NativeSession.modes(session) and MODE_MOUSE_TRACKING != 0
-    }
-
-    /** The state [mouseReporting] reads, as the host's link tap also asks it. */
+    /** True while a program's tracking mode is on, as the host's link tap asks. */
     val mouseReportingActive: Boolean
-        get() = mouseReporting()
+        get() = mouse.active
 
-    /**
-     * A left-button click: press, then release, at the finger's position.
-     *
-     * Both travel even though the encoder may answer only one — a tracking
-     * mode that reports releases itself (SGR 1006 does) wants the pair.
-     */
-    private fun sendMouseClick(x: Float, y: Float) {
-        sendMouse(
-            NativeInput.MOUSE_ACTION_PRESS,
-            NativeInput.MOUSE_BUTTON_LEFT,
-            x,
-            y,
-            buttonPressed = false,
-        )
-        sendMouse(
-            NativeInput.MOUSE_ACTION_RELEASE,
-            NativeInput.MOUSE_BUTTON_LEFT,
-            x,
-            y,
-            buttonPressed = false,
-        )
-    }
-
-    private fun sendMouse(
-        action: Int,
-        button: Int,
-        x: Float,
-        y: Float,
-        buttonPressed: Boolean,
-    ): Boolean {
-        // One crossing: the sequence is encoded and written to the PTY
-        // together, so a tap or a drag does not build a byte array on the way.
-        val session = sessionHandle
-        val pty = ptyHandle
-        if (session == 0L || pty == 0L) return false
-        val started = System.nanoTime()
-        val written = NativeInput.encodeWriteMouse(
-            session = session,
-            pty = pty,
-            action = action,
-            button = button,
-            x = x,
-            y = y,
-            width = width.coerceAtLeast(1),
-            height = height.coerceAtLeast(1),
-            cellWidth = cellWidth.toInt().coerceAtLeast(1),
-            cellHeight = cellHeight.toInt().coerceAtLeast(1),
-            buttonPressed = buttonPressed,
-        )
-        dev.drosh.terminal.engine.input.InputStats.mouse(
-            action, written, System.nanoTime() - started,
-        )
-        return written > 0
-    }
-
-    private fun startMouseDrag(x: Float, y: Float) {
-        val session = sessionHandle
-        if (session == 0L) return
-        mouseDragging = true
-        mouseDragCellX = (x / cellWidth.coerceAtLeast(1f)).toInt()
-        mouseDragCellY = (y / cellHeight.coerceAtLeast(1f)).toInt()
-        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-        sendMouse(
-            NativeInput.MOUSE_ACTION_PRESS,
-            NativeInput.MOUSE_BUTTON_LEFT,
-            x,
-            y,
-            buttonPressed = true,
-        )
-    }
-
-    /**
-     * Carries an in-progress drag: each move emits one motion report with the
-     * left button held, and only when the finger has entered a *new* cell —
-     * the wire protocol is cell-grained, and re-reporting one cell would give
-     * the program the same answer over and over. The lift emits the release.
-     *
-     * Consumes the whole stream, so the detectors never see the gesture.
-     */
-    private fun mouseDragTouch(event: MotionEvent): Boolean {
-        if (sessionHandle == 0L) {
-            // The session went away under the finger; nothing to release to.
-            mouseDragging = false
-            mouseDragCellX = -1
-            mouseDragCellY = -1
-            return true
-        }
-        when (event.actionMasked) {
-            MotionEvent.ACTION_MOVE -> {
-                val cellW = cellWidth.coerceAtLeast(1f)
-                val cellH = cellHeight.coerceAtLeast(1f)
-                val column = (event.x / cellW).toInt()
-                val row = (event.y / cellH).toInt()
-                if (column == mouseDragCellX && row == mouseDragCellY) return true
-                mouseDragCellX = column
-                mouseDragCellY = row
-                sendMouse(
-                    NativeInput.MOUSE_ACTION_MOTION,
-                    NativeInput.MOUSE_BUTTON_LEFT,
-                    event.x,
-                    event.y,
-                    buttonPressed = true,
-                )
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                releaseMouseDrag(event.x, event.y)
-            }
-        }
-        return true
-    }
-
-    /** Releases a held drag and clears the drag state. */
-    private fun releaseMouseDrag(x: Float, y: Float) {
-        sendMouse(
-            NativeInput.MOUSE_ACTION_RELEASE,
-            NativeInput.MOUSE_BUTTON_LEFT,
-            x,
-            y,
-            buttonPressed = false,
-        )
-        mouseDragging = false
-        mouseDragCellX = -1
-        mouseDragCellY = -1
-    }
-
-    /**
-     * Encodes a swipe as wheel scroll along the gesture's dominant axis,
-     * locked on the first move so a slightly diagonal drag does not emit both
-     * vertical and horizontal wheel reports.
-     *
-     * The detector's `distanceY` is already the right sign for the wire:
-     * dragging the finger *up* gives a positive value, and up is the swipe
-     * that reveals lower content — wheel down. Whole cells crossed emit one
-     * wheel press each, the remainder carried over to the next move.
-     */
-    private fun handleMouseWheel(distanceX: Float, distanceY: Float, event: MotionEvent) {
-        if (mouseAxis == AXIS_NONE) {
-            mouseAxis = if (kotlin.math.abs(distanceY) >= kotlin.math.abs(distanceX)) {
-                AXIS_VERTICAL
-            } else {
-                AXIS_HORIZONTAL
-            }
-            mouseWheelRemainder = 0f
-        }
-        if (mouseAxis == AXIS_VERTICAL) {
-            mouseWheelRemainder += distanceY / cellHeight.coerceAtLeast(1f)
-            val steps = mouseWheelRemainder.toInt()
-            if (steps == 0) return
-            mouseWheelRemainder -= steps
-            val button =
-                if (steps > 0) NativeInput.MOUSE_BUTTON_WHEEL_DOWN
-                else NativeInput.MOUSE_BUTTON_WHEEL_UP
-            emitWheel(button, kotlin.math.abs(steps), event.x, event.y)
-        } else {
-            mouseWheelRemainder += distanceX / cellWidth.coerceAtLeast(1f)
-            val steps = mouseWheelRemainder.toInt()
-            if (steps == 0) return
-            mouseWheelRemainder -= steps
-            val button =
-                if (steps > 0) NativeInput.MOUSE_BUTTON_WHEEL_RIGHT
-                else NativeInput.MOUSE_BUTTON_WHEEL_LEFT
-            emitWheel(button, kotlin.math.abs(steps), event.x, event.y)
-        }
-    }
-
-    /** Sends `count` wheel presses — encoded once, written once per step. */
-    private fun emitWheel(button: Int, count: Int, x: Float, y: Float) {
-        // The engine may answer nothing — the program left mouse mode between
-        // two moves — and an empty write is not a report.
-        repeat(count) {
-            if (!sendMouse(
-                    NativeInput.MOUSE_ACTION_PRESS,
-                    button,
-                    x,
-                    y,
-                    buttonPressed = false,
-                )
-            ) {
-                return
-            }
-        }
-    }
-
-    /**
-     * Encode one mouse event through the engine, and return the bytes.
-     *
-     * Empty when the engine answered nothing — an action the program's
-     * tracking mode does not report — or the session is gone. The engine
-     * decides the wire format (SGR 1006, X10, ...) from its own state; nothing
-     * here does.
-     */
     /** The pinch's arithmetic: dead zone, step clamp, measured from the origin. */
     private val pinchMachine = PinchMachine(
         minSp = TerminalZoom.MIN_SP,
@@ -776,8 +569,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             override fun onDown(event: MotionEvent): Boolean {
                 // The wheel's axis lock belongs to one gesture; the next
                 // gesture re-decides it.
-                mouseAxis = AXIS_NONE
-                mouseWheelRemainder = 0f
+                mouse.resetWheel()
                 return true
             }
 
@@ -786,10 +578,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // click, and neither raises the keyboard nor drives selection
                 // — so it stays outside the tap counter: a "double click"
                 // there is just two clicks, which is what such programs expect.
-                if (mouseReporting()) {
+                if (mouse.active) {
                     tapCount = 0
                     if (!hasFocus()) requestFocus()
-                    sendMouseClick(event.x, event.y)
+                    mouse.click(event.x, event.y)
                     return true
                 }
                 handleTap(event)
@@ -801,8 +593,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // button so the following drag is reported to the program —
                 // a region select, a slider, a divider — instead of starting
                 // the local selection.
-                if (mouseReporting()) {
-                    startMouseDrag(event.x, event.y)
+                if (mouse.active) {
+                    mouse.startDrag(event.x, event.y)
                     return
                 }
 
@@ -849,8 +641,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // only for one finger. Two fingers are the user's own scroll
                 // and zoom: they fall through to the local path below, which
                 // already gives a tracking program whole wheel rows.
-                if (mouseReporting() && current.pointerCount == 1) {
-                    handleMouseWheel(distanceX, distanceY, current)
+                if (mouse.active && current.pointerCount == 1) {
+                    mouse.wheel(distanceX, distanceY, current.x, current.y)
                     return true
                 }
                 // A drag that started as a long press is the selection
@@ -897,7 +689,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // Mouse reporting already emitted discrete wheel reports during
                 // the drag; coasting the local viewport on top of them would
                 // scroll the program twice for one flick.
-                if (mouseReporting()) return false
+                if (mouse.active) return false
                 flingStarted = true
                 startFling(velocityY)
                 return true
@@ -959,14 +751,14 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // button over a gesture that is no longer about it. The release goes
         // out at the *first* finger's position — on a pointer-down event, the
         // event's own x/y are the newest pointer's.
-        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN && mouseDragging) {
-            releaseMouseDrag(event.getX(0), event.getY(0))
+        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN && mouse.dragging) {
+            mouse.releaseDrag(event.getX(0), event.getY(0))
         }
 
         // A drag in flight owns the whole gesture: its moves are motion
         // reports and must never reach the detectors, which would read the
         // same finger as a wheel scroll underneath the drag.
-        if (mouseDragging && mouseDragTouch(event)) return true
+        if (mouse.dragging && mouse.dragTouch(event)) return true
 
         // The end of a selection gesture.
         //
@@ -1842,11 +1634,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         /** Bit 0 of the engine's mode bits is mouse tracking. */
         const val MODE_MOUSE_TRACKING = 1
-
-        /** The wheel drag's axis lock: unlocked, then the two axes. */
-        const val AXIS_NONE = 0
-        const val AXIS_VERTICAL = 1
-        const val AXIS_HORIZONTAL = 2
 
         /**
          * The step the live size moves in while the fingers are moving.
