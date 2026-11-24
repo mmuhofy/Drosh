@@ -73,11 +73,16 @@ class CellsTest {
         return parsed
     }
 
-    /** One sprite per cell that has text, the way the renderer writes them. */
-    private fun writer(frame: Frame): (ByteBuffer, Int, Int, Int) -> Boolean =
+    /**
+     * One sprite per cell that has text, the way the renderer writes them.
+     *
+     * The callback answers with the cells the sprite covers: one for a glyph,
+     * none for an empty cell. A ligature is the only sprite that covers more.
+     */
+    private fun writer(frame: Frame): (ByteBuffer, Int, Int, Int) -> Int =
         { buffer, index, column, gridRow ->
             if (frame.codepoint(index) == 0) {
-                false
+                0
             } else {
                 buffer.putShort(0.toShort())
                 buffer.putShort(0.toShort())
@@ -90,7 +95,7 @@ class CellsTest {
                 buffer.putInt(0xFFE8E8E8.toInt())
                 buffer.putShort(0.toShort())
                 buffer.putShort(1.toShort())
-                true
+                1
             }
         }
 
