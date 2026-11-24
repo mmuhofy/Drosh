@@ -127,6 +127,17 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 
+/**
+ * The model picker, as the same sheet the language picker is.
+ *
+ * One bottom-sheet shape for the whole app: the same grabber, the same
+ * capsule search, the same row with a circle of the model's initials and
+ * the same check. The model sheet used to be its own shape — a scrim, its
+ * own surface, its own row — which made two pickers on two screens look
+ * like two apps.
+ */
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ModelPickerSheet(
     models: List<LlmModel>,

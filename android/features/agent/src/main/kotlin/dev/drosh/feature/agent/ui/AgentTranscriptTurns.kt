@@ -127,6 +127,14 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 
+/**
+ * A stable key for a row.
+ *
+ * A turn is keyed by its prompt: the steps under it change on every token, and a
+ * key built from a turn's contents would make Compose tear the row down and
+ * rebuild it while the answer streams.
+ */
+
 internal fun rowKey(row: TranscriptRow): String = when (row) {
     is TranscriptRow.Turn -> "t_${row.prompt.id}"
     is TranscriptRow.Single -> "m_${row.message.id}"

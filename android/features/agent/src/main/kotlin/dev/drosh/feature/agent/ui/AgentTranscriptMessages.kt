@@ -667,23 +667,3 @@ internal fun ApprovalBlock(
         }
     }
 }
-
-/**
- * The agent's checklist.
- *
- * A list, not a card: no fill, no border, hanging off the same rule as the tool
- * output it replaces. A checklist is the same kind of thing as that output, and
- * boxing it inside a box reads as one more layer.
- *
- * ## Why progress is a count and not a bar
- *
- * `2/5` says how far along it is and how much is left, which is what someone
- * glancing at it wants. A bar says the same while hiding the total, so the reader
- * cannot tell whether five items or fifty is left.
- *
- * ## Completed items stay
- *
- * Struck through, not removed. A checklist that forgets what it finished cannot
- * answer "did it do the thing I asked", and the strike is the cheapest way to keep
- * that answer on screen.
- */

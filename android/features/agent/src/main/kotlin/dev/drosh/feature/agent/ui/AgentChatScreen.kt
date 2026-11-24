@@ -675,21 +675,3 @@ private fun ChatPillRow(
         }
     }
 }
-
-/**
- * The model picker.
- *
- * A sheet rather than a dropdown: the list is as tall as the provider's catalogue,
- * and a menu that grows past half the screen stops being a menu. The selection is
- * marked with a tick as well as a background, so it does not depend on colour.
- */
-/**
- * The model picker, as the same sheet the language picker is.
- *
- * One bottom-sheet shape for the whole app: the same grabber, the same
- * capsule search, the same row with a circle of the model's initials and
- * the same check. The model sheet used to be its own shape — a scrim, its
- * own surface, its own row — which made two pickers on two screens look
- * like two apps.
- */
-@OptIn(ExperimentalMaterial3Api::class)
