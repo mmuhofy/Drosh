@@ -57,11 +57,29 @@ object DroshShellIntegration {
      *   in the file reaches every session — the one on screen and the one the
      *   agent opens — without touching a file that is the user's.
      */
-    fun install(context: Context, shellPath: String, locale: String = ""): Plan {
+    fun install(
+        context: Context,
+        shellPath: String,
+        locale: String = "",
+        /**
+         * A command to run every time this shell starts, from the settings
+         * file. Empty is the usual answer.
+         *
+         * It goes into the integration script rather than into the argv, and
+         * that is the difference between a setting that works and one that
+         * ends the session: a shell started as `bash -c <command>` is not an
+         * interactive shell — it runs the command and exits, and the terminal
+         * is left staring at a closed prompt. Run from the rc script the
+         * command has the user's own aliases, functions and prompt behind it,
+         * and the shell carries on.
+         */
+        startupCommand: String = "",
+    ): Plan {
         val name = shellPath.substringAfterLast('/')
+        val starter = startupSnippet(startupCommand)
         val script = when (name) {
-            "zsh" -> writeScript(context, "zsh", ZSH)
-            "bash" -> writeScript(context, "bash", BASH)
+            "zsh" -> writeScript(context, "zsh", ZSH + starter)
+            "bash" -> writeScript(context, "bash", BASH + starter)
             else -> return Plan()
         }
         val environment = buildMap {
@@ -128,6 +146,20 @@ object DroshShellIntegration {
           __drosh_osc "${'$'}(printf '\033]1339;%s\a' "${'$'}__drosh_editor_target")"
         }
     """
+
+    /**
+     * The startup command, as the tail of an rc script.
+     *
+     * Blank answers an empty string, so a user who never opened the setting
+     * gets a script with nothing added to it. A failing command is not fatal:
+     * an interactive shell that has already sourced its rc keeps running, which
+     * is what a terminal wants when the command is a `cd` into a directory the
+     * user deleted last week.
+     */
+    internal fun startupSnippet(command: String): String {
+        if (command.isBlank()) return ""
+        return "\n# The startup command from settings.toml.\n$command\n"
+    }
 
     private fun writeScript(context: Context, suffix: String, body: String): File {
         val dir = File(context.filesDir, "shell-integration").apply { mkdirs() }

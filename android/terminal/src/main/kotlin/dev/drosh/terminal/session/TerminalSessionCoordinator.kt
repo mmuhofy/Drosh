@@ -2342,13 +2342,20 @@ class TerminalSessionCoordinator(
         } else null
 
         val shell = effectiveShellPath()
-        val integration = DroshShellIntegration.install(appContext, shell, shellLocale)
+        // The startup command rides in the rc script, not in `command`: the
+        // session is an interactive shell, and `bash -c` would run the command
+        // and exit, leaving the pane on a closed prompt.
+        val integration = DroshShellIntegration.install(
+            context = appContext,
+            shellPath = shell,
+            locale = shellLocale,
+            startupCommand = guestStartCommand,
+        )
 
         return guestLauncher().build(
             GuestSpec(
                 workingDirectory = guestWd,
                 shell = shell,
-                command = guestStartCommand,
                 environment = integration.environment,
                 shellArgs = integration.shellArgs,
             ),
