@@ -226,6 +226,40 @@ fn mode_from_lflag(lflag: libc::tcflag_t) -> (bool, bool) {
     (lflag & libc::ICANON != 0, lflag & libc::ECHO != 0)
 }
 
+/// A pipe the writer pokes to wake the reader's `poll`.
+///
+/// The reader blocks inside `poll`, so a write queued from another thread has no
+/// way to cut that wait short without a descriptor it can make readable. This
+/// pipe is that descriptor: one byte means "there is work", and the reader
+/// drains it on the next wakeup. Both ends are non-blocking and close-on-exec,
+/// so neither leaks into the child and a drain never blocks.
+///
+/// Returns `(-1, -1)` when the pipe cannot be made; the reader then falls back
+/// to its poll timeout.
+fn open_wake_pipe() -> (RawFd, RawFd) {
+    let mut fds = [0 as RawFd; 2];
+    if unsafe { libc::pipe(fds.as_mut_ptr()) } != 0 {
+        log::debug!(
+            "drosh-native: the pty wake pipe could not be made: {}",
+            io::Error::last_os_error()
+        );
+        return (-1, -1);
+    }
+    for fd in fds {
+        unsafe {
+            let flags = libc::fcntl(fd, libc::F_GETFL);
+            if flags >= 0 {
+                libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
+            }
+            let descriptor = libc::fcntl(fd, libc::F_GETFD);
+            if descriptor >= 0 {
+                libc::fcntl(fd, libc::F_SETFD, descriptor | libc::FD_CLOEXEC);
+            }
+        }
+    }
+    (fds[0], fds[1])
+}
+
 /// A pseudoterminal pair and the child process on the slave side.
 ///
 /// The JNI layer keeps one of these behind a mutex: the reader thread reads
@@ -233,6 +267,11 @@ fn mode_from_lflag(lflag: libc::tcflag_t) -> (bool, bool) {
 pub struct Pty {
     /// The master side: the app reads and writes this.
     master: RawFd,
+    /// The read end of the wake pipe: `poll` watches it so a queued write can
+    /// cut the reader's wait short. -1 when the pipe could not be made.
+    wake_read: RawFd,
+    /// The write end of the wake pipe. -1 when the pipe could not be made.
+    wake_write: RawFd,
     /// The child's pid, or -1 once reaped.
     child: libc::pid_t,
     /// The size last set, so a resize to the same size is free.
@@ -312,6 +351,12 @@ impl Pty {
 
         configure_master(master);
 
+        // The pipe the writer pokes to wake the reader's `poll`. Made in the
+        // parent, after the fork, so the child never sees it; close-on-exec and
+        // non-blocking on both ends. A failure degrades to the poll timeout
+        // rather than to a broken session.
+        let (wake_read, wake_write) = open_wake_pipe();
+
         // Non-blocking: the caller polls. A blocking read here would freeze
         // whichever thread called it, and that thread is the render loop.
         unsafe {
@@ -323,6 +368,8 @@ impl Pty {
 
         Ok(Self {
             master,
+            wake_read,
+            wake_write,
             child: pid,
             size,
             scratch: Vec::with_capacity(READ_CHUNK),
@@ -453,6 +500,50 @@ impl Pty {
         self.master
     }
 
+    /// The read end of the wake pipe, or -1 when there is none.
+    ///
+    /// The JNI poll watches it alongside the master, so a queued write wakes
+    /// the reader instead of waiting out the timeout.
+    pub fn wake_read(&self) -> RawFd {
+        self.wake_read
+    }
+
+    /// Pokes the reader awake. True when a byte was written.
+    ///
+    /// One byte is enough however many writes are queued: the reader drains the
+    /// pipe and then drains the work. A full pipe means the reader is already
+    /// about to wake, so a failed write is not a lost wakeup.
+    pub fn wake(&mut self) -> bool {
+        if self.wake_write < 0 {
+            return false;
+        }
+        let byte = [1u8];
+        let written = unsafe {
+            libc::write(self.wake_write, byte.as_ptr() as *const libc::c_void, 1)
+        };
+        written == 1
+    }
+
+    /// Empties the wake pipe, so the next `poll` blocks again.
+    pub fn drain_wake(&mut self) {
+        if self.wake_read < 0 {
+            return;
+        }
+        let mut scratch = [0u8; 64];
+        loop {
+            let read = unsafe {
+                libc::read(
+                    self.wake_read,
+                    scratch.as_mut_ptr() as *mut libc::c_void,
+                    scratch.len(),
+                )
+            };
+            if read <= 0 {
+                break;
+            }
+        }
+    }
+
     /// The id of the process group in the terminal's foreground, if any.
     ///
     /// This is what Ctrl+C would signal, and what the UI should name when it
@@ -529,6 +620,14 @@ impl Drop for Pty {
         if self.master >= 0 {
             unsafe { libc::close(self.master) };
             self.master = -1;
+        }
+        if self.wake_read >= 0 {
+            unsafe { libc::close(self.wake_read) };
+            self.wake_read = -1;
+        }
+        if self.wake_write >= 0 {
+            unsafe { libc::close(self.wake_write) };
+            self.wake_write = -1;
         }
         if self.child > 0 {
             // Reaped without blocking: a caller may drop while the child is

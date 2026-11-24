@@ -223,8 +223,13 @@ class SessionManagerAdapter @Inject constructor(
                 sessionId = ref.id,
                 name = resolvedName,
                 pid = session.processId.takeIf { it > 0 },
-                // The engine has no job list; see SessionProcessInfo. No invented jobs.
-                jobs = emptyList(),
+                // The terminal's foreground process group is the one job the
+                // kernel reports. At a prompt it is the shell itself, which is
+                // not a job, so it is named only when it differs.
+                jobs = session.foregroundProcessName()
+                    ?.takeIf { it.isNotBlank() && it != resolvedName }
+                    ?.let { listOf(it) }
+                    .orEmpty(),
             )
         }
 

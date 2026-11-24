@@ -16,7 +16,7 @@ use std::sync::{Mutex, MutexGuard};
 use jni::objects::{JByteArray, JClass, JString};
 use jni::JNIEnv;
 
-use super::{jint, jintArray, jlong, jstring};
+use super::{jboolean, jint, jintArray, jlong, jstring};
 use super::{new_int_array, new_string, read_string};
 use crate::pty::{Pty, Winsize};
 
@@ -318,16 +318,19 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeSiz
     }
 }
 
-/// Wait until the master is readable or closed, or the timeout elapses.
+/// Wait until the master is readable or closed, a queued write wakes the
+/// reader, or the timeout elapses.
 ///
-/// The lock is taken only to copy the fd and released before the wait: a
+/// The lock is taken only to copy the fds and released before the wait: a
 /// blocking `poll` under the lock would make a write from the main thread wait
-/// out the whole timeout. The fd is stable for the PTY's life — it is set once
-/// and closed only when the handle is dropped, after the reader has stopped —
-/// so polling a copy of it is safe.
+/// out the whole timeout. The fds are stable for the PTY's life — set once and
+/// closed only when the handle is dropped, after the reader has stopped — so
+/// polling copies of them is safe.
 ///
-/// Returns the number of ready descriptors (>0, including a hangup on the
-/// child's side), 0 on timeout, or -1 on a bad handle or a failed call.
+/// Returns 1 when the master is ready (data or a hangup on the child's side),
+/// 0 on timeout or when only the wake pipe fired, and -1 on a bad handle or a
+/// failed call. The caller treats 0 as "nothing to read, but my queue may have
+/// work".
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativePoll(
     _env: JNIEnv,
@@ -336,18 +339,33 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativePol
     timeout_ms: jint,
 ) -> jint {
     // The guard is dropped at the end of this match, before the wait.
-    let fd = match pty_lock(handle) {
-        Some(pty) => pty.master(),
+    let (master, wake) = match pty_lock(handle) {
+        Some(pty) => (pty.master(), pty.wake_read()),
         None => return -1,
     };
 
-    let mut descriptor = libc::pollfd {
-        fd,
-        events: libc::POLLIN,
-        revents: 0,
-    };
+    // A negative fd is ignored by `poll`, so a missing wake pipe needs no
+    // separate branch: the array just carries an entry nothing watches.
+    let mut descriptors = [
+        libc::pollfd {
+            fd: master,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+        libc::pollfd {
+            fd: wake,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+    ];
     let timeout = timeout_ms.max(0);
-    let ready = unsafe { libc::poll(&mut descriptor as *mut libc::pollfd, 1, timeout) };
+    let ready = unsafe {
+        libc::poll(
+            descriptors.as_mut_ptr(),
+            descriptors.len() as libc::nfds_t,
+            timeout,
+        )
+    };
     if ready < 0 {
         log::debug!(
             "drosh-native: the pty wait failed: {}",
@@ -355,5 +373,55 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativePol
         );
         return -1;
     }
-    ready
+
+    // The wake pipe fires once per poke; empty it here so the next wait blocks
+    // instead of returning on the leftover byte.
+    if wake >= 0 && descriptors[1].revents != 0 {
+        if let Some(mut pty) = pty_lock(handle) {
+            pty.drain_wake();
+        }
+    }
+
+    if descriptors[0].revents != 0 {
+        1
+    } else {
+        0
+    }
+}
+
+/// Poke the reader awake. False when there is no wake pipe.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeWake(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jboolean {
+    let Some(mut pty) = pty_lock(handle) else {
+        return 0;
+    };
+    if pty.wake() {
+        1
+    } else {
+        0
+    }
+}
+
+/// Whether the pty has a wake pipe, or false when it does not.
+///
+/// Without one a queued write would wait out the reader's poll, so the caller
+/// writes straight through instead of queueing.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeHasWake(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jboolean {
+    let Some(pty) = pty_lock(handle) else {
+        return 0;
+    };
+    if pty.wake_read() >= 0 {
+        1
+    } else {
+        0
+    }
 }

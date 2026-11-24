@@ -116,6 +116,32 @@ class GhosttySession(
     /** The read buffer, reused. */
     private val readBuffer = ByteArray(64 * 1024)
 
+    /**
+     * Input waiting to go to the child, drained by the reader thread.
+     *
+     * Termio's model: one thread owns the PTY. A write from the UI is queued
+     * and the reader is poked, so the two never reach the PTY at once and the
+     * pty lock stays uncontended on the common path. The reader drains the
+     * queue between reads.
+     */
+    private val pendingWrites = java.util.concurrent.ConcurrentLinkedQueue<ByteArray>()
+
+    /** The latest pending resize; an earlier one is superseded, not replayed. */
+    @Volatile
+    private var pendingResize: ResizeRequest? = null
+
+    /** Whether the PTY can be poked awake; false means writes go straight through. */
+    @Volatile
+    private var wakeCapable: Boolean = false
+
+    /** A resize queued for the reader thread. */
+    private data class ResizeRequest(
+        val columns: Int,
+        val rows: Int,
+        val cellWidth: Int,
+        val cellHeight: Int,
+    )
+
     /** Bytes the child has produced since the session started. */
     @Volatile
     var bytesRead: Long = 0
@@ -166,6 +192,7 @@ class GhosttySession(
         this.cellHeight = cellHeight
         terminalHandle = grid
         ptyHandle = pty
+        wakeCapable = NativePty.hasWake(pty)
         state = PaneState.RUNNING
         startReading()
         // The child's own name is the session's default display name, and the
@@ -261,6 +288,23 @@ class GhosttySession(
         if (processId > 0) readProcessName(processId) else null
 
     /**
+     * The name of the process group the terminal has in the foreground, or null.
+     *
+     * This is what `Ctrl+C` would signal: at a prompt it is the shell, and while
+     * a command runs it is that command. The group leader's name comes from
+     * `/proc/<pgid>/comm`, the same kernel source the session's own name comes
+     * from, so it is the kernel's answer and not a guess. A bridged session has
+     * no PTY and therefore no answer.
+     */
+    fun foregroundProcessName(): String? {
+        val pty = ptyHandle
+        if (pty == 0L) return null
+        val pgrp = NativePty.foregroundPid(pty)
+        if (pgrp <= 0) return null
+        return commOf(pgrp)
+    }
+
+    /**
      * The display name for [pid]: the guest shell under the runtime, else the OSC
      * title, else null. Never a runtime binary's own name.
      */
@@ -308,13 +352,34 @@ class GhosttySession(
     private fun isRuntimeName(name: String): Boolean =
         name in RUNTIME_PROCESS_NAMES || name == WRAPPER_SHELL_NAME
 
+    /**
+     * Sends the queued input and the latest resize to the child.
+     *
+     * Runs on the reader thread, so this is the only thread that writes to the
+     * PTY while it is being read; the pty lock remains for the bridged and
+     * no-wake fallback paths, not for this one.
+     */
+    private fun drainInput(pty: Long) {
+        while (true) {
+            val next = pendingWrites.poll() ?: break
+            NativePty.write(pty, next)
+        }
+        val resize = pendingResize
+        if (resize != null) {
+            pendingResize = null
+            NativePty.resize(pty, resize.columns, resize.rows, resize.cellWidth, resize.cellHeight)
+        }
+    }
+
     private fun readLoop(pty: Long) {
         while (reading.get()) {
             // Wait on the kernel rather than sleeping: this thread wakes when
             // the child writes or closes its side, and the hangup is one of the
             // events the wait returns on, so the child's exit is seen at once
-            // instead of on the next sleep tick.
+            // instead of on the next sleep tick. A queued write pokes the wait
+            // awake, so input is not delayed by it.
             val ready = NativePty.poll(pty, IDLE_WAIT_MS)
+            drainInput(pty)
             if (ready < 0) {
                 reading.set(false)
                 return
@@ -473,7 +538,14 @@ class GhosttySession(
     fun write(bytes: ByteArray) {
         val pty = ptyHandle
         if (pty == 0L) return
-        NativePty.write(pty, bytes)
+        if (wakeCapable) {
+            // Queued for the reader thread; the poke cuts its wait short.
+            pendingWrites.add(bytes)
+            NativePty.wake(pty)
+        } else {
+            // No wake channel: a queued write would wait out the reader's poll.
+            NativePty.write(pty, bytes)
+        }
     }
 
     /** The grid's shape changed. */
@@ -486,7 +558,14 @@ class GhosttySession(
             NativeSession.resize(grid, columns, rows, cellWidth.toInt(), cellHeight.toInt())
         }
         if (pty != 0L) {
-            NativePty.resize(pty, columns, rows, cellWidth.toInt(), cellHeight.toInt())
+            if (wakeCapable) {
+                // The pty resize goes through the reader thread like a write.
+                // Only the latest size matters: an earlier one is superseded.
+                pendingResize = ResizeRequest(columns, rows, cellWidth.toInt(), cellHeight.toInt())
+                NativePty.wake(pty)
+            } else {
+                NativePty.resize(pty, columns, rows, cellWidth.toInt(), cellHeight.toInt())
+            }
         }
     }
 
@@ -602,6 +681,11 @@ class GhosttySession(
             NativePty.close(pty)
             ptyHandle = 0
         }
+        // A restart is a new child; input queued for the old one must not go to
+        // it.
+        pendingWrites.clear()
+        pendingResize = null
+        wakeCapable = false
         if (state == PaneState.RUNNING) {
             state = PaneState.IDLE
         }

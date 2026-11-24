@@ -152,6 +152,26 @@ object NativePty {
         return nativePoll(handle, timeoutMs)
     }
 
+    /**
+     * Pokes the reader awake so it drains a queued write now rather than at the
+     * end of its wait. False when the PTY has no wake channel.
+     */
+    fun wake(handle: Long): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeWake(handle)
+    }
+
+    /**
+     * True when the PTY has a wake channel.
+     *
+     * Without one a queued write would wait out the reader's poll, so the
+     * caller writes straight through instead.
+     */
+    fun hasWake(handle: Long): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeHasWake(handle)
+    }
+
     /** The canonical-mode bit of [mode]: the line discipline collects a line. */
     const val MODE_CANONICAL = 1
 
@@ -185,4 +205,6 @@ object NativePty {
     private external fun nativeMode(handle: Long): Int
     private external fun nativeSize(handle: Long): IntArray?
     private external fun nativePoll(handle: Long, timeoutMs: Int): Int
+    private external fun nativeWake(handle: Long): Boolean
+    private external fun nativeHasWake(handle: Long): Boolean
 }
