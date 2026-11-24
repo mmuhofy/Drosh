@@ -1058,7 +1058,14 @@ impl Session {
                 &mut needed,
             )
         };
-        if !ghostty::ok(result) || needed == 0 {
+        // The measuring call is *not* a success: the header documents a null
+        // buffer as GHOSTTY_OUT_OF_SPACE with the required size in `needed`.
+        // Rejecting that answer rejected every copy before the text was ever
+        // written, which is why Kopyala appeared to do nothing.
+        if result != ghostty::OUT_OF_SPACE && !ghostty::ok(result) {
+            return None;
+        }
+        if needed == 0 {
             return None;
         }
 

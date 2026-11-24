@@ -34,6 +34,13 @@ pub const SUCCESS: GhosttyResult = 0;
 /// to return.
 pub const NO_VALUE: GhosttyResult = -4;
 
+/// The engine's "buffer too small" answer.
+///
+/// A buffer API documents this as the measuring call's result: pass a null
+/// buffer and the engine reports the size it needs here. It is not a failure,
+/// and treating it as one is how a copy ends up with no text.
+pub const OUT_OF_SPACE: GhosttyResult = -3;
+
 /// True when a call succeeded.
 pub fn ok(result: GhosttyResult) -> bool {
     result == SUCCESS
