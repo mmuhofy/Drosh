@@ -367,6 +367,8 @@ terminal session açmana gerek yok.</string>
     <string name="settings_bell_desc">Program zil caldiginda yanip sonsun, Drosh arka plandaysa bildirim gelsin</string>
     <string name="settings_background_use_image">Arka plan gorselini kullan</string>
     <string name="settings_background_use_image_desc">Kapaliyken .drosh icindeki gorsel durur ama cizilmez</string>
+    <string name="settings_line_height">Satir araligi</string>
+    <string name="settings_line_height_desc">Izgara satirlari arasindaki bosluk</string>
     <string name="settings_category_background">Arka plan</string>
     <string name="settings_background_summary">%%%1$d \u00b7 bulaniklik %2$d</string>
     <string name="settings_backup_title">Yedekle ve geri yukle</string>

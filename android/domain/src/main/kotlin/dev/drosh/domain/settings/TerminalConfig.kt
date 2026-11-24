@@ -40,6 +40,14 @@ data class TerminalConfig(
     /** Whether the font's ligatures are used. */
     val ligatures: Boolean = true,
     /**
+     * How tall a cell is, as a multiple of the font's own line box.
+     *
+     * 1 is the font's own spacing. Above that the rows spread apart — the one
+     * typographic knob a terminal has that is not the size — and below it they
+     * close up, which is legible only for a font whose line box is generous.
+     */
+    val lineHeight: Float = 1f,
+    /**
      * Which engine draws the terminal.
      *
      * Read by the pane host before the view is built: an engine is chosen once

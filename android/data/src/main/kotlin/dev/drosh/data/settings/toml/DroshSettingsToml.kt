@@ -56,6 +56,7 @@ internal object DroshSettingsToml {
             putBoolean("terminal", "keep_awake", keepAwake)
             putBoolean("terminal", "bold_brightens", boldBrightens)
             putBoolean("terminal", "ligatures", ligatures)
+            putFloat("terminal", "line_height", lineHeight)
             putBoolean("terminal", "dim_inactive_panes", dimInactivePanes)
             putBoolean("terminal", "immersive", immersive)
             putString("terminal", "theme_id", themeId)
@@ -173,6 +174,11 @@ internal object DroshSettingsToml {
                 keepAwake = document.getBoolean("terminal", "keep_awake", base.terminal.keepAwake),
                 boldBrightens = document.getBoolean("terminal", "bold_brightens", base.terminal.boldBrightens),
                 ligatures = document.getBoolean("terminal", "ligatures", base.terminal.ligatures),
+                lineHeight = document.getFloat("terminal", "line_height", base.terminal.lineHeight)
+                    .coerceIn(
+                        TerminalSettings.MIN_LINE_HEIGHT,
+                        TerminalSettings.MAX_LINE_HEIGHT,
+                    ),
                 dimInactivePanes = document.getBoolean("terminal", "dim_inactive_panes", base.terminal.dimInactivePanes),
                 immersive = document.getBoolean("terminal", "immersive", base.terminal.immersive),
                 themeId = document.getString("terminal", "theme_id", base.terminal.themeId),

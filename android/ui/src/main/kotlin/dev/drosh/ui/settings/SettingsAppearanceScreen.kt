@@ -49,6 +49,7 @@ import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.font.TerminalFontCatalog
 import dev.drosh.domain.settings.TerminalMode
+import dev.drosh.domain.settings.TerminalSettings
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.ui.DroshIcons
@@ -170,9 +171,44 @@ fun AppearanceCategory(
 
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_terminal),
-            items = 5,
+            items = 6,
         ) { index, cap ->
             when (index) {
+                // Spacing above weight: the row that changes how every line
+                // sits comes before the ones that change how a few characters
+                // are drawn.
+                5 -> SettingsTile(
+                    cap = cap,
+                    stacked = true,
+                    title = stringResource(R.string.settings_line_height),
+                    icon = DroshIcons.Maximize,
+                    supporting = stringResource(R.string.settings_line_height_desc),
+                    value = String.format(
+                        java.util.Locale.US,
+                        "%.2f×",
+                        settings.terminal.lineHeight,
+                    ),
+                ) {
+                    SettingsSlider(
+                        value = settings.terminal.lineHeight,
+                        onValueChange = { value ->
+                            onUpdate {
+                                it.copy(
+                                    terminal = it.terminal.copy(
+                                        lineHeight = value.coerceIn(
+                                            TerminalSettings.MIN_LINE_HEIGHT,
+                                            TerminalSettings.MAX_LINE_HEIGHT,
+                                        ),
+                                    ),
+                                )
+                            }
+                        },
+                        valueRange = TerminalSettings.MIN_LINE_HEIGHT..
+                            TerminalSettings.MAX_LINE_HEIGHT,
+                        steps = 14,
+                    )
+                }
+
                 0 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_bold_brightens),

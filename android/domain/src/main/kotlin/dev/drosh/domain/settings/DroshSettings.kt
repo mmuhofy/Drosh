@@ -124,6 +124,15 @@ data class TerminalSettings(
     val boldBrightens: Boolean = true,
     /** Programming-ligature shaping, where the typeface carries them. */
     val ligatures: Boolean = true,
+    /**
+     * How tall a cell is, as a multiple of the font's own line box.
+     *
+     * The one typographic knob a terminal has that is not the size: a run of
+     * output is easier to read with the rows a little apart, and a phone in
+     * landscape prefers them close. Clamped by the screen, not by the file, so a
+     * hand-edited 4 does not leave three blank rows between two lines of text.
+     */
+    val lineHeight: Float = 1f,
     /** The unfocused pane of a split is drawn dimmer. */
     val dimInactivePanes: Boolean = true,
     /**
@@ -145,6 +154,16 @@ data class TerminalSettings(
 ) {
     companion object {
         val DEFAULT = TerminalSettings()
+
+        /**
+         * The line-height range the screen offers, and the file is clamped to.
+         *
+         * Below one the rows overlap the descenders of the line above; above
+         * 1.6 a phone shows fewer than twenty lines and the terminal stops
+         * being one.
+         */
+        const val MIN_LINE_HEIGHT = 0.85f
+        const val MAX_LINE_HEIGHT = 1.6f
     }
 }
 

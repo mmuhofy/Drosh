@@ -358,6 +358,7 @@ internal fun TerminalPaneBody(
                 sessionName = terminalManager.sessionNameForSlot(paneSlot).orEmpty(),
                 fontSizeSp = fontSizeSp,
                 ligatures = terminalConfig.ligatures,
+                lineHeight = terminalConfig.lineHeight,
                 // Whether the program's mouse-tracking mode is honoured. The
                 // surface reads the engine's modes itself; this is the user's
                 // half of the handshake.

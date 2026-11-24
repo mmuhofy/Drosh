@@ -73,6 +73,13 @@ fun GhosttyTerminalHost(
     /** Whether the font may join adjacent operator cells into ligatures. */
     ligatures: Boolean = true,
     /**
+     * The cell's height as a multiple of the font's own line box.
+     *
+     * The width never changes with it — a monospace cell is as wide as its
+     * advance — so the setting trades rows for air and nothing else.
+     */
+    lineHeight: Float = 1f,
+    /**
      * Whether touch is reported to programs that turned a tracking mode on.
      *
      * The surface reads the engine's own tracking state on every gesture; this
@@ -218,7 +225,7 @@ fun GhosttyTerminalHost(
     var liveZoomSp by remember { mutableStateOf(0f) }
     val effectiveSp = if (liveZoomSp > 0f) liveZoomSp else fontSizeSp
 
-    val cell = remember(effectiveSp, context) {
+    val cell = remember(effectiveSp, lineHeight, context) {
         val density = context.resources.displayMetrics.scaledDensity
         val paint = android.graphics.Paint().apply {
             // The same face the atlas rasterises with: a cell measured in one
@@ -238,7 +245,12 @@ fun GhosttyTerminalHost(
             // the cell a background fills is the box the text sits in. Using the
             // spacing made every cell taller than its text by the leading, so
             // the text floated away from the coloured block above it.
-            height = (metrics.descent - metrics.ascent).coerceAtLeast(1f),
+            // The line box the user asked for, which is the font's own unless
+            // the line-height setting says otherwise. The glyph is centred in
+            // it by the renderer, so a taller cell is air above and below the
+            // text rather than text sitting at the top of its row.
+            height = (metrics.descent - metrics.ascent).coerceAtLeast(1f) *
+                lineHeight.coerceIn(0.5f, 2f),
             fontPx = paint.textSize,
         )
     }
