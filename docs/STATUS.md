@@ -1,8 +1,8 @@
 # Drosh — Status & Roadmap
 
-_Snapshot: 2026-11-22. Base: GitHub `main` @ `06ff29fe`; this file also records
-the release-cleanup work on branch `docs/release-status`. Code is the reference;
-where a document disagrees with it, the document is a bug._
+_Snapshot: 2026-11-24. Base: branch `refactor/structure` (PR #119), on top of
+GitHub `main` @ `06ff29fe`. Code is the reference; where a document disagrees
+with it, the document is a bug._
 
 Legend: `[x]` done · `[~]` partial / in progress / needs a decision · `[ ]` absent.
 
@@ -62,7 +62,9 @@ Rust half: `native/` (`libdrosh.so`); Kotlin half: `android/terminal/.../engine/
 | [x] | Pinch-to-zoom (0.1sp, focal anchor, chip, double-tap reset) | `engine/input/PinchMachine.kt:29-92` |
 | [x] | Sub-line scroll with friction-based fling | `engine/input/ScrollMachine.kt:50` |
 | [x] | Diagnostics eye + render benchmark log | `EngineDiagnostics.kt`, `engine/bench/`, `docs/RENDER-BENCHMARK.md` |
-| [ ] | **Ligatures at runtime** | `harfrust 0.16.0` + 5 tests in `native/src/font/mod.rs:3-45,330-365`, but **no JNI export and no caller**: all `Java_dev_drosh_*` exports are in `jni/` (none for font), and `engine/font/TextAtlas.kt:15-20` says the atlas switched from the Rust shaper to Android `Paint`. The `CHANGELOG` "ligatures" entry above describes an intent that is not in the current code |
+| [x] | **Ligatures at runtime** | `engine/font/LigaturePolicy.kt` (same-style operator runs, up to 32 cells), `TextAtlas.run` (one shaped mask), `FrameRenderer.buildForegrounds`/`ligatureRunAt` (one sprite spanning the run). Tests: `LigaturePolicyTest`, `CellsTest` packing. The Rust `harfrust` shaper in `native/src/font` is still not on this path; Android `Paint` shapes the run |
+| [x] | Full-screen background pass before the grid | `engine/render/ScreenBackgroundPass.kt` + `Shaders.SCREEN_VERTEX/FRAGMENT`; per-cell backgrounds still draw over it |
+| [x] | 120 Hz frame pacing (commands, blink and bell each get a frame) | `engine/render/RenderThread.kt`, `FRAME_INTERVAL_NANOS` |
 | [ ] | Semantic output colouring (ERROR/WARN/OK) | no classifier class; palette tokens only |
 | [ ] | Ghost-text autocomplete, Command DNA/history search | no such types in `android/` |
 | [x] | Old terminal engine code gone | `grep '^import com.termux' android/` → none; only backup-migration code under `data/backup/termux/` |
@@ -89,7 +91,7 @@ Rust half: `native/` (`libdrosh.so`); Kotlin half: `android/terminal/.../engine/
 | Durum | Alan |
 |---|---|
 | ✅ **Var** | Ghostty VT + Rust core + OpenGL renderer; blok modu ve gerçek exit code; pinch-zoom, fling, selection, search, URL, mouse, kitty graphics; 8 agent tool + 4 protokol; SSH vault; editör + syntax highlighting; yedekleme/restore; split pane + floating window; tema store; PIN; 10 dilde kaynaklar |
-| 🔄 **Devam ediyor** | Çeviri açığı (8 dilde 336 anahtar); ligature (shaper hazır, renderer bağlantısı yok); `mmuhofy/chroot-ng` fork'una yerel patch planı; dağıtım kanalı kararı |
+| 🔄 **Devam ediyor** | Çeviri açığı (8 dilde 336 anahtar); ligature/triangle pass'in cihazda görsel doğrulaması; büyük sınıfların kalan bölünmesi (`FrameRenderer` 1825, `TerminalReadyScreen` 1632, `TerminalSessionCoordinator` ~2763); `mmuhofy/chroot-ng` fork'una yerel patch planı; dağıtım kanalı kararı |
 | ⚠️ **Sorunlu / karar bekliyor** | `targetSdk` 28; debug anahtarıyla imza; ilk sürüm notları (CHANGELOG'da sürüm bölümü yok); README'de görsel yok; Play için privacy policy/data-safety; F-Droid metadata |
 | ❌ **Yok** | Ghost text, semantic output colouring, Command DNA, SSH SFTP/jump host/port forwarding, kendi imzalı release anahtarımız, F-Droid/Play varlığı, i18n doğrulama aracı (bilerek silindi) |
 
@@ -133,7 +135,7 @@ daha önce gelmeli.
 | Doküman | Güven | Not |
 |---|---|---|
 | `docs/ARCHITECTURE.md`, `docs/SESSION-SYSTEM.md` | yüksek | kodla uyumlu, CI'da doğrulanan kurallar |
-| `CHANGELOG.md` | yüksek (geçmiş) / dikkat (şimdi) | geçmiş girdiler tarihsel; `Known issues` ve ligature girdisi güncel kodla çelişiyordu, düzeltildi |
+| `CHANGELOG.md` | yüksek (geçmiş) / dikkat (şimdi) | geçmiş girdiler tarihsel; ligature, tek triangle background pass ve frame pacing girdileri 2026-11-24'te kodla hizalandı |
 | `README.md`, `CONTRIBUTING.md`, `docs/AGENT.md` | yüksek | bu turda güncellendi |
 | `LICENSE.md`, `CREDITS.md` | yüksek | Apache-2.0 + upstream atıfları güncel |
 | `docs/archive/*` | düşük (tarihsel) | eski tasarım notları; referans alınmaz |
