@@ -93,6 +93,57 @@ object NativePty {
         return nativePid(handle)
     }
 
+    /**
+     * The process group in the terminal's foreground, or -1 when there is none.
+     *
+     * This is what Ctrl+C would signal: for a shell it is the job that owns the
+     * terminal right now, and for an idle prompt it is the shell's own group.
+     * It is the one signal that says "a command is running here" without the
+     * shell having to report anything.
+     */
+    fun foregroundPid(handle: Long): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativeForegroundPid(handle)
+    }
+
+    /**
+     * The slave side's path, e.g. `/dev/pts/3`, or null when it cannot be read.
+     *
+     * A process the user asks about names this to say where it is attached.
+     */
+    fun ttyName(handle: Long): String? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeTtyName(handle)
+    }
+
+    /**
+     * The terminal's local modes, packed: bit 0 canonical, bit 1 echo, or -1.
+     *
+     * A password prompt clears echo; a full-screen program clears canonical
+     * mode. The UI reads the two to mirror what the program is asking for.
+     */
+    fun mode(handle: Long): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativeMode(handle)
+    }
+
+    /**
+     * The size the kernel currently has, `[rows, cols, xpixel, ypixel]`, or null.
+     *
+     * Not the size this side last set: the kernel is the record, and it is what
+     * the child's own `TIOCGWINSZ` would answer.
+     */
+    fun size(handle: Long): IntArray? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeSize(handle)
+    }
+
+    /** The canonical-mode bit of [mode]: the line discipline collects a line. */
+    const val MODE_CANONICAL = 1
+
+    /** The echo bit of [mode]: the terminal writes typed input back. */
+    const val MODE_ECHO = 2
+
     private external fun nativeSpawn(
         argv: String,
         environment: String,
@@ -115,4 +166,8 @@ object NativePty {
     ): Int
     private external fun nativeTryWait(handle: Long): Int
     private external fun nativePid(handle: Long): Int
+    private external fun nativeForegroundPid(handle: Long): Int
+    private external fun nativeTtyName(handle: Long): String?
+    private external fun nativeMode(handle: Long): Int
+    private external fun nativeSize(handle: Long): IntArray?
 }
