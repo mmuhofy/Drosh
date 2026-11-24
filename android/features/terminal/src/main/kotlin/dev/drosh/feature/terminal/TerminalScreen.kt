@@ -381,4 +381,4 @@ internal const val GRID_TRANSITION_MILLIS = 240
  *
  * Short: it is there to soften the change, not to delay it.
  */
-private const val SESSION_TRANSITION_MILLIS = 180
+internal const val SESSION_TRANSITION_MILLIS = 180
