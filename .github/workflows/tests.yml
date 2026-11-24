@@ -52,6 +52,13 @@ jobs:
       - name: Check module boundaries
         run: ./gradlew checkModuleBoundaries --no-daemon --stacktrace
 
+      # Package paths and file names are part of the architecture, but the
+      # compiler does not care where a file lives. Catch a moved file whose
+      # package did not follow before the Gradle round trip.
+      - name: Check Kotlin layout
+        working-directory: .
+        run: python3 tools/check-kotlin-layout.py
+
       # An import that names a module the file's own module does not depend
       # on cannot compile. The Kotlin compiler says so, in a stack trace, after
       # a full round trip; this says it in one line, before that. It is the

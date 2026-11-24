@@ -75,7 +75,7 @@ Rust half: `native/` (`libdrosh.so`); Kotlin half: `android/terminal/.../engine/
 |---|---|---|
 | [x] | 8 agent tools: `shell`, `read_file`, `write_file`, `grep`, `move_file`, `ask_user`, `update_todo`, `web_search` | `features/agent/.../tool/impl/*Tool.kt` |
 | [x] | 4 provider protocols, 225-provider catalog, per-model effort, encrypted keys | `agent/provider/*Adapter.kt`, `EffortMapper.kt:19`, `Safety.kt:13-28` (PLAN/BUILD/AUTO) |
-| [x] | Bounded loop, streaming, diff+approval, ask cards, todos, image input, session logs, compaction | `features/agent/`, `ui/agent/` |
+| [x] | Bounded loop, streaming, diff+approval, ask cards, todos, image input, session logs, compaction | `features/agent/` |
 | [x] | SSH hosts/keys/vault/TOFU, bridged sessions; editor with TextMate grammars | `data/ssh/*`, `features/ssh/SshjSessionFactory.kt`, `features/editor/src/main/assets/textmate/` |
 | [x] | Backup/restore incl. rootfs archive and Termux→chroot migration | `data/backup/*`, `ui/.../BackupRestoreScreen.kt` |
 | [x] | Sessions/projects, split panes, floating overlay, theme store, fonts, backgrounds, PIN/biometric, service, DocumentsProvider, in-app browser, onboarding/recovery | `ui/` screens, `SplitPaneHost.kt`, `PinEntryScreen.kt` |

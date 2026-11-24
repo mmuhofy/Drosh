@@ -21,11 +21,11 @@ unchanged by that split: `android/data/` is still `project(":data")`.
 ```
 :app  ──► everything (composition root only: Activity, NavHost, Hilt wiring)
 
- ├── :ui --------------► :domain, :theme
+ ├── :ui --------------► :domain, :theme, :core
  ├── :features:terminal ─► :ui, :theme, :terminal, :linux, :domain
  ├── :terminal --------► :linux, :domain
- ├── :features:agent --► :terminal, :domain
- ├── :features:ssh ----► :domain, :terminal  (implements TransportPort)
+ ├── :features:agent --► :ui, :theme, :terminal, :linux, :domain
+ ├── :features:ssh ----► :ui, :theme, :domain, :terminal  (implements TransportPort)
  ├── :linux -----------► :domain
  ├── :data ------------► :domain
  ├── :features:editor -► :domain, :theme
@@ -37,11 +37,11 @@ unchanged by that split: `android/data/` is still `project(":data")`.
 | `:domain` | Entities, ports, use cases | Android, any Drosh module |
 | `:terminal` | the engine's Kotlin side (JNI, the sessions, the surface's layout and input) and the sessions that drive it (sessions, panes, tabs, blocks, shell launch) | Compose, `:ui`, `:app`; the engine half does not know the session half |
 | `:linux` | rootfs, bootstrap, archive, chroot exec | terminal sessions, UI |
-| `:features:ssh` | SSH transport implementing the domain port | `:terminal` |
+| `:features:ssh` | SSH transport and the SSH host screens | `:terminal` |
 | `:data` | Room, DataStore, TOML, vault | `:terminal`, Compose |
-| `:features:agent` | LLM providers, tools, chat | Compose (screen lives in `:ui`) |
+| `:features:agent` | LLM providers, tools, chat, and the agent screens | `:app` |
 | `:features:terminal` | Terminal screen, chrome, find/zoom/selection and its ViewModel | `:data`, `:app` |
-| `:ui` | Screens and chrome over domain | `:terminal`, `:features:terminal` |
+| `:ui` | Shared screens and chrome over domain | `:terminal`, `:features:*`, `:app` |
 | `:theme` | Tokens, typography | any feature module |
 
 `:app` is the only module allowed to know everything; it wires ports to
