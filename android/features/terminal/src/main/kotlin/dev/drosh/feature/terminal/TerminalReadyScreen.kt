@@ -1084,7 +1084,8 @@ internal fun ReadyScreen(
                     backgroundOpacity = appearance.background.imageOpacity,
                     contentPaddingDp = appearance.background.contentPaddingDp,
                     cornerRadiusDp = appearance.background.cornerRadiusDp,
-                    dimInactivePanes = appearance.terminal.dimInactivePanes,
+                    dimmed = appearance.terminal.dimInactivePanes &&
+                        focusedPaneSlot != PaneSlot.PRIMARY,
                     keepAwake = appearance.terminal.keepAwake,
                     keepPositionWhileReading = appearance.terminal.keepPositionWhileReading,
                     terminalViewModel = terminalViewModel,
@@ -1147,7 +1148,8 @@ internal fun ReadyScreen(
                     backgroundOpacity = appearance.background.imageOpacity,
                     contentPaddingDp = appearance.background.contentPaddingDp,
                     cornerRadiusDp = appearance.background.cornerRadiusDp,
-                    dimInactivePanes = appearance.terminal.dimInactivePanes,
+                    dimmed = appearance.terminal.dimInactivePanes &&
+                        focusedPaneSlot != PaneSlot.SECONDARY,
                     keepAwake = appearance.terminal.keepAwake,
                     keepPositionWhileReading = appearance.terminal.keepPositionWhileReading,
                     terminalViewModel = terminalViewModel,

@@ -511,6 +511,20 @@ class TerminalSessionCoordinator(
         put(14, palette.brightCyan)
         put(15, palette.brightWhite)
 
+        // Bold-brightening, switched off by making it a no-op.
+        //
+        // The engine resolves a bold cell to the bright half of the palette
+        // itself, so there is no flag to clear further down: the way to say
+        // "bold is not brighter" is to give the bright slots the same colours
+        // as the normal ones. The switch then means what it says — bold is
+        // weight, not light — without a renderer path that would have to
+        // un-brighten every bold cell it draws.
+        if (!boldBrightens) {
+            for (index in 0 until 8) {
+                out[index + 8] = out[index]
+            }
+        }
+
         // The 6x6x6 colour cube: levels 0, 95, 135, 175, 215, 255.
         val levels = intArrayOf(0, 95, 135, 175, 215, 255)
         var index = 16

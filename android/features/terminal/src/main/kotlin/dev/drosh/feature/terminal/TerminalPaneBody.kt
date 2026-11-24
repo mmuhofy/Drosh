@@ -150,6 +150,9 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 
+/** How far the unfocused pane of a split is dimmed. */
+private val DimInactivePane = Color.Black.copy(alpha = 0.4f)
+
 @Composable
 internal fun TerminalPaneBody(
     paneSlot: PaneSlot,
@@ -175,7 +178,13 @@ internal fun TerminalPaneBody(
     backgroundOpacity: Int,
     contentPaddingDp: Int,
     cornerRadiusDp: Int,
-    dimInactivePanes: Boolean,
+    /**
+     * Whether this pane is the unfocused half of a split and should be dimmed.
+     *
+     * Decided by the caller, which is the only place that knows both settings:
+     * the preference and which pane the keys go to.
+     */
+    dimmed: Boolean,
     keepAwake: Boolean,
     /**
      * New output does not pull the viewport back to the live edge while the
@@ -374,6 +383,22 @@ internal fun TerminalPaneBody(
                 modifier = Modifier.fillMaxSize(),
             )
 
+            }
+
+            // An unfocused pane, dimmed.
+            //
+            // Two terminals side by side read as one surface unless the half
+            // the keys are going to is the brighter one — and a split with no
+            // such signal is a split you type into by trial. Drawn as an
+            // overlay rather than as an alpha on the pane: a layer over a
+            // terminal is a copy of the frame, and the copy is the expensive
+            // part.
+            if (dimmed) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(DimInactivePane),
+                )
             }
 
             // The scrim, over the terminal and under nothing else.

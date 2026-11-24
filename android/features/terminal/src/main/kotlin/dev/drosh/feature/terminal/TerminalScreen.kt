@@ -65,7 +65,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import dev.drosh.ui.LocalDroshActivity
 import java.io.File
@@ -304,9 +303,6 @@ private const val FIND_RESCAN_GATE_MS = 150L
 internal const val ENGINE_RESCAN_INTERVAL_MS = 1000L
 
 
-
-/** How far the unfocused pane of a split is dimmed. */
-private val DimInactivePane = Color.Black.copy(alpha = 0.4f)
 
 /**
  * Chip size used to keep it on screen, in dp.
