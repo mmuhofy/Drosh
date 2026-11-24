@@ -226,8 +226,6 @@ internal fun TerminalPaneBody(
      * the ligatures, the size. The engine's own answers still win.
      */
     terminalConfig: dev.drosh.domain.settings.TerminalConfig,
-    /** The font file the user picked for the terminal, if any. */
-    customFontUri: String,
     onBoundsChanged: (Rect) -> Unit,
     onUrlClick: (String) -> Unit,
     /** The selection asked the screen's find bar to search its text. */

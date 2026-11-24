@@ -51,14 +51,14 @@ data class AppearanceSettings(
     val themeMode: ThemeMode = ThemeMode.System,
     val fontPack: FontPack = FontPack.Geist,
     /**
-     * A font file of the user's own, for the terminal.
+     * The terminal's face, as the font store names it.
      *
-     * The URI of a font the user picked with the system picker; empty means
-     * the bundled face. The engine is handed the file's bytes and measures
-     * its cell from it, so the grid is laid out around the font the user
-     * chose.
+     * The id of a font downloaded from the store; empty means the bundled
+     * JetBrains Mono, which is what the app has always drawn with. The id is
+     * also the file's name on disk, so the renderer's marker and this setting
+     * cannot disagree about which face is the active one.
      */
-    val customFontUri: String = "",
+    val terminalFontId: String = "",
     /** BCP-47-ish tag; "" follows the system. */
     val language: String = "",
     /**
@@ -219,7 +219,16 @@ data class InputSettings(
  * theirs, not ours to duplicate.
  */
 data class ShellSettings(
-    val motdMode: MotdMode = MotdMode.PlainText,
+    /**
+     * The greeting, off unless the user asks for it.
+     *
+     * It used to be plain text by default, which put a card in front of the
+     * prompt on every new session for a message nobody had written: a terminal
+     * that opens with a speech from the app is a terminal someone has to dismiss
+     * before they can type. The setting is still here, and one tap turns the
+     * greeting back on for whoever wants it.
+     */
+    val motdMode: MotdMode = MotdMode.Disabled,
     val motdText: String = MotdDefaults.DEFAULT_MOTD_TEXT,
     /** Custom guest start command; "" is the default shell. */
     val startupCommand: String = "",

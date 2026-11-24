@@ -22,6 +22,7 @@ import dev.drosh.data.settings.FileBackgroundImageStore
 import dev.drosh.data.settings.TomlSettingsRepository
 import dev.drosh.data.settings.toml.TomlSettingsStore
 import dev.drosh.data.theme.ApplyTheme
+import dev.drosh.data.font.FileFontRepository
 import dev.drosh.data.theme.FileThemeRepository
 import dev.drosh.data.terminal.BootstrapObserver
 import dev.drosh.data.terminal.DataStorePaneLayoutRepository
@@ -52,6 +53,7 @@ import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.settings.SettingsStore
+import dev.drosh.domain.font.FontRepository
 import dev.drosh.domain.settings.ThemeRepository
 import dev.drosh.domain.settings.ApplyThemeUseCase
 import dev.drosh.domain.terminal.ObserveBootstrapUseCase
@@ -85,6 +87,12 @@ abstract class BindingsModule {
     abstract fun bindDeviceIdentityRepository(
         impl: DataStoreDeviceIdentityRepository,
     ): DeviceIdentityRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFontRepository(
+        impl: FileFontRepository,
+    ): FontRepository
 
     @Binds
     @Singleton

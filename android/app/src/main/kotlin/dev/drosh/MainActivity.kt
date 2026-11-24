@@ -114,6 +114,7 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
 import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.ui.settings.ShellCategory
 import dev.drosh.ui.settings.TerminalCategory
+import dev.drosh.ui.settings.FontStoreScreen
 import dev.drosh.ui.settings.ThemeStoreScreen
 import dev.drosh.ui.backup.BackupRestoreRoute
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -159,6 +160,21 @@ class MainActivity : ComponentActivity() {
      * there, while the terminal and the session screen stay fully edge-to-edge.
      */
     private val showStatusBar = MutableStateFlow(false)
+
+    /**
+     * The destinations that draw under the system bars on purpose.
+     *
+     * Everything else shows them: a settings row or a backup list is a screen
+     * with a top bar of its own, and a clock drawn over that bar is a clock
+     * over the back button.
+     */
+    private val IMMERSIVE_ROUTES = setOf(
+        "loading",
+        "lock",
+        "terminal",
+        "agent_home",
+        "agent_chat/{chatId}",
+    )
 
     /**
      * The auto-lock timeout as a duration. Collected once per start rather
@@ -527,6 +543,7 @@ class MainActivity : ComponentActivity() {
         category: SettingsCategoryRoute?,
         onBack: () -> Unit,
         onOpenThemeStore: () -> Unit,
+        onOpenFontStore: () -> Unit,
     ) {
         val viewModel: SettingsViewModel = hiltViewModel()
         val settings by viewModel.snapshot.collectAsStateWithLifecycle()
@@ -540,9 +557,18 @@ class MainActivity : ComponentActivity() {
 
         when (category) {
             SettingsCategoryRoute.Appearance ->
-                AppearanceCategory(settings, onBack, onUpdate, onOpenThemeStore, viewModel)
+                AppearanceCategory(
+                    settings = settings,
+                    onBack = onBack,
+                    onUpdate = onUpdate,
+                    onOpenThemeStore = onOpenThemeStore,
+                    onOpenFontStore = onOpenFontStore,
+                    viewModel = viewModel,
+                )
             SettingsCategoryRoute.ThemeStore ->
                 ThemeStoreScreen(onBack = onBack)
+            SettingsCategoryRoute.FontStore ->
+                FontStoreScreen(onBack = onBack)
             SettingsCategoryRoute.Terminal ->
                 TerminalCategory(settings, onBack, onUpdate)
             SettingsCategoryRoute.Keyboard ->
@@ -615,7 +641,11 @@ class MainActivity : ComponentActivity() {
         val currentRoute by navController.currentBackStackEntryAsState()
         LaunchedEffect(currentRoute?.destination?.route) {
             val route = currentRoute?.destination?.route
-            showStatusBar.value = route == "settings" || route == "settings/{category}"
+            // Immersive is the terminal's mode, not the app's. Listing the
+            // screens that *do* want the bar meant every new screen — backup
+            // and restore, SSH, setup — kept it hidden by not being on the
+            // list. The set below is the one that is genuinely full screen.
+            showStatusBar.value = route !in IMMERSIVE_ROUTES
         }
         Box(modifier = Modifier.fillMaxSize()) {
             DroshNavGraph(navController, coroutineScope)
@@ -879,6 +909,7 @@ class MainActivity : ComponentActivity() {
                     category = SettingsCategoryRoute.fromId(entry.arguments?.getString("category")),
                     onBack = { navController.popBackStack() },
                     onOpenThemeStore = { navController.navigate("settings/theme_store") },
+                    onOpenFontStore = { navController.navigate("settings/font_store") },
                 )
             }
 

@@ -440,8 +440,6 @@ internal fun ReadyScreen(
     /** The terminal's configuration, as the engine is handed it. */
     val terminalConfig by terminalViewModel.terminalConfig.collectAsStateWithLifecycle()
 
-    /** The font file the user picked for the terminal, if any. */
-    val customFontUri by terminalViewModel.customFontUri.collectAsStateWithLifecycle()
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
@@ -1115,7 +1113,6 @@ internal fun ReadyScreen(
                     searchOverlayRef = searchOverlayRef,
                     appearanceSource = appearanceSource,
                     terminalConfig = terminalConfig,
-                    customFontUri = customFontUri,
                     onBoundsChanged = { terminalBounds = it },
                     onUrlClick = { browserUrl = it },
                     onSearchSelection = { query ->
@@ -1183,7 +1180,6 @@ internal fun ReadyScreen(
                     searchOverlayRef = remember { mutableStateOf<Any?>(null) },
                     appearanceSource = appearanceSource,
                     terminalConfig = terminalConfig,
-                    customFontUri = customFontUri,
                     // Bounds are the top bar's backdrop sample, and the top bar
                     // reads whichever pane has focus. Letting the unfocused pane
                     // report would leave the bar sampling a terminal the user is

@@ -54,6 +54,7 @@ enum class SettingsCategoryRoute(val id: String) {
     Language("language"),
     About("about"),
     ThemeStore("theme_store"),
+    FontStore("font_store"),
     Updates("updates"),
     ;
 

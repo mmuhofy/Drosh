@@ -6,7 +6,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -15,14 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import dev.drosh.ui.session.DeviceBadge
-import dev.drosh.theme.DroshPrimary
-import dev.drosh.theme.DroshTextMuted
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.Alignment
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -34,7 +27,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -57,6 +49,7 @@ import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdDefaults
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
+import dev.drosh.domain.font.TerminalFontCatalog
 import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.domain.terminal.TerminalZoom
@@ -66,30 +59,13 @@ import dev.drosh.ui.R
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-/**
- * What the system picker offers for a font file.
- *
- * The MIME types a font file can arrive under are not agreed on: some
- * providers say `font/ttf`, some `application/x-font-ttf`, some nothing at
- * all. The last one is the escape hatch, and a file with no type is still a
- * file the user picked.
- */
-private val FONT_FILE_TYPES = arrayOf(
-    "font/*",
-    "font/ttf",
-    "font/otf",
-    "application/x-font-ttf",
-    "application/x-font-truetype",
-    "application/octet-stream",
-)
-
-
 @Composable
 fun AppearanceCategory(
     settings: DroshSettings,
     onBack: () -> Unit,
     onUpdate: OnSettingsUpdate,
     onOpenThemeStore: () -> Unit,
+    onOpenFontStore: () -> Unit,
     viewModel: SettingsViewModel,
 ) {
     // The system picker. It writes into the convention rather than into a
@@ -99,35 +75,13 @@ fun AppearanceCategory(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> uri?.let { viewModel.importBackgroundImage(it) } }
 
-    val context = LocalContext.current
-
-    // The user's own font file. The system picker gives a URI, and the
-    // permission to read it is taken for as long as the app lives — without
-    // that the file is readable now and gone after a restart.
-    val fontPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri == null) {
-            return@rememberLauncherForActivityResult
-        }
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-        }
-        onUpdate {
-            it.copy(appearance = it.appearance.copy(customFontUri = uri.toString()))
-        }
-    }
-
     SettingsCategoryScreen(
         title = stringResource(R.string.settings_category_appearance),
         onBack = onBack,
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_appearance),
-            items = 4,
+            items = 5,
         ) { index, cap ->
             // The theme row leads: it is the one appearance setting that
             // rewrites the other twenty-two, and burying it below the theme
@@ -189,53 +143,20 @@ fun AppearanceCategory(
                             onUpdate { it.copy(appearance = it.appearance.copy(fontPack = pack)) }
                         },
                     )
-                    // A font of the user's own, for the terminal. The packs
-                    // above are the app's text; this one is the terminal's
-                    // face, and it is a file the user picks.
-                    SettingsSubRow(
-                        icon = DroshIcons.File,
-                        label = stringResource(R.string.settings_font_custom),
-                        description = settings.appearance.customFontUri
-                            .ifBlank { stringResource(R.string.settings_font_custom_none) }
-                            .substringAfterLast('/'),
-                        trailing = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (settings.appearance.customFontUri.isNotBlank()) {
-                                    IconButton(
-                                        onClick = {
-                                            onUpdate {
-                                                it.copy(
-                                                    appearance = it.appearance.copy(customFontUri = ""),
-                                                )
-                                            }
-                                        },
-                                    ) {
-                                        Icon(
-                                            imageVector = DroshIcons.X,
-                                            contentDescription = stringResource(
-                                                R.string.settings_font_custom_clear,
-                                            ),
-                                            tint = DroshTextMuted,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                }
-                                IconButton(
-                                    onClick = { fontPicker.launch(FONT_FILE_TYPES) },
-                                ) {
-                                    Icon(
-                                        imageVector = DroshIcons.Folder,
-                                        contentDescription = stringResource(
-                                            R.string.settings_font_custom_choose,
-                                        ),
-                                        tint = DroshPrimary,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                            }
-                        },
-                    )
                 }
+
+                // The terminal's face, which is a shelf rather than a list: a
+                // downloaded font is a file with a licence, and the store is
+                // where the user picks one.
+                4 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_font_store),
+                    icon = DroshIcons.Type,
+                    supporting = TerminalFontCatalog.byId(settings.appearance.terminalFontId)
+                        ?.name
+                        ?: stringResource(R.string.settings_font_store_bundled),
+                    onClick = onOpenFontStore,
+                ) { SettingsChevron() }
 
                 // The drawer's shape, last: it is the one row here that changes
                 // how the session list is built rather than how it is coloured.
@@ -259,7 +180,7 @@ fun AppearanceCategory(
 
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_terminal),
-            items = 4,
+            items = 5,
         ) { index, cap ->
             when (index) {
                 0 -> SettingsTile(
@@ -304,7 +225,7 @@ fun AppearanceCategory(
                     )
                 }
 
-                else -> SettingsTile(
+                3 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_immersive),
                     icon = DroshIcons.Maximize,
@@ -317,6 +238,24 @@ fun AppearanceCategory(
                         },
                     )
                 }
+
+                // The bell is a terminal behaviour, not a look: it is the
+                // flash a program asks for and the notification that follows
+                // when nobody is watching. It lives here because this is the
+                // screen someone opens to quiet the terminal down.
+                else -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_bell),
+                    icon = DroshIcons.Bell,
+                    supporting = stringResource(R.string.settings_bell_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.input.bellEnabled,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(input = it.input.copy(bellEnabled = on)) }
+                        },
+                    )
+                }
             }
         }
 
@@ -324,10 +263,27 @@ fun AppearanceCategory(
 
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_background),
-            items = 6,
+            items = 7,
         ) { index, cap ->
             when (index) {
-                0 -> {
+                // The file is the setting's subject, so whether it is used at
+                // all sits above choosing one: a background someone turned
+                // off is still the file they would turn back on.
+                0 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_background_use_image),
+                    icon = DroshIcons.Image,
+                    supporting = stringResource(R.string.settings_background_use_image_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.background.imageEnabled,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(background = it.background.copy(imageEnabled = on)) }
+                        },
+                    )
+                }
+
+                1 -> {
                     // The convention, not a path: a file called
                     // background.* in .drosh IS the background, and the
                     // picker's job is to put one there rather than to
@@ -343,7 +299,7 @@ fun AppearanceCategory(
                     ) { SettingsChevron() }
                 }
 
-                1 -> SettingsTile(
+                2 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_background_remove),
                     icon = DroshIcons.Trash2,
@@ -351,7 +307,7 @@ fun AppearanceCategory(
                     onClick = { viewModel.removeBackgroundImage() },
                 )
 
-                2 -> SettingsTile(
+                3 -> SettingsTile(
                     cap = cap,
                     stacked = true,
                     title = stringResource(R.string.settings_background_opacity),
@@ -371,7 +327,7 @@ fun AppearanceCategory(
                     )
                 }
 
-                3 -> SettingsTile(
+                4 -> SettingsTile(
                     cap = cap,
                     stacked = true,
                     title = stringResource(R.string.settings_background_blur),
@@ -395,7 +351,7 @@ fun AppearanceCategory(
                     )
                 }
 
-                4 -> SettingsTile(
+                5 -> SettingsTile(
                     cap = cap,
                     stacked = true,
                     title = stringResource(R.string.settings_content_padding),
