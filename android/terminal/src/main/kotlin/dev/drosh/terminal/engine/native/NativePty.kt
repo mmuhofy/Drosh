@@ -139,13 +139,14 @@ object NativePty {
     }
 
     /**
-     * Waits up to [timeoutMs] for the child to write, or to close its side.
+     * Waits up to [timeoutMs] for the child to write or close its side, or — when
+     * [writable] — for its input buffer to drain.
      *
      * A blocking wait on the kernel's own `poll`: the reader thread uses it
      * instead of sleeping in a loop, and the child closing its side is one of
-     * the events it wakes on, so a hangup is seen at once instead of on the
-     * next tick. Returns >0 for a ready descriptor, 0 on timeout, and -1 on a
-     * bad handle or an error.
+     * the events it wakes on, so a hangup is seen at once instead of on the next
+     * tick. Returns 1 when the master is ready, 0 on timeout or a bare wake, and
+     * -1 on a bad handle or an error.
      */
     fun poll(handle: Long, timeoutMs: Int, writable: Boolean = false): Int {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
