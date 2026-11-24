@@ -138,6 +138,20 @@ object NativePty {
         return nativeSize(handle)
     }
 
+    /**
+     * Waits up to [timeoutMs] for the child to write, or to close its side.
+     *
+     * A blocking wait on the kernel's own `poll`: the reader thread uses it
+     * instead of sleeping in a loop, and the child closing its side is one of
+     * the events it wakes on, so a hangup is seen at once instead of on the
+     * next tick. Returns >0 for a ready descriptor, 0 on timeout, and -1 on a
+     * bad handle or an error.
+     */
+    fun poll(handle: Long, timeoutMs: Int): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativePoll(handle, timeoutMs)
+    }
+
     /** The canonical-mode bit of [mode]: the line discipline collects a line. */
     const val MODE_CANONICAL = 1
 
@@ -170,4 +184,5 @@ object NativePty {
     private external fun nativeTtyName(handle: Long): String?
     private external fun nativeMode(handle: Long): Int
     private external fun nativeSize(handle: Long): IntArray?
+    private external fun nativePoll(handle: Long, timeoutMs: Int): Int
 }

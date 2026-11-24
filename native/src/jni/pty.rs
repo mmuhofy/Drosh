@@ -317,3 +317,43 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeSiz
         None => std::ptr::null_mut(),
     }
 }
+
+/// Wait until the master is readable or closed, or the timeout elapses.
+///
+/// The lock is taken only to copy the fd and released before the wait: a
+/// blocking `poll` under the lock would make a write from the main thread wait
+/// out the whole timeout. The fd is stable for the PTY's life — it is set once
+/// and closed only when the handle is dropped, after the reader has stopped —
+/// so polling a copy of it is safe.
+///
+/// Returns the number of ready descriptors (>0, including a hangup on the
+/// child's side), 0 on timeout, or -1 on a bad handle or a failed call.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativePoll(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    timeout_ms: jint,
+) -> jint {
+    // The guard is dropped at the end of this match, before the wait.
+    let fd = match pty_lock(handle) {
+        Some(pty) => pty.master(),
+        None => return -1,
+    };
+
+    let mut descriptor = libc::pollfd {
+        fd,
+        events: libc::POLLIN,
+        revents: 0,
+    };
+    let timeout = timeout_ms.max(0);
+    let ready = unsafe { libc::poll(&mut descriptor as *mut libc::pollfd, 1, timeout) };
+    if ready < 0 {
+        log::debug!(
+            "drosh-native: the pty wait failed: {}",
+            std::io::Error::last_os_error()
+        );
+        return -1;
+    }
+    ready
+}

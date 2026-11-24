@@ -310,6 +310,28 @@ class GhosttySession(
 
     private fun readLoop(pty: Long) {
         while (reading.get()) {
+            // Wait on the kernel rather than sleeping: this thread wakes when
+            // the child writes or closes its side, and the hangup is one of the
+            // events the wait returns on, so the child's exit is seen at once
+            // instead of on the next sleep tick.
+            val ready = NativePty.poll(pty, IDLE_WAIT_MS)
+            if (ready < 0) {
+                reading.set(false)
+                return
+            }
+            if (ready == 0) {
+                // The wait timed out with nothing to read. The child is checked
+                // here too: a shell that exits without writing would otherwise
+                // leave the reader waiting forever.
+                val status = NativePty.tryWait(pty)
+                if (status >= 0) {
+                    reading.set(false)
+                    onExit?.invoke(status.toInt())
+                    return
+                }
+                continue
+            }
+
             val read = NativePty.read(pty, readBuffer)
             when {
                 read > 0 -> {
@@ -319,8 +341,9 @@ class GhosttySession(
                     // thread and has to be told.
                     onOutput?.invoke()
                 }
-                // Nothing right now. The child's exit is the signal that this
-                // is done, not an empty read.
+                // The fd was ready but carried no bytes: that is the hangup the
+                // wait woke on. When the child is really gone this is the end; a
+                // transient readiness that is not an exit just goes round again.
                 read == 0 -> {
                     val status = NativePty.tryWait(pty)
                     if (status >= 0) {
@@ -328,7 +351,9 @@ class GhosttySession(
                         onExit?.invoke(status.toInt())
                         return
                     }
-                    Thread.sleep(IDLE_SLEEP_MS)
+                    // A live child whose side is closed: the wait would return
+                    // the same hangup at once, so back off rather than spin.
+                    Thread.sleep(IDLE_WAIT_MS.toLong())
                 }
                 else -> {
                     reading.set(false)
@@ -598,8 +623,16 @@ class GhosttySession(
     private companion object {
         /** How often the program's title is read, in milliseconds. */
         const val TITLE_POLL_MILLIS = 500L
-        /** How long the reader waits before looking again. */
-        const val IDLE_SLEEP_MS = 8L
+
+        /**
+         * How long the reader waits on the kernel for output or a hangup.
+         *
+         * This is a `poll` timeout, not a sleep: the thread wakes the moment
+         * the child writes or closes its side. 200 ms is short enough that
+         * [stopReading]'s `join` returns promptly and long enough that an idle
+         * terminal no longer wakes twenty-five times a second.
+         */
+        const val IDLE_WAIT_MS = 200
 
         /** How long a reader is given to notice it should stop. */
         const val READER_STOP_TIMEOUT_MS = 500L

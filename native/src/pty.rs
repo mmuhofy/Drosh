@@ -444,6 +444,15 @@ impl Pty {
         self.child
     }
 
+    /// The master side's descriptor.
+    ///
+    /// Set once in [`Pty::spawn`] and closed only in `Drop`, so it is stable for
+    /// the PTY's whole life. The JNI readiness wait copies it and polls
+    /// *outside* the lock: a blocking wait must not hold the lock a write needs.
+    pub fn master(&self) -> RawFd {
+        self.master
+    }
+
     /// The id of the process group in the terminal's foreground, if any.
     ///
     /// This is what Ctrl+C would signal, and what the UI should name when it
