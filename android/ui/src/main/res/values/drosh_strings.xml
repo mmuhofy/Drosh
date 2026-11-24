@@ -374,6 +374,11 @@ no terminal session needed.</string>
     <string name="settings_bell_desc">Flash when a program rings, and notify when Drosh is in the background</string>
     <string name="settings_background_use_image">Use the background image</string>
     <string name="settings_background_use_image_desc">Off, the image in .drosh is left alone but not drawn</string>
+    <string name="settings_category_background">Background</string>
+    <string name="settings_background_summary">%1$d%% \u00b7 blur %2$d</string>
+    <string name="settings_backup_title">Backup and restore</string>
+    <string name="settings_backup_supporting">App data and the Linux directory</string>
+    <string name="settings_version_supporting">Components, channels, rollback</string>
     <string name="settings_font_store">Terminal font</string>
     <string name="settings_font_store_bundled">JetBrains Mono (bundled)</string>
     <string name="font_store_title">Fonts</string>

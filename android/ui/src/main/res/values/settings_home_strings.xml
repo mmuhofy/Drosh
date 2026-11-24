@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_home_group_app">App</string>
+    <string name="settings_home_group_app">Look and feel</string>
     <string name="settings_home_group_terminal">Terminal</string>
     <string name="settings_home_group_privacy">Privacy and data</string>
     <string name="settings_home_group_about">About</string>

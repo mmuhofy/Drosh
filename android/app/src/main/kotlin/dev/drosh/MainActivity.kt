@@ -114,6 +114,7 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
 import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.ui.settings.ShellCategory
 import dev.drosh.ui.settings.TerminalCategory
+import dev.drosh.ui.settings.BackgroundCategory
 import dev.drosh.ui.settings.FontStoreScreen
 import dev.drosh.ui.settings.ThemeStoreScreen
 import dev.drosh.ui.backup.BackupRestoreRoute
@@ -563,8 +564,9 @@ class MainActivity : ComponentActivity() {
                     onUpdate = onUpdate,
                     onOpenThemeStore = onOpenThemeStore,
                     onOpenFontStore = onOpenFontStore,
-                    viewModel = viewModel,
                 )
+            SettingsCategoryRoute.Background ->
+                BackgroundCategory(settings, onBack, onUpdate, viewModel)
             SettingsCategoryRoute.ThemeStore ->
                 ThemeStoreScreen(onBack = onBack)
             SettingsCategoryRoute.FontStore ->

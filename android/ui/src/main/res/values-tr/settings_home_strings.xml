@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_home_group_app">Uygulama</string>
+    <string name="settings_home_group_app">Gorunum ve dil</string>
     <string name="settings_home_group_terminal">Terminal</string>
     <string name="settings_home_group_privacy">Gizlilik ve veri</string>
     <string name="settings_home_group_about">Hakkında</string>
