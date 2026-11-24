@@ -11,6 +11,11 @@
         <item quantity="other">%1$d active sessions</item>
     </plurals>
     <string name="notification_action_exit">Exit</string>
+    <string name="notification_action_new_session">New session</string>
+    <string name="notification_action_wake_acquire">Acquire wake lock</string>
+    <string name="notification_action_wake_release">Release wake lock</string>
+    <string name="notification_command_running">Command running</string>
+    <string name="notification_wake_lock_held">Wake lock held</string>
 
     <!-- Command completion notifications -->
 

@@ -1,6 +1,5 @@
 package dev.drosh
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
@@ -45,7 +44,10 @@ class SetupForegroundService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        createChannel()
+        // The channel is TerminalService's to define — see
+        // createTerminalNotificationChannel; posting on it here is safe
+        // because creation is idempotent and that function is its only home.
+        createTerminalNotificationChannel(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -177,19 +179,6 @@ class SetupForegroundService : LifecycleService() {
     private fun notify(notification: android.app.Notification) {
         getSystemService<NotificationManager>()
             ?.notify(SETUP_NOTIFICATION_ID, notification)
-    }
-
-    private fun createChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val nm = getSystemService<NotificationManager>() ?: return
-        if (nm.getNotificationChannel(TerminalConstants.CHANNEL_ID) != null) return
-        nm.createNotificationChannel(
-            NotificationChannel(
-                TerminalConstants.CHANNEL_ID,
-                getString(R.string.terminal_service_channel_name),
-                NotificationManager.IMPORTANCE_LOW,
-            ),
-        )
     }
 
     private companion object {

@@ -7,6 +7,16 @@ object TerminalConstants {
 
     const val ACTION_STOP = "dev.drosh.action.STOP_SERVICE"
 
+    /**
+     * The notification's "New session" action. Handled by MainActivity, not the
+     * service: a session needs the terminal screen to host its pane, and only
+     * the activity can put that screen in front of the user.
+     */
+    const val ACTION_NEW_SESSION = "dev.drosh.action.NEW_SESSION"
+
+    /** The notification's wake-lock toggle, handled by TerminalService. */
+    const val ACTION_WAKE_LOCK = "dev.drosh.action.TOGGLE_WAKE_LOCK"
+
     // ── System overlay pane ───────────────────────────────────────────────────
 
     /**

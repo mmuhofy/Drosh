@@ -1,10 +1,12 @@
 package dev.drosh
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import dev.drosh.core.AppLocale
+import dev.drosh.core.TerminalConstants
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshSurfaceVariant
@@ -14,12 +16,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import androidx.core.view.WindowCompat
+import androidx.core.content.ContextCompat
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.Window
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -70,6 +74,8 @@ import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.settings.toMillis
+import dev.drosh.domain.session.DEFAULT_SESSION_NAME
+import dev.drosh.domain.session.ObserveActiveSessionUseCase
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.feature.editor.EditorScreen
@@ -118,6 +124,7 @@ import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import dev.drosh.ui.keyboard.KeyboardWindowModeState
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 
 
@@ -165,8 +172,28 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var sessionManagerAdapter: SessionManagerAdapter
     @Inject lateinit var settingsRepository: SettingsRepository
 
+    /** The repository path the session grid's "+" button creates sessions through. */
+    @Inject lateinit var activeSession: ObserveActiveSessionUseCase
+
+    /**
+     * The one prompt for showing notifications.
+     *
+     * Registered as a field rather than in [onCreate]: the activity result
+     * registry only accepts a launcher before the activity starts. The result
+     * needs no work — a denial is the system's to remember, and the posted
+     * foreground notification appears on its own once granted.
+     */
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // The notification's action intents: a fresh instance gets them here,
+        // an already-alive one in onNewIntent.
+        handleNotificationAction(intent, warmStart = false)
+        askNotificationPermissionOnce()
 
         // One place owns the app's immersive state, called again whenever a
         // window can change it — see applyImmersiveWindow / onWindowFocusChanged.
@@ -238,6 +265,62 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Runs an intent handed to this activity by the foreground notification.
+     *
+     * "New session" goes through the repository — the same path the session
+     * grid's "+" takes — because a tab the terminal does not know about has
+     * no row to bind to. With no session alive there is nothing to add to:
+     * the adapter's foreground hook creates the first one instead. On a cold
+     * start the [onStart] that always follows this [onCreate] runs that hook,
+     * and racing it here could open two sessions; a warm re-launch may never
+     * reach onStart again (a merely paused activity never left it), so the
+     * hook is triggered directly there.
+     *
+     * @param warmStart true from [onNewIntent] — the activity is already alive.
+     */
+    private fun handleNotificationAction(intent: Intent?, warmStart: Boolean) {
+        if (intent?.action != TerminalConstants.ACTION_NEW_SESSION) return
+        if (terminalManager.tabCount > 0) {
+            lifecycleScope.launch { activeSession.createAndActivate(DEFAULT_SESSION_NAME) }
+        } else if (warmStart) {
+            sessionManagerAdapter.onUiForegrounded()
+        }
+    }
+
+    /**
+     * Asks for POST_NOTIFICATIONS once, the first time a session goes active.
+     *
+     * The foreground notification is what keeps the terminal reachable after
+     * the app leaves the screen, so the question belongs next to the first
+     * session rather than at launch — at launch there is nothing to show yet.
+     * The flag is set only when the prompt is actually sent: a recreation
+     * before the first session must not consume this process's one ask, and
+     * a denial is remembered by the system itself, so a later launch does not
+     * nag either.
+     */
+    private fun askNotificationPermissionOnce() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        lifecycleScope.launch {
+            sessionManagerAdapter.activeIdFlow.first { it != null }
+            if (notificationPermissionRequested) return@launch
+            val granted = ContextCompat.checkSelfPermission(
+                this@MainActivity, Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+            if (granted) return@launch
+            notificationPermissionRequested = true
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // getIntent() keeps pointing at the original intent unless it is
+        // replaced, so later reads see the newest one.
+        setIntent(intent)
+        handleNotificationAction(intent, warmStart = true)
     }
 
     /**
@@ -843,6 +926,15 @@ class MainActivity : ComponentActivity() {
 /** Blank means "follow the system", where no override applies. */
 private fun String.toLocaleOrNull() =
     takeIf { it.isNotBlank() }?.let { java.util.Locale.forLanguageTag(it) }
+
+/**
+ * Set once this process has asked to show notifications.
+ *
+ * The activity can be recreated — rotation, a locale change — and each
+ * instance would otherwise ask again while the first answer is still
+ * pending, which reads as nagging.
+ */
+private var notificationPermissionRequested = false
 
 /**
  * Starts the app again from its launcher intent.
