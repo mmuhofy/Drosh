@@ -2,37 +2,13 @@ package dev.drosh.ui.updates
 
 import android.app.Application
 import android.content.Context
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.drosh.terminal.engine.update.ApkRepository
 import dev.drosh.terminal.engine.update.ChrootNgRepository
@@ -45,14 +21,14 @@ import dev.drosh.terminal.engine.update.UpdateChannel
 import dev.drosh.terminal.engine.update.UpstreamVtRepository
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 
 @HiltViewModel
 class UpdatesViewModel @Inject constructor(
@@ -177,7 +153,14 @@ fun UpdatesCategory(
     viewModel: UpdatesViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel(),
 ) {
     val channel by viewModel.channel.collectAsStateWithLifecycle()
+    val latest by viewModel.latest.collectAsStateWithLifecycle()
+    val busy by viewModel.busy.collectAsStateWithLifecycle()
+    val status by viewModel.status.collectAsStateWithLifecycle()
+    val pendingRestart by viewModel.pendingRestart.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // An APK cannot be staged the way an engine can: the platform owns the
+    // install, so the download leaves through the system's installer.
     LaunchedEffect(Unit) {
         viewModel.installApk.collect { file ->
             val uri = androidx.core.content.FileProvider.getUriForFile(
@@ -191,84 +174,49 @@ fun UpdatesCategory(
             context.startActivity(intent)
         }
     }
-    val latest by viewModel.latest.collectAsStateWithLifecycle()
-    val busy by viewModel.busy.collectAsStateWithLifecycle()
-    val status by viewModel.status.collectAsStateWithLifecycle()
-    val pendingRestart by viewModel.pendingRestart.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { viewModel.check() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(text = "Updates & Version Management", color = Color.White)
-        Text(text = status, color = Color(0xFFB0FFB0), fontSize = 12.sp)
-
-        if (pendingRestart) {
-            AlertDialog(
-                onDismissRequest = { viewModel.clearPendingRestart() },
-                title = { Text("Restart needed") },
-                text = { Text("The VT engine was updated. Restart the app now to use it, or apply it on the next start.") },
-                confirmButton = {
-                    Button(onClick = { android.os.Process.killProcess(android.os.Process.myPid()) }) {
-                        Text("Restart now")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { viewModel.clearPendingRestart() }) { Text("Later") }
-                },
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { viewModel.setChannel(UpdateChannel.RELEASE); viewModel.check() }) {
-                Text("release", color = if (channel == UpdateChannel.RELEASE) Color(0xFFFFD070) else Color.White)
-            }
-            TextButton(onClick = { viewModel.setChannel(UpdateChannel.NIGHTLY); viewModel.check() }) {
-                Text("nightly", color = if (channel == UpdateChannel.NIGHTLY) Color(0xFFFFD070) else Color.White)
-            }
-        }
-
-        ComponentId.entries.forEach { id ->
-            val release = latest[id]
-            val installed = viewModel.installed(id)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF1A1A1A))
-                    .padding(12.dp),
-            ) {
-                Text(text = id.key, color = Color.White)
-                Text(
-                    text = "installed: ${installed?.version ?: "bundled"} " +
-                        "(${installed?.source?.name?.lowercase() ?: "bundled"})",
-                    color = Color(0xFFB0FFB0),
-                    fontSize = 11.sp,
-                )
-                Text(
-                    text = "available: ${release?.version ?: "none"}",
-                    color = Color(0xFFB0FFB0),
-                    fontSize = 11.sp,
-                )
-                if (release != null && release.version != installed?.version) {
-                    Button(
-                        onClick = { viewModel.downloadAndInstall(id) },
-                        enabled = busy == null,
-                    ) { Text(if (busy == id) "working…" else "download & install") }
-                }
-                if (installed != null && installed.source == InstallSource.DOWNLOADED) {
-                    OutlinedButton(
-                        onClick = { viewModel.rollback(id) },
-                        enabled = busy == null,
-                    ) { Text("rollback to bundled") }
-                }
-            }
-        }
-
-        TextButton(onClick = onBack) { Text("back", color = Color.White) }
+    // The words come from the UI module's resources; the ids stay here, where
+    // the engine's own types are.
+    val bundled = context.getString(dev.drosh.ui.R.string.updates_bundled)
+    val rows = ComponentId.entries.map { id ->
+        val installed = viewModel.installed(id)
+        val release = latest[id]
+        dev.drosh.ui.settings.UpdateUiRow(
+            id = id.name,
+            title = componentTitle(id),
+            installed = installed?.let { "${it.version} · ${it.source.name.lowercase()}" } ?: bundled,
+            available = release?.version,
+            canInstall = release != null && release.version != installed?.version,
+            canRollback = installed?.source == InstallSource.DOWNLOADED,
+        )
     }
+
+    dev.drosh.ui.settings.UpdatesScreen(
+        onBack = onBack,
+        state = dev.drosh.ui.settings.UpdatesUiState(
+            channel = channel.key,
+            status = status,
+            busyId = busy?.name,
+            rows = rows,
+        ),
+        onChannel = { key ->
+            viewModel.setChannel(UpdateChannel.fromKey(key))
+            viewModel.check()
+        },
+        onCheck = { viewModel.check() },
+        onInstall = { name -> viewModel.downloadAndInstall(ComponentId.valueOf(name)) },
+        onRollback = { name -> viewModel.rollback(ComponentId.valueOf(name)) },
+        restartPending = pendingRestart,
+        onRestart = { android.os.Process.killProcess(android.os.Process.myPid()) },
+        onLater = { viewModel.clearPendingRestart() },
+    )
+}
+
+/** The component's name as a person would say it. */
+private fun componentTitle(id: ComponentId): String = when (id) {
+    ComponentId.GHOSTTY_VT -> "Ghostty VT engine"
+    ComponentId.CHROOT_NG -> "Guest runtime"
+    ComponentId.APK -> "Drosh app"
 }
