@@ -4,17 +4,45 @@
 //! separate because the two fail for different reasons — a PTY that will not open
 //! is a rootfs or a permissions problem, a grid that will not draw is a render
 //! problem — and a diagnostic that names the wrong half is worse than none.
+//!
+//! ## One PTY, two threads
+//!
+//! The reader thread reads while the main thread writes and resizes. A handle is
+//! therefore a `Box<Mutex<Pty>>`, not a `Box<Pty>`: every entry point takes the
+//! lock, so no two calls reach the same `Pty` at once.
+
+use std::sync::{Mutex, MutexGuard};
 
 use jni::objects::{JByteArray, JClass, JString};
 use jni::JNIEnv;
 
-use super::{jbyteArray, jint, jlong};
-use super::{new_byte_array, read_string};
+use super::{jint, jintArray, jlong, jstring};
+use super::{new_int_array, new_string, read_string};
 use crate::pty::{Pty, Winsize};
 
-/// Maximum bytes one read can move. A frame's worth of output is usually a few
-/// hundred; a `cat` of a large file is not.
-const READ_CHUNK: usize = crate::pty::READ_CHUNK;
+/// The mode bits `nativeMode` answers with: bit 0 canonical, bit 1 echo.
+const MODE_CANONICAL: jint = 1;
+const MODE_ECHO: jint = 2;
+
+/// The locked PTY behind a handle, or None when the handle is not one.
+///
+/// The guard is held for the caller's whole body: `read_cached` hands back a
+/// slice of the PTY's own scratch, so a read is not finished when it returns —
+/// it is finished when the bytes have been copied into the Java array.
+///
+/// A poisoned lock is recovered rather than propagated: a panic in one entry
+/// point must not leave the terminal permanently unusable, and the PTY's own
+/// state is the kernel's.
+fn pty_lock(handle: jlong) -> Option<MutexGuard<'static, Pty>> {
+    if handle <= 0 {
+        return None;
+    }
+    let pty = unsafe { &*(handle as usize as *const Mutex<Pty>) };
+    Some(pty.lock().unwrap_or_else(|poisoned| {
+        log::warn!("drosh-native: a pty lock was poisoned; recovering");
+        poisoned.into_inner()
+    }))
+}
 
 /// Spawn a child on a new pseudoterminal.
 ///
@@ -55,12 +83,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeSpa
         return 0;
     }
 
-    let size = Winsize {
-        rows: rows as u16,
-        cols: columns as u16,
-        xpixel: (columns.max(1).saturating_mul(cell_width.max(1))) as u16,
-        ypixel: (rows.max(1).saturating_mul(cell_height.max(1))) as u16,
-    };
+    let size = Winsize::from_cells(columns, rows, cell_width, cell_height);
     let cwd = if cwd_raw.is_empty() {
         None
     } else {
@@ -68,7 +91,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeSpa
     };
 
     match Pty::spawn(&argv, &envp, cwd, size) {
-        Ok(pty) => Box::into_raw(Box::new(pty)) as usize as jlong,
+        Ok(pty) => Box::into_raw(Box::new(Mutex::new(pty))) as usize as jlong,
         Err(error) => {
             log::warn!("drosh-native: the process could not be started: {error:?}");
             0
@@ -77,6 +100,9 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeSpa
 }
 
 /// Close the PTY and reap the child. A zero handle is a no-op.
+///
+/// The caller must have joined its reader first: the handle is freed here, so a
+/// read still in flight would touch freed memory.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeClose(
     _env: JNIEnv,
@@ -86,7 +112,9 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeClo
     if handle <= 0 {
         return;
     }
-    drop(unsafe { Box::from_raw(handle as usize as *mut Pty) });
+    // Dropping the box closes the master and reaps the child; there is nothing
+    // to lock, because nobody may be using the handle any more.
+    drop(unsafe { Box::from_raw(handle as usize as *mut Mutex<Pty>) });
 }
 
 /// Read whatever the child has written.
@@ -95,16 +123,18 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeClo
 /// read, or a negative code. Zero is the normal answer between keystrokes.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeRead(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     handle: jlong,
     out: JByteArray,
     capacity: jint,
 ) -> jint {
-    if handle <= 0 || capacity <= 0 {
+    if capacity <= 0 {
         return -1;
     }
-    let pty = unsafe { &mut *(handle as usize as *mut Pty) };
+    let Some(mut pty) = pty_lock(handle) else {
+        return -1;
+    };
 
     // The scratch is the PTY's own and is reused from read to read: a read is
     // the most frequent call in the process, and a buffer per call is allocator
@@ -114,6 +144,9 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeRea
             if bytes.is_empty() {
                 return 0;
             }
+            // The guard is still held: `bytes` borrows the PTY's scratch, so
+            // the copy into the Java array must finish before the lock can be
+            // released to a writer.
             if env.set_byte_array_region(&out, 0, unsafe {
                 std::slice::from_raw_parts(bytes.as_ptr() as *const i8, bytes.len())
             })
@@ -133,23 +166,27 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeRea
 /// Write bytes to the child. Returns 0 on success.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeWrite(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     handle: jlong,
     data: JByteArray,
     length: jint,
 ) -> jint {
-    if handle <= 0 || length < 0 {
+    if length < 0 {
         return -1;
     }
-    let pty = unsafe { &mut *(handle as usize as *mut Pty) };
 
+    // Copied before the lock is taken: the PTY is not needed to read Java's
+    // array, and the reader thread should wait no longer than the write itself.
     let mut bytes = match env.convert_byte_array(&data) {
         Ok(bytes) => bytes,
         Err(_) => return -2,
     };
     bytes.truncate(length as usize);
 
+    let Some(mut pty) = pty_lock(handle) else {
+        return -1;
+    };
     match pty.write(&bytes) {
         Ok(()) => 0,
         Err(error) => {
@@ -170,16 +207,13 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeRes
     cell_width: jint,
     cell_height: jint,
 ) -> jint {
-    if handle <= 0 || columns <= 0 || rows <= 0 {
+    if columns <= 0 || rows <= 0 {
         return -1;
     }
-    let pty = unsafe { &mut *(handle as usize as *mut Pty) };
 
-    let size = Winsize {
-        rows: rows as u16,
-        cols: columns as u16,
-        xpixel: (columns.max(1).saturating_mul(cell_width.max(1))) as u16,
-        ypixel: (rows.max(1).saturating_mul(cell_height.max(1))) as u16,
+    let size = Winsize::from_cells(columns, rows, cell_width, cell_height);
+    let Some(mut pty) = pty_lock(handle) else {
+        return -1;
     };
     match pty.resize(size) {
         Ok(()) => 0,
@@ -197,10 +231,9 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeTry
     _class: JClass,
     handle: jlong,
 ) -> jint {
-    if handle <= 0 {
+    let Some(mut pty) = pty_lock(handle) else {
         return -1;
-    }
-    let pty = unsafe { &mut *(handle as usize as *mut Pty) };
+    };
     pty.try_wait().unwrap_or(-1)
 }
 
@@ -211,15 +244,76 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativePid
     _class: JClass,
     handle: jlong,
 ) -> jint {
-    if handle <= 0 {
+    let Some(pty) = pty_lock(handle) else {
         return -1;
-    }
-    // A read: the pid is not a lock-protected fact, so the guard is borrowed.
-    let pty = unsafe { &*(handle as usize as *mut Pty) };
+    };
     pty.pid()
 }
 
-#[allow(dead_code)]
-fn _unused(_: jbyteArray) {
-    let _ = new_byte_array;
+/// The foreground process group's id, or -1 when the kernel has none.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeForegroundPid(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jint {
+    let Some(pty) = pty_lock(handle) else {
+        return -1;
+    };
+    pty.foreground_pid().unwrap_or(-1)
+}
+
+/// The slave side's path, e.g. `/dev/pts/3`, or null when it cannot be read.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeTtyName(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jstring {
+    let Some(pty) = pty_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    match pty.tty_name() {
+        Some(name) => {
+            let name = name.to_string_lossy();
+            new_string(&mut env, &name)
+        }
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// The local modes as bits — 1 canonical, 2 echo — or -1 when unknown.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeMode(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jint {
+    let Some(pty) = pty_lock(handle) else {
+        return -1;
+    };
+    match pty.get_mode() {
+        Some((canonical, echo)) => {
+            let canonical = if canonical { MODE_CANONICAL } else { 0 };
+            let echo = if echo { MODE_ECHO } else { 0 };
+            canonical | echo
+        }
+        None => -1,
+    }
+}
+
+/// The size the kernel has, as `[rows, cols, xpixel, ypixel]`, or null.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeSize(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jintArray {
+    let Some(pty) = pty_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    match pty.get_size() {
+        Some(size) => new_int_array(&mut env, &size.to_array()),
+        None => std::ptr::null_mut(),
+    }
 }
