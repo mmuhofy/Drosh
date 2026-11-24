@@ -137,6 +137,7 @@ fun TerminalSelectionOverlay(
                 centerX = paneOrigin.x + handle.x,
                 centerY = startCenterY,
                 sizePx = handleSizePx,
+                cellPx = cellH,
                 stemDown = true,
                 paneOrigin = paneOrigin,
                 accent = DroshPrimary,
@@ -150,6 +151,7 @@ fun TerminalSelectionOverlay(
                 centerX = paneOrigin.x + handle.x,
                 centerY = endCenterY,
                 sizePx = handleSizePx,
+                cellPx = cellH,
                 stemDown = false,
                 paneOrigin = paneOrigin,
                 accent = DroshPrimary,
@@ -250,20 +252,27 @@ private fun MenuAction(
 /**
  * A draggable grip at one end of the selection.
  *
- * The drawing is a small lollipop: a filled circle on a short stem, with a
- * contrasting ring so it stands out on both light and dark terminals. The
- * stem points into the selection — down for the top grip, up for the bottom
- * one — so the two grips read as the edges they belong to.
+ * The drawing is a lollipop: a thin stem that runs the height of the endpoint's
+ * own row and a small round knob sitting just outside the selection, on the
+ * selection's edge. That is the shape that keeps the grip out of the text — a
+ * big knob centred on the character hides the very cell the user is adjusting —
+ * while still reading as one object instead of a floating dot.
  *
- * The touch target is 44 dp even though the grip is 20 dp. A terminal is a
- * dense grid, and a grip that is only as big as its drawing is a grip the
- * user misses on the first try.
+ * The stem points into the selection — down for the top grip, up for the bottom
+ * one — so the two grips read as the edges they belong to, and the knob marks
+ * the edge from the outside.
+ *
+ * The touch target is 44 dp and stays centred on the endpoint, even though the
+ * drawing is a few dp wide. A terminal is a dense grid, and a grip that is only
+ * as big as its drawing is a grip the user misses on the first try.
  */
 @Composable
 private fun SelectionGrip(
     centerX: Float,
     centerY: Float,
     sizePx: Float,
+    /** The row's height in pixels: the stem is exactly one row long. */
+    cellPx: Float,
     stemDown: Boolean,
     paneOrigin: Offset,
     accent: Color,
@@ -280,9 +289,19 @@ private fun SelectionGrip(
     // both a light and a dark theme. The accent is Drosh's blue; the ring is
     // the only thing that has to flip.
     val darkBackground = terminalBackground.luminance() < 0.5f
-    val ring = if (darkBackground) Color.White.copy(alpha = 0.9f) else Color(0xFF101820)
-    val stemLength = sizePx * 0.55f
-    val radius = sizePx / 2f
+    val ring = if (darkBackground) Color.White.copy(alpha = 0.85f) else Color(0xFF101820)
+    // Thin enough to sit between two characters without covering either, wide
+    // enough to survive being sampled on a phone's screen.
+    val stemWidth = sizePx * 0.10f
+    val knobRadius = sizePx * 0.28f
+    val ringWidth = (sizePx * 0.05f).coerceAtLeast(1f)
+    // One row long, but never longer than the touch box can show: a large font
+    // would otherwise draw a stem that is clipped by the box's own edge.
+    val stemLength = if (cellPx > 0f) {
+        cellPx.coerceAtMost((touchPx - 2f * knobRadius).coerceAtLeast(sizePx))
+    } else {
+        sizePx
+    }
 
     Box(
         modifier = Modifier
@@ -311,30 +330,26 @@ private fun SelectionGrip(
         Canvas(Modifier.matchParentSize()) {
             val centerX = size.width / 2f
             val centerY = size.height / 2f
-            val circleCenterY = if (stemDown) {
-                centerY - stemLength / 2f
-            } else {
-                centerY + stemLength / 2f
-            }
-            // The stem first, so the circle's ring covers its end.
-            val stemLeft = centerX - sizePx * 0.11f
-            val stemTop = if (stemDown) circleCenterY else centerY - stemLength / 2f
+
+            // The selection's edge for this grip: the top of the first row for
+            // the top grip, the bottom of the last row for the bottom one.
+            val edgeY = if (stemDown) centerY - stemLength / 2f else centerY + stemLength / 2f
+            val stemTop = if (stemDown) edgeY else edgeY - stemLength
+
+            // The stem first, so the knob's ring covers its end.
             drawRoundRect(
                 color = accent,
-                topLeft = Offset(stemLeft, stemTop),
-                size = Size(sizePx * 0.22f, stemLength),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(sizePx * 0.11f),
+                topLeft = Offset(centerX - stemWidth / 2f, stemTop),
+                size = Size(stemWidth, stemLength),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(stemWidth / 2f),
             )
-            drawCircle(
-                color = ring,
-                radius = radius + sizePx * 0.08f,
-                center = Offset(centerX, circleCenterY),
-            )
-            drawCircle(
-                color = accent,
-                radius = radius,
-                center = Offset(centerX, circleCenterY),
-            )
+
+            // The knob sits outside the selection, with its inner edge on the
+            // line the stem ends at.
+            val knobY = if (stemDown) edgeY - knobRadius else edgeY + knobRadius
+            val knobCenter = Offset(centerX, knobY)
+            drawCircle(color = ring, radius = knobRadius + ringWidth, center = knobCenter)
+            drawCircle(color = accent, radius = knobRadius, center = knobCenter)
         }
     }
 }
