@@ -130,6 +130,10 @@ class GhosttySession(
     @Volatile
     private var pendingResize: ResizeRequest? = null
 
+    /** The chunk being written whose tail did not fit; reader-thread only. */
+    private var currentWrite: ByteArray? = null
+    private var currentWriteOffset: Int = 0
+
     /** Whether the PTY can be poked awake; false means writes go straight through. */
     @Volatile
     private var wakeCapable: Boolean = false
@@ -353,16 +357,41 @@ class GhosttySession(
         name in RUNTIME_PROCESS_NAMES || name == WRAPPER_SHELL_NAME
 
     /**
-     * Sends the queued input and the latest resize to the child.
+     * Sends as much queued input and the latest resize as the kernel takes now.
      *
      * Runs on the reader thread, so this is the only thread that writes to the
      * PTY while it is being read; the pty lock remains for the bridged and
-     * no-wake fallback paths, not for this one.
+     * no-wake fallback paths, not for this one. A partial write leaves the tail
+     * queued for when the fd is writable, so a full input buffer never stalls
+     * this thread — which is what keeps the child's output draining.
      */
     private fun drainInput(pty: Long) {
         while (true) {
-            val next = pendingWrites.poll() ?: break
-            NativePty.write(pty, next)
+            var chunk = currentWrite
+            if (chunk == null) {
+                chunk = pendingWrites.poll() ?: break
+                currentWrite = chunk
+                currentWriteOffset = 0
+            }
+            val remaining = chunk.size - currentWriteOffset
+            if (remaining <= 0) {
+                currentWrite = null
+                continue
+            }
+            val written = NativePty.writeSome(pty, chunk, currentWriteOffset, remaining)
+            if (written < 0) {
+                // A real write failure: drop the chunk rather than spin on it.
+                currentWrite = null
+                continue
+            }
+            if (written == 0) {
+                // The input buffer is full; the rest waits for writability.
+                break
+            }
+            currentWriteOffset += written
+            if (currentWriteOffset >= chunk.size) {
+                currentWrite = null
+            }
         }
         val resize = pendingResize
         if (resize != null) {
@@ -371,6 +400,9 @@ class GhosttySession(
         }
     }
 
+    /** Whether a queued input chunk is still waiting to reach the child. */
+    private fun hasPendingWrite(): Boolean = currentWrite != null || !pendingWrites.isEmpty()
+
     private fun readLoop(pty: Long) {
         while (reading.get()) {
             // Wait on the kernel rather than sleeping: this thread wakes when
@@ -378,7 +410,7 @@ class GhosttySession(
             // events the wait returns on, so the child's exit is seen at once
             // instead of on the next sleep tick. A queued write pokes the wait
             // awake, so input is not delayed by it.
-            val ready = NativePty.poll(pty, IDLE_WAIT_MS)
+            val ready = NativePty.poll(pty, IDLE_WAIT_MS, hasPendingWrite())
             drainInput(pty)
             if (ready < 0) {
                 reading.set(false)
@@ -684,6 +716,8 @@ class GhosttySession(
         // A restart is a new child; input queued for the old one must not go to
         // it.
         pendingWrites.clear()
+        currentWrite = null
+        currentWriteOffset = 0
         pendingResize = null
         wakeCapable = false
         if (state == PaneState.RUNNING) {

@@ -147,9 +147,22 @@ object NativePty {
      * next tick. Returns >0 for a ready descriptor, 0 on timeout, and -1 on a
      * bad handle or an error.
      */
-    fun poll(handle: Long, timeoutMs: Int): Int {
+    fun poll(handle: Long, timeoutMs: Int, writable: Boolean = false): Int {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
-        return nativePoll(handle, timeoutMs)
+        return nativePoll(handle, timeoutMs, writable)
+    }
+
+    /**
+     * Writes as much of [data] as the kernel takes without blocking.
+     *
+     * Returns the bytes written, 0 when the input buffer is full, or -1 on a bad
+     * handle or an error. The caller keeps the rest and retries when the PTY is
+     * writable again, so a full paste never stops the reader from draining the
+     * child's output — which is what frees the buffer.
+     */
+    fun writeSome(handle: Long, data: ByteArray, offset: Int, length: Int): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativeWriteSome(handle, data, offset, length)
     }
 
     /**
@@ -204,7 +217,8 @@ object NativePty {
     private external fun nativeTtyName(handle: Long): String?
     private external fun nativeMode(handle: Long): Int
     private external fun nativeSize(handle: Long): IntArray?
-    private external fun nativePoll(handle: Long, timeoutMs: Int): Int
+    private external fun nativePoll(handle: Long, timeoutMs: Int, writable: Boolean): Int
+    private external fun nativeWriteSome(handle: Long, data: ByteArray, offset: Int, length: Int): Int
     private external fun nativeWake(handle: Long): Boolean
     private external fun nativeHasWake(handle: Long): Boolean
 }

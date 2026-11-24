@@ -196,6 +196,45 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeWri
     }
 }
 
+/// Write as much of a slice as the kernel takes without blocking.
+///
+/// Returns the bytes written, 0 when the terminal's input buffer is full, or a
+/// negative code on error. The caller keeps the rest and retries when the fd
+/// becomes writable.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeWriteSome(
+    env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    data: JByteArray,
+    offset: jint,
+    length: jint,
+) -> jint {
+    if offset < 0 || length < 0 {
+        return -1;
+    }
+    if length == 0 {
+        return 0;
+    }
+    let Some(mut pty) = pty_lock(handle) else {
+        return -1;
+    };
+    // Only the slice the caller named is fetched, so a retry after a full
+    // buffer does not copy the whole paste again.
+    let mut bytes = vec![0 as jni::sys::jbyte; length as usize];
+    if env.get_byte_array_region(&data, offset, &mut bytes).is_err() {
+        return -2;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(bytes.as_ptr() as *const u8, bytes.len()) };
+    match pty.write_some(slice) {
+        Ok(written) => written as jint,
+        Err(error) => {
+            log::debug!("drosh-native: the pty write failed: {error}");
+            -3
+        }
+    }
+}
+
 /// Tell the kernel the terminal changed size.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeResize(
@@ -337,6 +376,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativePol
     _class: JClass,
     handle: jlong,
     timeout_ms: jint,
+    writable: jboolean,
 ) -> jint {
     // The guard is dropped at the end of this match, before the wait.
     let (master, wake) = match pty_lock(handle) {
@@ -344,12 +384,20 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativePol
         None => return -1,
     };
 
+    // A pending write means the wait must also report when the input buffer
+    // has drained, or a full paste would sit until unrelated output arrives.
+    let master_events = if writable != 0 {
+        libc::POLLIN | libc::POLLOUT
+    } else {
+        libc::POLLIN
+    };
+
     // A negative fd is ignored by `poll`, so a missing wake pipe needs no
     // separate branch: the array just carries an entry nothing watches.
     let mut descriptors = [
         libc::pollfd {
             fd: master,
-            events: libc::POLLIN,
+            events: master_events,
             revents: 0,
         },
         libc::pollfd {

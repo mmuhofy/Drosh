@@ -434,6 +434,39 @@ impl Pty {
         Ok(())
     }
 
+    /// Write as much of `bytes` as the kernel takes right now, without waiting.
+    ///
+    /// A single non-blocking write. `Ok(0)` means the terminal's input buffer is
+    /// full: the caller keeps the rest and comes back when the fd is writable.
+    /// [`Pty::write`] instead spins until every byte is in, which is fine on a
+    /// caller's own thread but would starve a reader that shares it — a large
+    /// paste whose buffer fills would stop the reader from draining the child's
+    /// output, which is what would free the buffer.
+    pub fn write_some(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if self.master < 0 {
+            return Err(io::Error::from_raw_os_error(libc::EBADF));
+        }
+        loop {
+            let written = unsafe {
+                libc::write(
+                    self.master,
+                    bytes.as_ptr() as *const libc::c_void,
+                    bytes.len(),
+                )
+            };
+            if written >= 0 {
+                return Ok(written as usize);
+            }
+            let error = io::Error::last_os_error();
+            match error.raw_os_error() {
+                // The buffer is full; the caller waits for writability.
+                Some(libc::EAGAIN) => return Ok(0),
+                Some(libc::EINTR) => continue,
+                _ => return Err(error),
+            }
+        }
+    }
+
     /// Tell the kernel the terminal changed size.
     ///
     /// The kernel turns this into `SIGWINCH` for the foreground process group,
