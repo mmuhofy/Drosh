@@ -1,18 +1,11 @@
 name: Native
 
-# Builds libdrosh.so — the Drosh terminal's native half — and checks that it
-# links the engine as a shared dependency rather than absorbing a copy of it.
+# Builds libdrosh.so and libghostty-vt.so — the terminal's native half — and
+# checks that the two link the way the APK expects.
 #
-# The build itself lives in `native-build.yml`, because the APK needs the same
-# library and used to build it a second time with its own copy of these steps.
-# This workflow is the gate: it runs when the Rust changed, with the targetSdk
-# guard that the hot-update path depends on.
-#
-# The VT engine it drives (libghostty-vt) is somebody else's build: downloaded,
-# verified, and linked as a dynamic dependency, so the APK carries one copy of
-# it and this repository compiles no Zig.
-#
-# No local builds on dev boxes — this workflow is the only gate.
+# This is the only place either library is built. The Native gate runs it on
+# a Rust change; Build Debug, Nightly and Release call it through
+# `workflow_call`, so one recipe and one commit produce the APK and the gate.
 
 on:
   push:
@@ -21,30 +14,189 @@ on:
       - "native/**"
       - "tools/fetch-ghostty-vt.sh"
       - ".github/workflows/native.yml"
-      - ".github/workflows/native-build.yml"
   pull_request:
     branches: [main]
     paths:
       - "native/**"
       - "tools/fetch-ghostty-vt.sh"
       - ".github/workflows/native.yml"
-      - ".github/workflows/native-build.yml"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      abi:
+        description: The ABI to build, as the APK names it.
+        required: false
+        type: string
+        default: arm64-v8a
+      artifact_name:
+        description: The artifact the staged libraries are uploaded as.
+        required: false
+        type: string
+        default: drosh-jni
+      guard_target_sdk:
+        description: Fail when the manifest's targetSdk moves past the engine's ABI.
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: native-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  native:
-    # The ABI matrix is one entry long — the APK ships arm64-v8a only — and it
-    # stays a matrix because the reusable workflow takes the ABI as an input.
-    strategy:
-      fail-fast: false
-      matrix:
-        abi: [arm64-v8a]
-    uses: ./.github/workflows/native-build.yml
-    with:
-      abi: ${{ matrix.abi }}
-      artifact_name: drosh-jni-${{ matrix.abi }}
-      guard_target_sdk: true
+  build:
+    name: libdrosh.so (${{ inputs.abi }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: "Guard: targetSdk stays 28"
+        if: inputs.guard_target_sdk
+        run: |
+          set -euo pipefail
+          v=$(grep -oE 'TARGET_SDK *= *[0-9]+' android/build-logic/src/main/kotlin/dev/drosh/DroshBuildConfig.kt | grep -oE '[0-9]+')
+          if [ "$v" != "28" ]; then
+            echo "::error::targetSdk must stay 28 for native hot-update (W^X)"
+            exit 1
+          fi
+
+      - name: Restore the built library
+        id: so-cache
+        uses: actions/cache@v4
+        with:
+          # The one ABI this project ships: the APK is arm64-v8a only, and the
+          # build step below names the target triple explicitly.
+          path: native/target/aarch64-linux-android/release/libdrosh.so
+          key: drosh-so-${{ inputs.abi }}-${{ env.NDK_VERSION }}-${{ hashFiles('native/**', 'tools/fetch-ghostty-vt.sh') }}
+
+      - name: Set up Rust
+        if: steps.so-cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache cargo
+        if: steps.so-cache.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      # bindgen parses the engine's headers with libclang. Installing it is the
+      # price of generating the bindings from the headers rather than writing
+      # `#[repr(C)]` structs by hand — structs that would be right until the
+      # first upstream field moved.
+      #
+      # The apt packages for it are large — libclang-dev pulls hundreds of
+      # megabytes of LLVM — and the runner's Ubuntu mirror fails to resolve
+      # intermittently. apt then retries a mirror that is not coming, and the
+      # step turns into a ten-minute hang before the job times out. The PyPI
+      # wheel is one file, comes from a host that answers, and bindgen finds it
+      # through LIBCLANG_PATH. apt is the fallback, with retries, and only the
+      # library itself — not the whole toolchain.
+      - name: Install libclang
+        if: steps.so-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          found=""
+          if pip install --user --quiet libclang; then
+            clang_dir=$(python -c "import clang, os; print(os.path.join(os.path.dirname(clang.__file__), 'native'))")
+            if compgen -G "$clang_dir/libclang*.so" > /dev/null; then
+              echo "LIBCLANG_PATH=$clang_dir" >> "$GITHUB_ENV"
+              found="wheel"
+            fi
+          fi
+          if [ -z "$found" ]; then
+            sudo apt-get -o Acquire::Retries=5 update -qq
+            sudo apt-get -o Acquire::Retries=5 install -y -qq libclang-dev
+          fi
+
+      - name: Install pinned NDK
+        if: steps.so-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
+
+      # The engine is somebody else's build: downloaded, verified, and linked as
+      # a dynamic dependency, so the APK carries one copy of it and this
+      # repository compiles no Zig.
+      #
+      # gh prefers the API asset endpoint over the browser download URL, which
+      # has been answering a deterministic 504. The token is what authenticates
+      # the API call; the bytes are checked against SHA256SUMS regardless of how
+      # they travel.
+      # Always restored, even when libdrosh.so came from the cache: the APK
+      # ships this file too, and the link check below reads it.
+      - name: Cache libghostty-vt
+        id: ghostty-cache
+        uses: actions/cache@v4
+        with:
+          path: native/ghostty
+          key: ghostty-vt-${{ inputs.abi }}-${{ hashFiles('tools/fetch-ghostty-vt.sh') }}
+
+      - name: Fetch and verify libghostty-vt
+        if: steps.ghostty-cache.outputs.cache-hit != 'true'
+        env:
+          GHOSTTY_VT_ABIS: ${{ inputs.abi }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./tools/fetch-ghostty-vt.sh
+
+      - name: Build libdrosh.so
+        if: steps.so-cache.outputs.cache-hit != 'true'
+        working-directory: native
+        env:
+          DROSH_ABI: ${{ inputs.abi }}
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/aarch64-linux-android26-clang"
+          export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android26-clang"
+          export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
+          cargo build --release --target aarch64-linux-android
+
+      - name: Check the library links the engine, not a copy of it
+        run: |
+          set -euo pipefail
+          so="native/target/aarch64-linux-android/release/libdrosh.so"
+          test -f "$so"
+          echo "--- NEEDED"
+          readelf -d "$so" | grep -E "NEEDED|SONAME"
+          # A library that does not name libghostty-vt.so is a library that
+          # statically absorbed the engine — which would ship two copies of it.
+          readelf -d "$so" | grep -q "libghostty-vt.so" || {
+            echo "::error::libdrosh.so does not link libghostty-vt.so"
+            exit 1
+          }
+          # The engine's own SONAME has to be the name the APK ships, or the
+          # linker will look for a file that is not there.
+          engine="native/ghostty/lib/${{ inputs.abi }}/libghostty-vt.so"
+          test -f "$engine"
+          readelf -d "$engine" | grep -q "SONAME.*libghostty-vt.so\\]" || {
+            echo "::error::libghostty-vt.so still carries its upstream soname"
+            exit 1
+          }
+
+      # Both halves go up together, in the layout jniLibs expects. The caller
+      # that builds an APK unpacks this straight into the module instead of
+      # fetching the engine itself, which is what made every Android build job
+      # carry its own copy of the fetch and stage script.
+      - name: Stage the JNI libraries
+        run: |
+          set -euo pipefail
+          dest="native/jni/${{ inputs.abi }}"
+          mkdir -p "$dest"
+          cp native/target/aarch64-linux-android/release/libdrosh.so "$dest/"
+          cp "native/ghostty/lib/${{ inputs.abi }}/libghostty-vt.so" "$dest/"
+          ls -l "$dest"
+
+      - name: Upload the libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: native/jni/${{ inputs.abi }}
+          if-no-files-found: error
+          retention-days: 1

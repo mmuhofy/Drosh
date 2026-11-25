@@ -12,10 +12,10 @@ concurrency:
 jobs:
   native-build:
     # The library and the engine, in the layout jniLibs wants. Built by
-    # native-build.yml so that this build, the Nightly and the Native gate all
+    # native.yml so that this build, the Nightly and the Native gate all
     # compile the same recipe from the same commit.
     name: native libraries (arm64-v8a)
-    uses: ./.github/workflows/native-build.yml
+    uses: ./.github/workflows/native.yml
     with:
       abi: arm64-v8a
       artifact_name: drosh-jni

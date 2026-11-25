@@ -14,12 +14,12 @@ concurrency:
 jobs:
   native-build:
     # libdrosh.so and libghostty-vt.so, in the layout jniLibs wants. They are
-    # built by native-build.yml — the same workflow the Native gate runs — so
+    # built by native.yml — the same workflow the Native gate runs — so
     # the APK and the standalone build are one recipe and one commit. This job
     # restores the library from a cache keyed on the Rust sources, the engine
     # script and the NDK, so a change that only touched Kotlin takes seconds.
     name: native libraries (arm64-v8a)
-    uses: ./.github/workflows/native-build.yml
+    uses: ./.github/workflows/native.yml
     with:
       abi: arm64-v8a
       artifact_name: drosh-jni
