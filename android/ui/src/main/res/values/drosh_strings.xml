@@ -377,7 +377,7 @@ no terminal session needed.</string>
     <string name="settings_category_general">General</string>
     <string name="settings_summary_general">%1$s ?? %2$s</string>
     <string name="settings_keyboard_activation">Raise the keyboard</string>
-    <string name="settings_keyboard_activation_desc">Which touch opens the keyboard; every other gesture stays the terminal's</string>
+    <string name="settings_keyboard_activation_desc">Which touch opens the keyboard; every other gesture stays the terminal\'s</string>
     <string name="settings_keyboard_activation_tap">Tap anywhere</string>
     <string name="settings_keyboard_activation_two_finger">Two-finger tap</string>
     <string name="settings_keyboard_activation_bottom">Tap the bottom edge</string>
