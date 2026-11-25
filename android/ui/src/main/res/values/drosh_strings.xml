@@ -375,13 +375,13 @@ no terminal session needed.</string>
     <string name="settings_background_use_image">Use the background image</string>
     <string name="settings_background_use_image_desc">Off, the image in .drosh is left alone but not drawn</string>
     <string name="settings_category_general">General</string>
-    <string name="settings_summary_general">%1$s \u00b7 %2$s</string>
+    <string name="settings_summary_general">%1$s ?? %2$s</string>
     <string name="settings_keyboard_activation">Raise the keyboard</string>
     <string name="settings_keyboard_activation_desc">Which touch opens the keyboard; every other gesture stays the terminal's</string>
     <string name="settings_keyboard_activation_tap">Tap anywhere</string>
     <string name="settings_keyboard_activation_two_finger">Two-finger tap</string>
     <string name="settings_keyboard_activation_bottom">Tap the bottom edge</string>
-    <string name="settings_keyboard_activation_never">Never \u2014 only the key</string>
+    <string name="settings_keyboard_activation_never">Never ??? only the key</string>
     <string name="settings_scrollback">Scrollback</string>
     <string name="settings_scrollback_desc">How much history the terminal keeps above the screen</string>
     <string name="settings_scrollback_off">Off</string>
@@ -389,7 +389,7 @@ no terminal session needed.</string>
     <string name="settings_line_height">Line height</string>
     <string name="settings_line_height_desc">Space between the rows of the grid</string>
     <string name="settings_category_background">Background</string>
-    <string name="settings_background_summary">%1$d%% \u00b7 blur %2$d</string>
+    <string name="settings_background_summary">%1$d%% ?? blur %2$d</string>
     <string name="settings_backup_title">Backup and restore</string>
     <string name="settings_backup_supporting">App data and the Linux directory</string>
     <string name="settings_version_supporting">Components, channels, rollback</string>

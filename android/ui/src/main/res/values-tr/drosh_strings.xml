@@ -368,13 +368,13 @@ terminal session açmana gerek yok.</string>
     <string name="settings_background_use_image">Arka plan gorselini kullan</string>
     <string name="settings_background_use_image_desc">Kapaliyken .drosh icindeki gorsel durur ama cizilmez</string>
     <string name="settings_category_general">Genel</string>
-    <string name="settings_summary_general">%1$s \u00b7 %2$s</string>
+    <string name="settings_summary_general">%1$s ?? %2$s</string>
     <string name="settings_keyboard_activation">Klavyeyi ac</string>
     <string name="settings_keyboard_activation_desc">Klavyeyi hangi dokunus acsin; diger jestler terminalde kalir</string>
     <string name="settings_keyboard_activation_tap">Herhangi bir yere dokun</string>
     <string name="settings_keyboard_activation_two_finger">Iki parmakla dokun</string>
     <string name="settings_keyboard_activation_bottom">Alt kenara dokun</string>
-    <string name="settings_keyboard_activation_never">Asla \u2014 sadece tusla</string>
+    <string name="settings_keyboard_activation_never">Asla ??? sadece tusla</string>
     <string name="settings_scrollback">Gecmis tamponu</string>
     <string name="settings_scrollback_desc">Terminalin ekranin ustunde tuttugu gecmis miktari</string>
     <string name="settings_scrollback_off">Kapali</string>
@@ -382,7 +382,7 @@ terminal session açmana gerek yok.</string>
     <string name="settings_line_height">Satir araligi</string>
     <string name="settings_line_height_desc">Izgara satirlari arasindaki bosluk</string>
     <string name="settings_category_background">Arka plan</string>
-    <string name="settings_background_summary">%%%1$d \u00b7 bulaniklik %2$d</string>
+    <string name="settings_background_summary">%%%1$d ?? bulaniklik %2$d</string>
     <string name="settings_backup_title">Yedekle ve geri yukle</string>
     <string name="settings_backup_supporting">Uygulama verisi ve Linux dizini</string>
     <string name="settings_version_supporting">Bilesenler, kanallar, geri alma</string>
