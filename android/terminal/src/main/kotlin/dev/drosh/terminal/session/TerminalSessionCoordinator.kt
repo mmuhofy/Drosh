@@ -385,6 +385,13 @@ class TerminalSessionCoordinator(
 
     /** Last type behaviour from the file, replayed onto panes as they register. */
     private var boldBrightens: Boolean = true
+
+    /**
+     * The history limit, in lines. Ten thousand until the file says otherwise —
+     * the same number the engine starts a session with, so a session opened
+     * before the first settings emission is not a different terminal.
+     */
+    private var engineScrollbackLines: Int = 10_000
     private var ligatures: Boolean = true
 
     /**
@@ -452,7 +459,10 @@ class TerminalSessionCoordinator(
 
     /** Give every live session the theme's colours. */
     private fun applyEngineColors() {
-        for (session in liveSessions.values) applyEngineColors(session)
+        for (session in liveSessions.values) {
+            applyEngineColors(session)
+            applyEngineScrollback(session)
+        }
         // And the panes: a session opened later is the pane's to colour, and a
         // refresh opens one without the manager in the loop.
         val theme = engineTheme()
@@ -478,6 +488,19 @@ class TerminalSessionCoordinator(
         val handle = session.terminalHandle
         if (handle == 0L) return
         NativeSession.setColors(handle, engineForeground, engineBackground, enginePalette)
+    }
+
+    /**
+     * The history limit, applied to a session that already exists.
+     *
+     * The engine prunes when the limit is lowered, so this is a live setting
+     * rather than a start-of-session one: a user who drops it to zero gets the
+     * memory back on the session they are looking at, not on the next one.
+     */
+    private fun applyEngineScrollback(session: GhosttySession) {
+        val handle = session.terminalHandle
+        if (handle == 0L) return
+        NativeSession.setScrollback(handle, engineScrollbackLines)
     }
 
     /**
@@ -1050,6 +1073,7 @@ class TerminalSessionCoordinator(
                 shellLocale = settings.shell.locale
                 boldBrightens = settings.terminal.boldBrightens
                 ligatures = settings.terminal.ligatures
+                engineScrollbackLines = settings.terminal.scrollbackLines
                 val palette = settings.terminal.palette
                 val bg = parseHexColor(palette.background)
                 if (bg != null && bg != terminalBgColor) {
@@ -1529,6 +1553,7 @@ class TerminalSessionCoordinator(
         session.onExit = { code -> onLiveSessionExited(persistentId, code) }
         liveSessions[persistentId] = session
         applyEngineColors(session)
+        applyEngineScrollback(session)
         applyEngineCursor(session)
         publishBackgroundSessions()
 

@@ -103,7 +103,6 @@ import dev.drosh.ui.settings.AboutCategory
 import dev.drosh.ui.settings.AppearanceCategory
 import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.ui.settings.KeyboardCategory
-import dev.drosh.ui.settings.LanguageCategory
 import dev.drosh.ui.settings.SecurityCategory
 import dev.drosh.ui.settings.SettingsCategoryRoute
 import dev.drosh.ui.updates.UpdatesCategory
@@ -114,8 +113,8 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
 import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.ui.settings.ShellCategory
 import dev.drosh.ui.settings.TerminalCategory
-import dev.drosh.ui.settings.BackgroundCategory
 import dev.drosh.ui.settings.FontStoreScreen
+import dev.drosh.ui.settings.GeneralCategory
 import dev.drosh.ui.settings.ThemeStoreScreen
 import dev.drosh.ui.backup.BackupRestoreRoute
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -545,6 +544,7 @@ class MainActivity : ComponentActivity() {
         onBack: () -> Unit,
         onOpenThemeStore: () -> Unit,
         onOpenFontStore: () -> Unit,
+        onOpenBackupRestore: () -> Unit,
     ) {
         val viewModel: SettingsViewModel = hiltViewModel()
         val settings by viewModel.snapshot.collectAsStateWithLifecycle()
@@ -557,16 +557,16 @@ class MainActivity : ComponentActivity() {
         }
 
         when (category) {
-            SettingsCategoryRoute.Appearance ->
-                AppearanceCategory(
+            SettingsCategoryRoute.General ->
+                GeneralCategory(
                     settings = settings,
                     onBack = onBack,
                     onUpdate = onUpdate,
                     onOpenThemeStore = onOpenThemeStore,
                     onOpenFontStore = onOpenFontStore,
+                    onOpenBackupRestore = onOpenBackupRestore,
+                    viewModel = viewModel,
                 )
-            SettingsCategoryRoute.Background ->
-                BackgroundCategory(settings, onBack, onUpdate, viewModel)
             SettingsCategoryRoute.ThemeStore ->
                 ThemeStoreScreen(onBack = onBack)
             SettingsCategoryRoute.FontStore ->
@@ -579,8 +579,6 @@ class MainActivity : ComponentActivity() {
                 ShellCategory(settings, onBack, onUpdate)
             SettingsCategoryRoute.Security ->
                 SecurityCategory(settings, onBack, onUpdate, viewModel)
-            SettingsCategoryRoute.Language ->
-                LanguageCategory(settings, onBack, onUpdate)
             SettingsCategoryRoute.About ->
                 AboutCategory(
                     onBack = onBack,
@@ -902,7 +900,6 @@ class MainActivity : ComponentActivity() {
                     onOpenCategory = { category ->
                         navController.navigate("settings/${category.id}")
                     },
-                    onOpenBackupRestore = { navController.navigate("backup_restore") },
                 )
             }
 
@@ -912,6 +909,7 @@ class MainActivity : ComponentActivity() {
                     onBack = { navController.popBackStack() },
                     onOpenThemeStore = { navController.navigate("settings/theme_store") },
                     onOpenFontStore = { navController.navigate("settings/font_store") },
+                    onOpenBackupRestore = { navController.navigate("backup_restore") },
                 )
             }
 

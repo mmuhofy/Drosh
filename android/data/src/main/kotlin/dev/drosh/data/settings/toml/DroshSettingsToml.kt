@@ -12,6 +12,7 @@ import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.domain.settings.GuestIsolation
 import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.InputSettings
+import dev.drosh.domain.settings.KeyboardActivation
 import dev.drosh.domain.settings.MetaSettings
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SecuritySettings
@@ -57,6 +58,7 @@ internal object DroshSettingsToml {
             putBoolean("terminal", "bold_brightens", boldBrightens)
             putBoolean("terminal", "ligatures", ligatures)
             putFloat("terminal", "line_height", lineHeight)
+            putInt("terminal", "scrollback_lines", scrollbackLines)
             putBoolean("terminal", "dim_inactive_panes", dimInactivePanes)
             putBoolean("terminal", "immersive", immersive)
             putString("terminal", "theme_id", themeId)
@@ -97,6 +99,7 @@ internal object DroshSettingsToml {
             putBoolean("input", "mouse_reporting", mouseReporting)
             putBoolean("input", "bell_enabled", bellEnabled)
             putBoolean("input", "allow_clipboard_writes", allowClipboardWrites)
+            putString("input", "keyboard_activation", keyboardActivation.tomlName)
         }
         with(settings.shell) {
             putString("shell", "motd_mode", motdMode.tomlName())
@@ -179,6 +182,9 @@ internal object DroshSettingsToml {
                         TerminalSettings.MIN_LINE_HEIGHT,
                         TerminalSettings.MAX_LINE_HEIGHT,
                     ),
+                scrollbackLines = document.getInt(
+                    "terminal", "scrollback_lines", base.terminal.scrollbackLines,
+                ).coerceIn(0, TerminalSettings.MAX_SCROLLBACK_LINES),
                 dimInactivePanes = document.getBoolean("terminal", "dim_inactive_panes", base.terminal.dimInactivePanes),
                 immersive = document.getBoolean("terminal", "immersive", base.terminal.immersive),
                 themeId = document.getString("terminal", "theme_id", base.terminal.themeId),
@@ -202,6 +208,9 @@ internal object DroshSettingsToml {
                 allowClipboardWrites = document.getBoolean(
                     "input", "allow_clipboard_writes", base.input.allowClipboardWrites,
                 ),
+                keyboardActivation = document.getStringOrNull("input", "keyboard_activation")
+                    ?.let { KeyboardActivation.fromName(it) }
+                    ?: base.input.keyboardActivation,
             ),
             shell = base.shell.copy(
                 motdMode = MotdMode.fromString(document.getString("shell", "motd_mode", "")),

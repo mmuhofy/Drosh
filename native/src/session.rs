@@ -30,6 +30,14 @@ const PALETTE_LEN: usize = 256;
 /// a program's image and throws it away. A phone's budget for pictures behind
 /// a terminal is a few screenshots, not a gigabyte.
 const KITTY_STORAGE_BYTES: u64 = 128 * 1024 * 1024;
+
+/// How many lines of history a terminal keeps until the settings say otherwise.
+///
+/// Ghostty's own default is expressed in bytes — ten thousand of them — which
+/// a busy prompt fills in one `ls`. Ten thousand *lines* is a day of output on
+/// a phone and a few megabytes of pages; the settings can lower it to nothing
+/// for someone who would rather have the memory.
+const DEFAULT_SCROLLBACK_LINES: u64 = 10_000;
 /// The mouse encoder's output buffer. An SGR 1006 sequence is under twenty
 /// bytes; sixty-four covers every format the engine can produce with room to
 /// spare, and a short answer is refused by the caller rather than truncated.
@@ -222,6 +230,23 @@ impl Session {
             log::info!(
                 "drosh-native: kitty storage set={set_result} read={read_result} limit={kitty_read_back}"
             );
+        };
+
+        // The history the terminal keeps.
+        //
+        // The library's default is ten thousand bytes — not lines — which is
+        // a handful of screens: a `cat` of a log file scrolls the thing the
+        // user wanted to read straight out of existence. The app sets the
+        // limit in *lines*, which is the unit a person thinks in, and asks for
+        // this default until the settings say otherwise. `set_scrollback_lines`
+        // is what the Kotlin side calls when the setting changes.
+        let scrollback_lines: u64 = DEFAULT_SCROLLBACK_LINES;
+        let _ = unsafe {
+            ghostty::ghostty_terminal_set(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_LINES,
+                &scrollback_lines as *const u64 as *const c_void,
+            )
         };
 
         Ok(Self {
@@ -623,6 +648,22 @@ impl Session {
     /// white foreground — so a light theme drew white text on the library's
     /// black no matter what the app's palette said, and SGR 7 in a light theme
     /// produced white-on-white.
+    ///
+    /// The history the terminal keeps, in lines; zero turns scrollback off
+    /// and erases what is already there.
+    ///
+    /// Lowering the limit prunes immediately, which is why this is safe to call
+    /// whenever the setting changes rather than only at session start.
+    pub fn set_scrollback_lines(&mut self, lines: u64) {
+        unsafe {
+            let _ = ghostty::ghostty_terminal_set(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_LINES,
+                &lines as *const u64 as *const c_void,
+            );
+        }
+    }
+
     pub fn set_colors(
         &mut self,
         foreground: ghostty::GhosttyColorRgb,

@@ -79,6 +79,9 @@ fun GhosttyTerminalHost(
      * advance — so the setting trades rows for air and nothing else.
      */
     lineHeight: Float = 1f,
+    /** Which touch raises the keyboard; the surface owns the gesture. */
+    keyboardActivation: dev.drosh.domain.settings.KeyboardActivation =
+        dev.drosh.domain.settings.KeyboardActivation.Tap,
     /**
      * Whether touch is reported to programs that turned a tracking mode on.
      *
@@ -179,6 +182,13 @@ fun GhosttyTerminalHost(
     // change rather than on every recomposition.
     LaunchedEffect(pane, ligatures) {
         pane.view.setLigatures(ligatures)
+    }
+
+    // The same for the gesture that raises the keyboard: it is read from a
+    // touch handler, so it is pushed once per change rather than held in a
+    // composable state.
+    LaunchedEffect(pane, keyboardActivation) {
+        pane.view.setKeyboardActivation(keyboardActivation)
     }
 
     // Whether the viewport is at the live edge.

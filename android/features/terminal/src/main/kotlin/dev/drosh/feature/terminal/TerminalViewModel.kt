@@ -119,6 +119,7 @@ class TerminalViewModel @Inject constructor(
                 boldBrightens = settings.terminal.boldBrightens,
                 ligatures = settings.terminal.ligatures,
                 lineHeight = settings.terminal.lineHeight,
+                keyboardActivation = settings.input.keyboardActivation,
                 textSizeSp = settings.terminal.defaultFontSizeSp,
                 fontPack = settings.appearance.fontPack,
                 ghosttyEngine = settings.terminal.ghosttyEngine,

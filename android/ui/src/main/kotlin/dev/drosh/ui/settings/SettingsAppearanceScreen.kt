@@ -49,7 +49,6 @@ import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.font.TerminalFontCatalog
 import dev.drosh.domain.settings.TerminalMode
-import dev.drosh.domain.settings.TerminalSettings
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.ui.DroshIcons
@@ -58,16 +57,29 @@ import dev.drosh.ui.R
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+/**
+ * The app's own half: how it looks, what it speaks, and where its data lives.
+ *
+ * ## Why one screen
+ *
+ * Appearance, the backdrop and the language were three screens behind three
+ * rows, and each of them was four to seven rows long. A settings app with more
+ * rooms than furniture is a settings app you search instead of browse. They are
+ * one screen now, in the order a person meets them: the theme, the font, the
+ * picture behind it, the language, and the backup that takes the lot with it.
+ */
 @Composable
-fun AppearanceCategory(
+fun GeneralCategory(
     settings: DroshSettings,
     onBack: () -> Unit,
     onUpdate: OnSettingsUpdate,
     onOpenThemeStore: () -> Unit,
     onOpenFontStore: () -> Unit,
+    onOpenBackupRestore: () -> Unit,
+    viewModel: SettingsViewModel,
 ) {
     SettingsCategoryScreen(
-        title = stringResource(R.string.settings_category_appearance),
+        title = stringResource(R.string.settings_category_general),
         onBack = onBack,
     ) {
         SettingsGroupColumn(
@@ -169,125 +181,23 @@ fun AppearanceCategory(
 
         Spacer(Modifier.height(GROUP_GAP))
 
-        SettingsGroupColumn(
-            label = stringResource(R.string.settings_section_terminal),
-            items = 6,
-        ) { index, cap ->
-            when (index) {
-                // Spacing above weight: the row that changes how every line
-                // sits comes before the ones that change how a few characters
-                // are drawn.
-                5 -> SettingsTile(
-                    cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_line_height),
-                    icon = DroshIcons.Maximize,
-                    supporting = stringResource(R.string.settings_line_height_desc),
-                    value = String.format(
-                        java.util.Locale.US,
-                        "%.2f×",
-                        settings.terminal.lineHeight,
-                    ),
-                ) {
-                    SettingsSlider(
-                        value = settings.terminal.lineHeight,
-                        onValueChange = { value ->
-                            onUpdate {
-                                it.copy(
-                                    terminal = it.terminal.copy(
-                                        lineHeight = value.coerceIn(
-                                            TerminalSettings.MIN_LINE_HEIGHT,
-                                            TerminalSettings.MAX_LINE_HEIGHT,
-                                        ),
-                                    ),
-                                )
-                            }
-                        },
-                        valueRange = TerminalSettings.MIN_LINE_HEIGHT..
-                            TerminalSettings.MAX_LINE_HEIGHT,
-                        steps = 14,
-                    )
-                }
+        BackgroundSection(settings = settings, onUpdate = onUpdate, viewModel = viewModel)
 
-                0 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_bold_brightens),
-                    icon = DroshIcons.Type,
-                    supporting = stringResource(R.string.settings_bold_brightens_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.terminal.boldBrightens,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(terminal = it.terminal.copy(boldBrightens = on)) }
-                        },
-                    )
-                }
+        Spacer(Modifier.height(GROUP_GAP))
 
-                1 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_ligatures),
-                    icon = DroshIcons.Type,
-                    supporting = stringResource(R.string.settings_ligatures_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.terminal.ligatures,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(terminal = it.terminal.copy(ligatures = on)) }
-                        },
-                    )
-                }
+        LanguageSection(settings = settings, onUpdate = onUpdate)
 
-                2 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_dim_inactive_panes),
-                    icon = DroshIcons.Monitor,
-                    supporting = stringResource(R.string.settings_dim_inactive_panes_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.terminal.dimInactivePanes,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(terminal = it.terminal.copy(dimInactivePanes = on)) }
-                        },
-                    )
-                }
+        Spacer(Modifier.height(GROUP_GAP))
 
-                3 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_immersive),
-                    icon = DroshIcons.Maximize,
-                    supporting = stringResource(R.string.settings_immersive_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.terminal.immersive,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(terminal = it.terminal.copy(immersive = on)) }
-                        },
-                    )
-                }
-
-                // The bell is a terminal behaviour, not a look: it is the
-                // flash a program asks for and the notification that follows
-                // when nobody is watching. It lives here because this is the
-                // screen someone opens to quiet the terminal down.
-                else -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_bell),
-                    icon = DroshIcons.Bell,
-                    supporting = stringResource(R.string.settings_bell_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.input.bellEnabled,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(input = it.input.copy(bellEnabled = on)) }
-                        },
-                    )
-                }
-            }
+        SettingsGroupColumn(label = null, items = 1) { _, cap ->
+            SettingsTile(
+                cap = cap,
+                title = stringResource(R.string.settings_backup_title),
+                icon = DroshIcons.Archive,
+                supporting = stringResource(R.string.settings_backup_supporting),
+                onClick = onOpenBackupRestore,
+            ) { SettingsChevron() }
         }
     }
 }
-
-
-
-// ── Terminal ─────────────────────────────────────────────────────────────────
 

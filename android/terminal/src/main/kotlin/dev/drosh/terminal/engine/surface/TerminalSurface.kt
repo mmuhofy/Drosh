@@ -713,6 +713,37 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     /** The tap run: one tap, two taps, three taps. */
     private var tapCount: Int = 0
+
+    /**
+     * Where the keyboard band starts, as a fraction of the pane's height.
+     *
+     * The bottom fifth: on a phone that is the prompt area of a full-screen
+     * session and the last row or two of a tall one, which is where a finger
+     * goes when the user wants to type.
+     */
+    private val bottomEdgeFraction: Float = 0.8f
+
+    /**
+     * How many fingers this gesture has had down at its peak.
+     *
+     * A two-finger tap is two fingers that arrive and leave without moving;
+     * the count is kept across the whole gesture because the lift that ends it
+     * reports one pointer remaining, not two.
+     */
+    private var gesturePointers: Int = 1
+
+    /**
+     * How long a two-finger tap may take.
+     *
+     * A tap is a press and a release, not a hold: half a second is a deliberate
+     * gesture, and anything longer is a two-finger press, which is a gesture the
+     * terminal already has (it is what starts a paste or a selection on some
+     * platforms) and one this setting must not steal.
+     */
+    private val twoFingerTapMs: Long = 500L
+
+    /** Whether the scale detector claimed any of this gesture. A pinch is not a tap. */
+    private var pinchSeen: Boolean = false
     private var lastTapAt: Long = 0L
     private var lastTapX: Float = 0f
     private var lastTapY: Float = 0f
@@ -798,6 +829,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // screen has already carried the view. Reconciling mid-gesture is what
         // made the scroll stutter — the engine is always one event behind.
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            gesturePointers = 1
+            pinchSeen = false
             // A new gesture starts from a row boundary: the picture is where
             // the last gesture left it, and that is a fraction of a row the
             // finger is about to move anyway.
@@ -811,9 +844,29 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         //
         // The detectors come first: the lift is what tells them the gesture is
         // over, and a flick is only known once they have seen it.
+        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+            gesturePointers = maxOf(gesturePointers, event.pointerCount)
+        }
         scaleDetector.onTouchEvent(event)
+        if (scaleDetector.isInProgress) pinchSeen = true
         if (!scaleDetector.isInProgress) {
             gestureDetector.onTouchEvent(event)
+        }
+
+        // A two-finger tap, for the mode that asks for one.
+        //
+        // Read from the gesture, not from the detector: a pinch is claimed by
+        // the scale detector the moment the fingers move, so "two fingers that
+        // never moved and lifted quickly" cannot be a zoom, and a one-finger
+        // tap still belongs to the mode that turns it into typing.
+        if (event.actionMasked == MotionEvent.ACTION_UP &&
+            keyboardActivation == dev.drosh.domain.settings.KeyboardActivation.TwoFingerTap &&
+            gesturePointers == 2 &&
+            !pinchSeen &&
+            event.eventTime - event.downTime <= twoFingerTapMs
+        ) {
+            if (!hasFocus()) requestFocus()
+            requestKeyboard()
         }
 
         // The finger is off the screen: the picture goes back onto a row
@@ -866,10 +919,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // leaving two grips and a menu on the screen would keep an
                 // old selection alive under the next command.
                 if (selectionSnapshot != null) clearSelection()
-                if (!hasFocus()) {
-                    requestFocus()
-                    requestKeyboard()
-                }
+                if (!hasFocus()) requestFocus()
+                if (tapRaisesKeyboard(event.y)) requestKeyboard()
             }
             // The gesture is the engine's, and it is told what this click
             // means: a double tap is a word, a triple tap is the line. The
@@ -1112,6 +1163,35 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             }
         }
         postOnAnimation(step)
+    }
+
+    /**
+     * Which touch raises the keyboard.
+     *
+     * Set from the settings by the host, like the ligatures. A plain field
+     * rather than a Compose state: this is read from a touch handler, not from
+     * a composition, and a touch does not need recomposition to be told.
+     */
+    private var keyboardActivation = dev.drosh.domain.settings.KeyboardActivation.Tap
+
+    fun setKeyboardActivation(mode: dev.drosh.domain.settings.KeyboardActivation) {
+        keyboardActivation = mode
+    }
+
+    /**
+     * Whether a tap at this point is allowed to raise the keyboard.
+     *
+     * The bottom-edge mode counts from the pane's own height, so it means the
+     * same thing in a split as on a full screen: the lowest fifth is where the
+     * prompt is. The two-finger mode says no to every one-finger tap, and its
+     * own gesture is handled in [onTouchEvent]. [Never] says no to all of them.
+     */
+    private fun tapRaisesKeyboard(y: Float): Boolean = when (keyboardActivation) {
+        dev.drosh.domain.settings.KeyboardActivation.Tap -> true
+        dev.drosh.domain.settings.KeyboardActivation.TwoFingerTap -> false
+        dev.drosh.domain.settings.KeyboardActivation.BottomEdgeTap ->
+            y >= height * bottomEdgeFraction
+        dev.drosh.domain.settings.KeyboardActivation.Never -> false
     }
 
     /** Ask the IME to show, for a view that already has the focus. */

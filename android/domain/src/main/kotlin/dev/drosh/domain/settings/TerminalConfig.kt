@@ -47,6 +47,8 @@ data class TerminalConfig(
      * close up, which is legible only for a font whose line box is generous.
      */
     val lineHeight: Float = 1f,
+    /** Which touch raises the keyboard. */
+    val keyboardActivation: KeyboardActivation = KeyboardActivation.Tap,
     /**
      * Which engine draws the terminal.
      *

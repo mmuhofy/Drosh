@@ -133,6 +133,15 @@ data class TerminalSettings(
      * hand-edited 4 does not leave three blank rows between two lines of text.
      */
     val lineHeight: Float = 1f,
+    /**
+     * How many lines of history the terminal keeps, above the screen.
+     *
+     * Zero turns scrollback off entirely — the viewport and nothing behind it,
+     * which is what someone who would rather have the memory asks for. The
+     * engine prunes in pages, so the number is close rather than exact, and the
+     * file is clamped to a range that a phone can hold.
+     */
+    val scrollbackLines: Int = 10_000,
     /** The unfocused pane of a split is drawn dimmer. */
     val dimInactivePanes: Boolean = true,
     /**
@@ -164,6 +173,12 @@ data class TerminalSettings(
          */
         const val MIN_LINE_HEIGHT = 0.85f
         const val MAX_LINE_HEIGHT = 1.6f
+
+        /** The scrollback values the screen offers, in lines. */
+        val SCROLLBACK_CHOICES = listOf(0, 1_000, 5_000, 10_000, 50_000)
+
+        /** The ceiling for a hand-edited file, in lines. */
+        const val MAX_SCROLLBACK_LINES = 200_000
     }
 }
 
@@ -223,6 +238,14 @@ data class InputSettings(
      * So it is off unless the user asks for it.
      */
     val allowClipboardWrites: Boolean = false,
+    /**
+     * Which touch raises the keyboard.
+     *
+     * The terminal takes every other gesture: a drag scrolls, a pinch zooms,
+     * two fingers scroll. This is the one gesture with no natural answer, so it
+     * is asked for rather than assumed.
+     */
+    val keyboardActivation: KeyboardActivation = KeyboardActivation.Tap,
 ) {
     companion object {
         val DEFAULT = InputSettings()

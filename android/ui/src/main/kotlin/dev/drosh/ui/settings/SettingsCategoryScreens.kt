@@ -55,6 +55,7 @@ import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdDefaults
+import dev.drosh.domain.settings.KeyboardActivation
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.TerminalMode
@@ -203,6 +204,11 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                 }
             }
         }
+
+        // The typography and the history: the rows that used to be the bottom
+        // half of the Appearance screen, where nobody thought to look for a
+        // line height.
+        TerminalTypographySection(settings = settings, onUpdate = onUpdate)
     }
 }
 
@@ -214,9 +220,34 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_keyboard),
-            items = 3,
+            items = 4,
         ) { index, cap ->
             when (index) {
+                // Above the keys themselves: this is the row that decides how
+                // the keyboard gets here at all.
+                3 -> SettingsSelectRow(
+                    cap = cap,
+                    title = stringResource(R.string.settings_keyboard_activation),
+                    icon = DroshIcons.Keyboard,
+                    supporting = stringResource(R.string.settings_keyboard_activation_desc),
+                    options = KeyboardActivation.entries.map { mode ->
+                        mode to stringResource(
+                            when (mode) {
+                                KeyboardActivation.Tap -> R.string.settings_keyboard_activation_tap
+                                KeyboardActivation.TwoFingerTap ->
+                                    R.string.settings_keyboard_activation_two_finger
+                                KeyboardActivation.BottomEdgeTap ->
+                                    R.string.settings_keyboard_activation_bottom
+                                KeyboardActivation.Never -> R.string.settings_keyboard_activation_never
+                            },
+                        )
+                    },
+                    selected = settings.input.keyboardActivation,
+                    onSelect = { mode ->
+                        onUpdate { it.copy(input = it.input.copy(keyboardActivation = mode)) }
+                    },
+                )
+
                 0 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_input_extra_keys),
@@ -458,40 +489,34 @@ fun SecurityCategory(
 }
 
 @Composable
-fun LanguageCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSettingsUpdate) {
+fun LanguageSection(settings: DroshSettings, onUpdate: OnSettingsUpdate) {
     var showLanguageSheet by rememberSaveable { mutableStateOf(false) }
     var showShellLocaleSheet by rememberSaveable { mutableStateOf(false) }
+    SettingsGroupColumn(
+        label = stringResource(R.string.settings_section_language),
+        items = 2,
+    ) { index, cap ->
+        when (index) {
+            0 -> SettingsTile(
+                cap = cap,
+                title = stringResource(R.string.settings_language),
+                icon = DroshIcons.Languages,
+                supporting = LanguageCatalog.options
+                    .firstOrNull { it.tag == settings.appearance.language }?.displayName
+                    ?: stringResource(R.string.settings_language_system),
+                onClick = { showLanguageSheet = true },
+            ) { SettingsChevron() }
 
-    SettingsCategoryScreen(
-        title = stringResource(R.string.settings_category_language),
-        onBack = onBack,
-    ) {
-        SettingsGroupColumn(
-            label = stringResource(R.string.settings_section_language),
-            items = 2,
-        ) { index, cap ->
-            when (index) {
-                0 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_language),
-                    icon = DroshIcons.Languages,
-                    supporting = LanguageCatalog.options
-                        .firstOrNull { it.tag == settings.appearance.language }?.displayName
-                        ?: stringResource(R.string.settings_language_system),
-                    onClick = { showLanguageSheet = true },
-                ) { SettingsChevron() }
-
-                else -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_shell_locale),
-                    icon = DroshIcons.Terminal,
-                    // The shell speaks this one, from the file rather than from
-                    // anyone's dotfiles.
-                    supporting = ShellLocaleCatalog.displayName(settings.shell.locale)
-                        .ifBlank { stringResource(R.string.settings_language_system) },
-                    onClick = { showShellLocaleSheet = true },
-                ) { SettingsChevron() }
-            }
+            else -> SettingsTile(
+                cap = cap,
+                title = stringResource(R.string.settings_shell_locale),
+                icon = DroshIcons.Terminal,
+                // The shell speaks this one, from the file rather than from
+                // anyone's dotfiles.
+                supporting = ShellLocaleCatalog.displayName(settings.shell.locale)
+                    .ifBlank { stringResource(R.string.settings_language_system) },
+                onClick = { showShellLocaleSheet = true },
+            ) { SettingsChevron() }
         }
     }
 

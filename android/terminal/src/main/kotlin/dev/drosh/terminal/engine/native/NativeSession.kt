@@ -150,6 +150,18 @@ object NativeSession {
     }
 
     /**
+     * How many lines of history the terminal keeps.
+     *
+     * Zero turns scrollback off and erases what is there. Lowering the limit
+     * prunes at once, which is why the setting can be changed on a live session
+     * rather than only at the start of one.
+     */
+    fun setScrollback(handle: Long, lines: Int): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeSetScrollback(handle, lines.toLong()) != 0.toByte()
+    }
+
+    /**
      * The default cursor's shape and whether it blinks.
      *
      * A program can still change its cursor with DECSCUSR; this is what the
@@ -348,6 +360,7 @@ object NativeSession {
         background: Int,
         palette: IntArray,
     ): Byte
+    private external fun nativeSetScrollback(handle: Long, lines: Long): Byte
     private external fun nativeTitle(handle: Long): String?
     private external fun nativeImages(handle: Long): ByteArray?
     private external fun nativeSetCursor(handle: Long, style: Int, blink: Int): Byte

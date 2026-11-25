@@ -359,6 +359,7 @@ internal fun TerminalPaneBody(
                 fontSizeSp = fontSizeSp,
                 ligatures = terminalConfig.ligatures,
                 lineHeight = terminalConfig.lineHeight,
+                keyboardActivation = terminalConfig.keyboardActivation,
                 // Whether the program's mouse-tracking mode is honoured. The
                 // surface reads the engine's modes itself; this is the user's
                 // half of the handshake.

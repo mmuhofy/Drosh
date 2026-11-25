@@ -143,6 +143,25 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     }
 }
 
+/// How many lines of history the terminal keeps.
+///
+/// Zero turns scrollback off and erases what is already there; lowering the
+/// limit prunes immediately, so this is safe to call on a live session rather
+/// than only at start.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeSetScrollback(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    lines: jlong,
+) -> jboolean {
+    let Some(mut session) = session_lock(handle) else {
+        return 0;
+    };
+    session.set_scrollback_lines(lines.max(0) as u64);
+    1
+}
+
 /// Set the theme's colours: the two defaults and the 256-colour palette.
 ///
 /// `fg` and `bg` are packed 0xRRGGBB. The palette array is 256 entries in the
