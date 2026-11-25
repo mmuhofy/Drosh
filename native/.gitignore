@@ -3,3 +3,6 @@ ghostty/
 
 # Cargo's outputs.
 target/
+
+# The staging directory CI fills with the libraries it uploads as an artifact.
+jni/

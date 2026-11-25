@@ -12,60 +12,14 @@ concurrency:
 
 jobs:
   native-build:
-    name: libdrosh.so (arm64-v8a)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: native
-      - name: Install libclang
-        run: |
-          set -euo pipefail
-          found=""
-          if pip install --user --quiet libclang; then
-            clang_dir=$(python -c "import clang, os; print(os.path.join(os.path.dirname(clang.__file__), 'native'))")
-            if compgen -G "$clang_dir/libclang*.so" > /dev/null; then
-              echo "LIBCLANG_PATH=$clang_dir" >> "$GITHUB_ENV"
-              found="wheel"
-            fi
-          fi
-          if [ -z "$found" ]; then
-            sudo apt-get -o Acquire::Retries=5 update -qq
-            sudo apt-get -o Acquire::Retries=5 install -y -qq libclang-dev
-          fi
-      - name: Install pinned NDK
-        run: |
-          set -euo pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358"
-      - name: Fetch and verify libghostty-vt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./tools/fetch-ghostty-vt.sh
-      - name: Build libdrosh.so
-        working-directory: native
-        env:
-          DROSH_ABI: arm64-v8a
-        run: |
-          set -euo pipefail
-          NDK="$ANDROID_HOME/ndk/28.2.13676358"
-          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/aarch64-linux-android26-clang"
-          export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android26-clang"
-          export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
-          cargo build --release --target aarch64-linux-android
-      - name: Upload the library
-        uses: actions/upload-artifact@v4
-        with:
-          name: drosh-so
-          path: native/target/aarch64-linux-android/release/libdrosh.so
-          if-no-files-found: error
-          retention-days: 1
+    # The library and the engine, in the layout jniLibs wants. Built by
+    # native-build.yml so that this build, the Nightly and the Native gate all
+    # compile the same recipe from the same commit.
+    name: native libraries (arm64-v8a)
+    uses: ./.github/workflows/native-build.yml
+    with:
+      abi: arm64-v8a
+      artifact_name: drosh-jni
 
   release:
     name: Release APK + checksum
@@ -129,24 +83,18 @@ jobs:
       # signing identity across CI and local installs. When a real release key
       # lands, wire KEYSTORE_PATH through app/build.gradle.kts so this step
       # stops being theatre.
-      - name: Fetch libghostty-vt
-        env:
-          GHOSTTY_VT_ABIS: arm64-v8a
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./tools/fetch-ghostty-vt.sh
-
-      - name: Fetch our own native half
+      - name: Unpack the native libraries into jniLibs
         uses: actions/download-artifact@v4
         with:
-          name: drosh-so
+          name: drosh-jni
           path: android/terminal/src/main/jniLibs/arm64-v8a
 
-      - name: Stage the native libraries into jniLibs
+      - name: Check the native libraries are there
         run: |
           set -euo pipefail
           dest=android/terminal/src/main/jniLibs/arm64-v8a
-          mkdir -p "$dest"
-          cp native/ghostty/lib/arm64-v8a/libghostty-vt.so "$dest/"
+          # libdrosh.so names the engine in DT_NEEDED; a missing one is a
+          # session that cannot start, and nothing in the UI would say why.
           test -f "$dest/libdrosh.so"
           test -f "$dest/libghostty-vt.so"
           ls -l "$dest"
@@ -161,7 +109,7 @@ jobs:
           else
             echo "Dispatch build without a tag — the commit-count versionName applies"
           fi
-          ./gradlew clean assembleRelease $ARGS --no-daemon --stacktrace --max-workers=2
+          ./gradlew clean assembleRelease $ARGS --no-daemon --stacktrace --parallel --max-workers=4
         env:
           KEYSTORE_PATH: app/keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
