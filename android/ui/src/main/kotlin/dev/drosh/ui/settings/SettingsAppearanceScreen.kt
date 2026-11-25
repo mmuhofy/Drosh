@@ -43,7 +43,6 @@ import dev.drosh.core.ShellLocaleCatalog
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.DroshSettings
-import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdDefaults
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
@@ -84,7 +83,7 @@ fun GeneralCategory(
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_appearance),
-            items = 5,
+            items = 4,
         ) { index, cap ->
             // The theme row leads: it is the one appearance setting that
             // rewrites the other twenty-two, and burying it below the theme
@@ -126,32 +125,10 @@ fun GeneralCategory(
                     )
                 }
 
-                2 -> SettingsTile(
-                    cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_font),
-                    icon = DroshIcons.Type,
-                    supporting = when (settings.appearance.fontPack) {
-                        FontPack.Geist -> stringResource(R.string.settings_font_geist_desc)
-                        FontPack.Inter -> stringResource(R.string.settings_font_inter_desc)
-                    },
-                ) {
-                    SettingsSegmented(
-                        options = listOf(
-                            FontPack.Geist to stringResource(R.string.settings_font_geist),
-                            FontPack.Inter to stringResource(R.string.settings_font_inter),
-                        ),
-                        selected = settings.appearance.fontPack,
-                        onSelect = { pack ->
-                            onUpdate { it.copy(appearance = it.appearance.copy(fontPack = pack)) }
-                        },
-                    )
-                }
-
                 // The terminal's face, which is a shelf rather than a list: a
                 // downloaded font is a file with a licence, and the store is
                 // where the user picks one.
-                4 -> SettingsTile(
+                2 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_font_store),
                     icon = DroshIcons.Type,

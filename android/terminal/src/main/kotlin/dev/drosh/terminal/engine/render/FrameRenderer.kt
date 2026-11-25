@@ -14,6 +14,7 @@ import dev.drosh.terminal.engine.protocol.Frame
 import dev.drosh.terminal.engine.protocol.FrameFormat
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.roundToInt
 
 /**
  * Draws a [Frame].
@@ -1620,12 +1621,17 @@ internal class FrameRenderer {
      * usually the ones the foreground pass is walking anyway.
      */
     private fun buildColorGlyphs(frame: Frame, contentDirty: Boolean) {
+        // The atlas's generation is part of the geometry: a full atlas starts
+        // over, and every emoji then sits at a different place in the texture.
+        // Rebuilt on a stale rect, the picture samples whatever moved into
+        // that part of the atlas — a different emoji, or nothing.
         val geometryChanged = !colorGlyphsBuilt ||
             frame.columns != colorGlyphColumns ||
             frame.rowCount != colorGlyphRows ||
             frame.firstRowY != colorGlyphFirstRowY ||
             cellWidth != colorGlyphCellWidth ||
-            cellHeight != colorGlyphCellHeight
+            cellHeight != colorGlyphCellHeight ||
+            colorAtlas.generation != colorGlyphGeneration
         if (!geometryChanged && !contentDirty) return
 
         colorGlyphsBuilt = true
@@ -1634,6 +1640,7 @@ internal class FrameRenderer {
         colorGlyphFirstRowY = frame.firstRowY
         colorGlyphCellWidth = cellWidth
         colorGlyphCellHeight = cellHeight
+        colorGlyphGeneration = colorAtlas.generation
 
         colorGlyphs.clear()
         for (row in 0 until frame.rowCount) {
@@ -1644,20 +1651,20 @@ internal class FrameRenderer {
                 val codepoint = frame.codepoint(index)
                 if (codepoint == 0 || !Emoji.isEmoji(codepoint)) continue
                 val span = if (frame.width(index) == 2) 2 else 1
-                val glyph = colorAtlas.glyph(codepoint, span, cellHeight) ?: continue
+                val glyph = colorAtlas.glyph(codepoint, span, cellWidth, cellHeight) ?: continue
                 if (glyph.isBlank) continue
 
-                // The slot is rasterised at span×1 with padding, and the quad
-                // is the largest square-per-cell box that fits the cells it
-                // covers — never the cells themselves.
+                // The quad is exactly the cells the emoji covers, and the slot
+                // in the atlas is exactly those cells too — so the mapping is
+                // 1:1 and nothing is stretched.
                 //
-                // Drawing the slot into `span × cellWidth` by `cellHeight` is
-                // what squashed every emoji horizontally: a cell is about 0.6
-                // of its height wide, so a two-cell box is 1.2 tall-boxes wide
-                // and the square ink was stretched to fill it. Fitting the
-                // box to the glyph, and centring it, keeps the emoji an emoji.
-                val boxWidth = span * cellWidth
-                val side = minOf(boxWidth, cellHeight).coerceAtLeast(1f)
+                // It used to be the largest *square* that fitted the cells,
+                // centred inside them. A two-cell emoji is 1.2 cells wide and
+                // one tall, so the square was a cell high: every emoji came out
+                // smaller than the text beside it, with a gap on each side, and
+                // two of them side by side looked pinched. Drawing the cells
+                // themselves makes the emoji the size of the line it is on, and
+                // keeps each one inside its own cells.
                 colorGlyphs.add(
                     ImageDraw(
                         texture = colorAtlasTexture,
@@ -1665,10 +1672,10 @@ internal class FrameRenderer {
                         z = 0,
                         col = 0,
                         row = 0,
-                        offsetX = (column * cellWidth + (boxWidth - side) / 2f).toInt(),
-                        offsetY = (gridRow * cellHeight + (cellHeight - side) / 2f).toInt(),
-                        width = side.toInt(),
-                        height = side.toInt(),
+                        offsetX = (column * cellWidth).toInt(),
+                        offsetY = (gridRow * cellHeight).toInt(),
+                        width = (span * cellWidth).roundToInt(),
+                        height = cellHeight.roundToInt(),
                         sourceU = glyph.x.toFloat() / colorAtlas.size.toFloat(),
                         sourceV = glyph.y.toFloat() / colorAtlas.size.toFloat(),
                         sourceU2 = (glyph.x + glyph.width).toFloat() / colorAtlas.size.toFloat(),
@@ -1686,6 +1693,7 @@ internal class FrameRenderer {
     private var colorGlyphFirstRowY = 0
     private var colorGlyphCellWidth = 0f
     private var colorGlyphCellHeight = 0f
+    private var colorGlyphGeneration = 0
 
     /** Hand the emoji to the GPU: the rows that changed, or all of them. */
     private fun uploadColorAtlas() {

@@ -73,7 +73,7 @@ internal class ColorAtlas(
 
     private var dirtyTopY: Int = Int.MAX_VALUE
 
-    /** The size the current glyphs were rasterised at, in texels. */
+    /** The cell the current glyphs were fitted to, in texels. */
     private var rasterPx: Float = 0f
 
     /** The factor the current glyphs were rasterised at. */
@@ -89,28 +89,35 @@ internal class ColorAtlas(
     /** The same packer the text atlas uses, for the same reason. */
     private val packer = Skyline(size, size)
 
-    /** Glyphs, keyed by codepoint and the size they were drawn at. */
-    private val cache = HashMap<Long, ColorGlyph?>(64)
+    /** Glyphs, keyed by the codepoint, the cells it covers and the cell size. */
+    private val cache = HashMap<Key, ColorGlyph?>(64)
+
+    private data class Key(val codepoint: Int, val span: Int, val width: Float, val height: Float)
 
     /** How much of the atlas is in use, for the diagnostic surface. */
     val usedPercent: Int
         get() = if (size <= 0) 0 else (packer.usedBottom * 100) / size
 
     /**
-     * The glyph for [codepoint] at [px], or null when the platform has none.
+     * The glyph for [codepoint] in the cells it covers, or null when the
+     * platform has none.
      *
-     * @param px the cell's height, which is the box an emoji is fitted into.
+     * @param span how many cells wide the emoji is — one, or two for the wide
+     *   ones.
+     * @param cellWidth the cell's width in pixels.
+     * @param cellHeight the cell's height in pixels: the line box the emoji has
+     *   to sit in, so that it is the size of the text beside it.
      */
-    fun glyph(codepoint: Int, span: Int, px: Float): ColorGlyph? {
-        beginSize(px)
-        if (rasterPx <= 0f) return null
+    fun glyph(codepoint: Int, span: Int, cellWidth: Float, cellHeight: Float): ColorGlyph? {
+        beginSize(cellHeight)
+        if (rasterPx <= 0f || cellWidth <= 0f) return null
         val s = span.coerceAtLeast(1)
 
-        val key = (codepoint.toLong() shl 20) or (s.toLong() shl 18) or rasterPx.toLong()
+        val key = Key(codepoint, s, cellWidth, cellHeight)
         cache[key]?.let { return it }
         if (cache.containsKey(key)) return null
 
-        val glyph = rasterise(codepoint, s)
+        val glyph = rasterise(codepoint, s, cellWidth)
         cache[key] = glyph
         return glyph
     }
@@ -172,16 +179,23 @@ internal class ColorAtlas(
         paint.textSize = rounded
     }
 
-    private fun rasterise(codepoint: Int, span: Int): ColorGlyph? {
+    private fun rasterise(codepoint: Int, span: Int, cellWidth: Float): ColorGlyph? {
         if (codepoint <= 0 || codepoint > Character.MAX_CODE_POINT) return null
         val text = String(Character.toChars(codepoint))
 
-        // The emoji occupies span cells wide and one cell high. The slot is
-        // rasterised at that aspect ratio (with padding) so the quad maps 1:1
-        // instead of stretching the ink. The padding keeps the glyph's edges
-        // from being clipped, which is what made emoji look "kesik kesik".
-        val widthPx = kotlin.math.ceil(rasterPx * span * GLYPH_PAD).toInt()
-        val heightPx = kotlin.math.ceil(rasterPx * GLYPH_PAD).toInt()
+        // The slot is the cells the emoji covers, exactly: span cells wide and
+        // one cell tall. The glyph is fitted *inside* that slot with its own
+        // aspect ratio kept, so the quad can be drawn 1:1 over the cells — the
+        // emoji is the height of the text beside it, it is never squashed
+        // sideways, and two emoji standing next to each other each stay inside
+        // their own cells instead of being stretched into one another.
+        //
+        // It used to be rasterised with a 1.4× pad into a square, which is why
+        // an emoji changed size with the font and never matched the line it sat
+        // on: the quad and the slot described different boxes.
+        val scale = rasterScale
+        val widthPx = kotlin.math.round(span * cellWidth * scale).toInt()
+        val heightPx = kotlin.math.round(rasterPx).toInt()
         if (widthPx <= 0 || heightPx <= 0 || widthPx > size || heightPx > size) return null
 
         var slot = reserve(widthPx, heightPx)
@@ -193,10 +207,28 @@ internal class ColorAtlas(
         val canvas = Canvas(bitmap)
         canvas.save()
         canvas.clipRect(slot.x, slot.y, slot.x + widthPx, slot.y + heightPx)
-        val metrics = paint.fontMetrics
-        // Centred in the box: a glyph drawn from the pen would hang below
-        // the box and be clipped.
-        val baseline = slot.y + heightPx / 2f - (metrics.ascent + metrics.descent) / 2f
+
+        // Measure the ink at a nominal size, then scale it so it fills the
+        // slot: the largest the glyph can be without touching its edges. The
+        // bounds are the ink, not the em box, so a font whose emoji sit high
+        // above the baseline still lands centred in its cell.
+        val bounds = android.graphics.Rect()
+        paint.textSize = NOMINAL_PX
+        paint.getTextBounds(text, 0, text.length, bounds)
+        val inkWidth = bounds.width().coerceAtLeast(1)
+        val inkHeight = bounds.height().coerceAtLeast(1)
+        val room = INK_ROOM
+        val fit = minOf(
+            (widthPx * room) / inkWidth.toFloat(),
+            (heightPx * room) / inkHeight.toFloat(),
+        )
+        paint.textSize = NOMINAL_PX * fit
+
+        // Centred on the ink's own bounds, so the slot is filled top and bottom
+        // whatever the font's baseline does.
+        val fitted = android.graphics.Rect()
+        paint.getTextBounds(text, 0, text.length, fitted)
+        val baseline = slot.y + heightPx / 2f - (fitted.top + fitted.bottom) / 2f
         canvas.drawText(text, slot.x + widthPx / 2f, baseline, paint)
         canvas.restore()
 
@@ -234,7 +266,15 @@ internal class ColorAtlas(
         /** Below this cell height an emoji is rasterised twice as large. */
         const val SUPERSAMPLE_BELOW_PX = 24f
 
-        /** Room around an emoji so its ink cannot be clipped by the slot. */
-        const val GLYPH_PAD = 1.4f
+        /**
+         * How much of its slot an emoji's ink is allowed to take.
+         *
+         * The whole slot, less a hair: an emoji drawn edge to edge touches the
+         * cell beside it, and the antialiased boundary then reads as a seam.
+         */
+        const val INK_ROOM = 0.98f
+
+        /** The size the ink is measured at before it is scaled to its slot. */
+        const val NOMINAL_PX = 128f
     }
 }

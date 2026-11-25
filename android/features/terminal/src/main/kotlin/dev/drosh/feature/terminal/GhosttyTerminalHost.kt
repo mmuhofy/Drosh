@@ -651,12 +651,18 @@ fun GhosttyTerminalHost(
             // The grips are placed from the engine's endpoints, not the box's
             // corners: a wrapped selection that starts mid-row has its top
             // endpoint there, while the box's left edge is column zero.
+            //
+            // The sub-row shift moves the grid *down*, so it is added: the
+            // grips that subtracted it slid up a row for every row of travel.
             val scrollOffset = pane.selectionScrollOffsetPx()
             val topLeft = pane.selectionTopLeftCell()?.let { (row, column) ->
-                Offset(column * cell.width, row * cell.height - scrollOffset)
+                Offset(column * cell.width, row * cell.height + scrollOffset)
             }
+            // The bottom grip hangs off the *end* of the selected cell: the
+            // cell's left edge would put the knob on the last column's first
+            // pixel, half a character short of the text it is holding.
             val bottomRight = pane.selectionBottomRightCell()?.let { (row, column) ->
-                Offset(column * cell.width, row * cell.height - scrollOffset)
+                Offset((column + 1) * cell.width, row * cell.height + scrollOffset)
             }
             TerminalSelectionOverlay(
                 bounds = selectionBounds!!,

@@ -1,6 +1,9 @@
 package dev.drosh.feature.terminal
 
 import android.graphics.Rect
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,10 +39,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.theme.DroshOutline
-import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.DroshWarning
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 import kotlin.math.roundToInt
@@ -129,6 +132,27 @@ fun TerminalSelectionOverlay(
         val menuX = (selectionCenterX - menuWidth / 2f)
             .coerceIn(edge, (paneWidth - menuWidth - edge).coerceAtLeast(edge))
 
+        // The menu rides the selection on the same spring as the grips. It
+        // follows a scroll and a growing selection, so it has to move for the
+        // same reason they do: a menu that stayed behind its cells was the other
+        // half of "the selection moves while the output scrolls".
+        val animatedMenuX by animateFloatAsState(
+            targetValue = menuX,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+            label = "selectionMenuX",
+        )
+        val animatedMenuY by animateFloatAsState(
+            targetValue = menuY,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+            label = "selectionMenuY",
+        )
+
         // The grips, at the selection's own endpoints. A grip whose endpoint
         // has scrolled off the screen is not drawn: it would sit on a row that
         // has nothing to do with the selection.
@@ -140,7 +164,7 @@ fun TerminalSelectionOverlay(
                 cellPx = cellH,
                 stemDown = true,
                 paneOrigin = paneOrigin,
-                accent = DroshPrimary,
+                accent = DroshWarning,
                 terminalBackground = terminalBackground,
                 onDrag = { x, y -> onExtend(x, y, true) },
                 onDragEnd = onExtendEnd,
@@ -154,7 +178,7 @@ fun TerminalSelectionOverlay(
                 cellPx = cellH,
                 stemDown = false,
                 paneOrigin = paneOrigin,
-                accent = DroshPrimary,
+                accent = DroshWarning,
                 terminalBackground = terminalBackground,
                 onDrag = { x, y -> onExtend(x, y, false) },
                 onDragEnd = onExtendEnd,
@@ -166,7 +190,7 @@ fun TerminalSelectionOverlay(
         // line of output underneath.
         Row(
             modifier = Modifier
-                .offset { IntOffset(menuX.roundToInt(), menuY.roundToInt()) }
+                .offset { IntOffset(animatedMenuX.roundToInt(), animatedMenuY.roundToInt()) }
                 .clip(MenuShape)
                 .background(DroshSurfaceHigh.copy(alpha = 0.96f))
                 .border(1.dp, DroshOutline, MenuShape)
@@ -285,16 +309,10 @@ private fun SelectionGrip(
     val currentCenter by rememberUpdatedState(Offset(centerX, centerY))
     val currentPaneOrigin by rememberUpdatedState(paneOrigin)
 
-    // Contrast against the terminal's ground, so the grip keeps an edge on
-    // both a light and a dark theme. The accent is Drosh's blue; the ring is
-    // the only thing that has to flip.
-    val darkBackground = terminalBackground.luminance() < 0.5f
-    val ring = if (darkBackground) Color.White.copy(alpha = 0.85f) else Color(0xFF101820)
     // Thin enough to sit between two characters without covering either, wide
     // enough to survive being sampled on a phone's screen.
-    val stemWidth = sizePx * 0.10f
-    val knobRadius = sizePx * 0.28f
-    val ringWidth = (sizePx * 0.05f).coerceAtLeast(1f)
+    val stemWidth = sizePx * 0.14f
+    val knobRadius = sizePx * 0.30f
     // One row long, but never longer than the touch box can show: a large font
     // would otherwise draw a stem that is clipped by the box's own edge.
     val stemLength = if (cellPx > 0f) {
@@ -303,13 +321,34 @@ private fun SelectionGrip(
         sizePx
     }
 
+    // The grip follows the selection, it does not teleport to it: a drag moves
+    // the endpoint a row at a time and a scroll moves both grips at once, and a
+    // knob that jumped between frames reads as a flicker rather than as a
+    // handle. The spring is stiff enough to feel attached to the finger and
+    // has no overshoot, so it never lags behind a drag.
+    val animatedX by animateFloatAsState(
+        targetValue = centerX,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "selectionGripX",
+    )
+    val animatedY by animateFloatAsState(
+        targetValue = centerY,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "selectionGripY",
+    )
+
     Box(
         modifier = Modifier
             .offset {
-                val center = currentCenter
                 IntOffset(
-                    (center.x - touchPx / 2f).roundToInt(),
-                    (center.y - touchPx / 2f).roundToInt(),
+                    (animatedX - touchPx / 2f).roundToInt(),
+                    (animatedY - touchPx / 2f).roundToInt(),
                 )
             }
             .size(44.dp)
@@ -328,27 +367,32 @@ private fun SelectionGrip(
             },
     ) {
         Canvas(Modifier.matchParentSize()) {
-            val centerX = size.width / 2f
-            val centerY = size.height / 2f
+            val gripX = size.width / 2f
+            val gripY = size.height / 2f
 
             // The selection's edge for this grip: the top of the first row for
             // the top grip, the bottom of the last row for the bottom one.
-            val edgeY = if (stemDown) centerY - stemLength / 2f else centerY + stemLength / 2f
+            val edgeY = if (stemDown) gripY - stemLength / 2f else gripY + stemLength / 2f
             val stemTop = if (stemDown) edgeY else edgeY - stemLength
 
-            // The stem first, so the knob's ring covers its end.
+            // The stem first, so the knob covers its end. It is the same colour
+            // as the knob at a lower alpha: one object, brighter where it is
+            // held.
             drawRoundRect(
-                color = accent,
-                topLeft = Offset(centerX - stemWidth / 2f, stemTop),
+                color = accent.copy(alpha = 0.65f),
+                topLeft = Offset(gripX - stemWidth / 2f, stemTop),
                 size = Size(stemWidth, stemLength),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(stemWidth / 2f),
             )
 
             // The knob sits outside the selection, with its inner edge on the
-            // line the stem ends at.
+            // line the stem ends at. A soft halo instead of a ring: a border on
+            // a 6px dot is a hard edge, and on a dark terminal it read as a
+            // little white circle with a blue centre rather than as a handle.
             val knobY = if (stemDown) edgeY - knobRadius else edgeY + knobRadius
-            val knobCenter = Offset(centerX, knobY)
-            drawCircle(color = ring, radius = knobRadius + ringWidth, center = knobCenter)
+            val knobCenter = Offset(gripX, knobY)
+            val halo = if (terminalBackground.luminance() < 0.5f) Color.Black else Color.White
+            drawCircle(color = halo.copy(alpha = 0.35f), radius = knobRadius * 1.45f, center = knobCenter)
             drawCircle(color = accent, radius = knobRadius, center = knobCenter)
         }
     }

@@ -178,7 +178,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // The picture's shift is measured in the old cell's pixels, and
                 // the cell is what changed: it starts again from a row.
                 scrollMachine.reset()
-                renderThread.post(RenderThread.Command.ScrollOffset(0f))
+                postScrollOffset(0f)
             }
             val pty = ptyHandle
             if (pty != 0L) {
@@ -432,9 +432,19 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (selectionSnapshot != null) refreshSelectionFromEngine(chromeSelection)
     }
 
-    /** The sub-line scroll remainder, in pixels — drawing only. */
+    /**
+     * The sub-line scroll remainder, in pixels — drawing only.
+     *
+     * The chrome rides with it: the selection's box and its two endpoints are
+     * in the pane's pixels, and the grid they describe has just moved by
+     * [pixels]. Republished here, so the menu and the grips stay on the cells
+     * they belong to while the output scrolls under them instead of sliding off
+     * by a row for every row of travel.
+     */
     private fun postScrollOffset(pixels: Float) {
         renderThread.post(RenderThread.Command.ScrollOffset(pixels))
+        val snapshot = selectionSnapshot ?: return
+        _selectionBounds.value = snapshot.bounds(cellWidth, cellHeight, pixels)
     }
 
     // --- keyboard ----------------------------------------------------------
@@ -861,10 +871,17 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             gesturePointers = 1
             pinchSeen = false
             pinchLocked = false
-            // A new gesture starts from a row boundary: the picture is where
-            // the last gesture left it, and that is a fraction of a row the
-            // finger is about to move anyway.
-            scrollMachine.reset()
+            // The picture stays where the last gesture left it.
+            //
+            // Clearing the sub-row shift here was a spring: the picture sat a
+            // fraction of a row below the engine's window, the next finger put
+            // it back on the boundary, and the output jumped up by as much as
+            // a whole row the instant a drag began — every time, at the ends of
+            // the history most of all, because that is where a drag starts
+            // again and again. The position the machine holds is the position
+            // the picture is drawn at, so leaving it alone is what makes a
+            // gesture continue the last one instead of undoing it.
+            //
             // The flick of the last gesture is over: this one gets its own.
             flingStarted = false
         }
@@ -917,10 +934,17 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             (event.actionMasked == MotionEvent.ACTION_UP ||
                 event.actionMasked == MotionEvent.ACTION_CANCEL)
         ) {
-            // The old Drosh view did not snap here, and it was right: the
-            // picture is where the finger left it, and rounding to a row at
-            // the lift is a visible jump at the end of every drag.
-            finishScroll()
+            // The finger is gone, so the sub-row remainder is no longer anyone's
+            // promise: it is settled onto the row the picture is nearest, which
+            // is at most half a row and is the difference between a line of
+            // output cut in half at the bottom of the screen and a whole one.
+            //
+            // This is safe to do *here* because the shift is no longer cleared
+            // at the next touch: a settle that moved the picture would
+            // otherwise be undone by the next drag's own reset, and the pair of
+            // them is the bounce the user saw.
+            settleScroll()
+            lastScrollPinned = false
         }
         return true
     }
@@ -1028,7 +1052,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      */
     fun resetScrollOffset() {
         scrollMachine.reset()
-        renderThread.post(RenderThread.Command.ScrollOffset(0f))
+        postScrollOffset(0f)
         renderThread.invalidate()
     }
 
@@ -1076,18 +1100,13 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             maxRow = maxRow,
         )
 
-        // At the live edge the picture is clamped by the machine already:
-        // forcing SCROLL_BOTTOM and resetting the machine here is what made
-        // the picture spring back ("yay gibi firlama"). Keep the machine in
-        // sync with the engine instead, so the picture stays where the finger
-        // left it.
-        if (target.pinned && distancePx < 0f) {
-            scrollMachine.snapToEngine()
-            renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
-            renderThread.invalidate()
-            lastScrollPinned = true
-            return
-        }
+        // At an edge the machine's own clamp already put the picture exactly
+        // on the edge row, with no remainder to carry: the first line flush at
+        // the top, the newest flush at the bottom. So a drag that runs past the
+        // end needs no special path here — the delta comes back zero, the
+        // picture does not move, and the finger's extra travel is dropped. The
+        // branch that used to stand here forced the machine back to the engine
+        // and that reset is what made the picture spring back from the edge.
 
         // The engine moves by a delta, never to an absolute row: a delta
         // cannot be refused half-way, and the engine's answer is the truth
@@ -1097,21 +1116,27 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             // The engine may have refused the move — it clamps at the ends of
             // its scrollable area. The picture goes where the engine is, so
             // the two keep describing the same thing.
+            //
+            // Compared for *equality*, in both directions: the old test only
+            // caught a refusal on the way into the history, so a drag past the
+            // live edge kept a sub-row shift the engine had not moved for — the
+            // grid drew half a row below the newest line and stayed there.
             val after = NativeSession.scrollbar(session)
-            if (after != null && after.offset < bar.offset + target.delta) {
+            if (after != null && after.offset != bar.offset + target.delta) {
                 scrollMachine.snapToEngine()
             }
         }
 
         // The picture's shift goes to the render thread, which draws the grid
         // moved down by it — the row above the viewport filling the gap.
-        renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
+        postScrollOffset(scrollMachine.shift())
         syncSelectionAfterViewportChange()
         // A sub-row shift moves *every* row by the same fraction, and the
-        // engine reports no cell as changed for it: its grid did not move.
-        // Asking for a partial redraw here is what made a drag move the
-        // picture in strips — the rows it did not name stayed where they were.
-        if (target.delta == 0) renderThread.invalidateFull() else renderThread.invalidate()
+        // engine reports no cell as changed for it: its grid did not move. So
+        // every step of a scroll is a full frame — the shift is a projection
+        // change, not a row change, and a partial redraw leaves the rows it did
+        // not name drawn at the old offset: the picture moves in strips.
+        renderThread.invalidateFull()
         lastScrollPinned = target.pinned
     }
 
@@ -1122,13 +1147,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * lifts — or the coast ends — the picture is left a fraction of a row off,
      * and the last line of the output is cut in half. This is the moment to
      * settle: the picture goes onto the row it is nearest.
+     *
+     * At most half a row, and none at all at the ends of the history — the
+     * edges are whole rows, which is why a drag that ran into one moved
+     * nothing and this then moves nothing back.
      */
-    /** End a gesture without moving the picture: publish the shift as it is. */
-    private fun finishScroll() {
-        renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
-        renderThread.invalidate()
-    }
-
     private fun settleScroll() {
         val session = sessionHandle
         if (session == 0L) return
@@ -1145,9 +1168,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 scrollMachine.snapToEngine()
             }
         }
-        renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
+        postScrollOffset(scrollMachine.shift())
         syncSelectionAfterViewportChange()
-        renderThread.invalidate()
+        renderThread.invalidateFull()
     }
 
     /** Momentum after a flick, through the same pixel path as a drag. */
@@ -1180,10 +1203,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         val step = object : Runnable {
             override fun run() {
                 if (scroller.isFinished) {
-                    // No snap: the coast ends where the friction says it ends.
-                    // The engine keeps the sub-line remainder, so the picture
-                    // does not jump a row at the end of a flick.
-                    finishScroll()
+                    // The coast ends where the friction says it ends, and the
+                    // picture is put on the row it is nearest — the same
+                    // settle a drag gets when the finger lifts, so a flick and
+                    // a drag end the same way.
+                    settleScroll()
                     return
                 }
                 scroller.computeScrollOffset()
@@ -1191,9 +1215,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 dragByPixels((y - lastY).toFloat())
                 lastY = y
                 // The coast ends at the edge: the engine refuses the move and
-                // the picture cannot be pulled further.
+                // the picture cannot be pulled further. 
                 if (lastScrollPinned) {
-                    finishScroll()
+                    settleScroll()
                     return
                 }
                 postOnAnimation(this)
@@ -1346,7 +1370,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (session != 0L && !atLiveEdge()) {
             NativeSession.scroll(session, NativeSession.SCROLL_BOTTOM, 0)
             scrollMachine.reset()
-            renderThread.post(RenderThread.Command.ScrollOffset(0f))
+            postScrollOffset(0f)
             syncSelectionAfterViewportChange()
         }
 
@@ -1645,7 +1669,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (after.offset == before.offset) return false
 
         scrollMachine.reset()
-        renderThread.post(RenderThread.Command.ScrollOffset(0f))
+        postScrollOffset(0f)
         renderThread.invalidate()
         return true
     }

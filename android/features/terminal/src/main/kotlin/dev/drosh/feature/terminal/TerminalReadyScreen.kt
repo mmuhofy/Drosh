@@ -1302,12 +1302,13 @@ internal fun ReadyScreen(
             )
         }
 
-        // Find bar — fixed, just under the chrome row.
+        // Find bar — docked to the bottom edge.
         //
-        // Top-centre and below the pill row rather than anywhere else, because
-        // it is a control over the terminal and a control that can be left
-        // adrift is one the user has to look for. The chrome row is 44dp tall
-        // under a status bar, so 64dp clears it in both chrome states.
+        // It sat under the chrome row at the top, which put it as far as
+        // possible from the keyboard it raises and over the first lines of the
+        // output — the lines a find result is least likely to be on. Docked at
+        // the bottom it is where the thumb already is, it clears the grid it is
+        // searching, and it cannot be left adrift somewhere else on screen.
         if (searchActive) {
             BackHandler {
                 hideKeyboard()
@@ -1346,7 +1347,7 @@ internal fun ReadyScreen(
                 // even when the screen has moved to it.
                 kind = findState?.kind,
                 matchText = findState?.activeText,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
+                modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
 

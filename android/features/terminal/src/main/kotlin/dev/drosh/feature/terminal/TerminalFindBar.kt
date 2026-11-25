@@ -56,7 +56,12 @@ import dev.drosh.feature.terminal.R
  * `pointerInput` that claimed every drag on the row: the field could not be
  * scrolled with a finger on it, the arrows could not be reached without
  * lifting, and the bar could be left somewhere off the terminal entirely.
- * A find bar sits at the top of what it is searching, full stop.
+ *
+ * It is docked to the bottom edge, not floating over the output. The thumb is
+ * there, the keyboard is there, and the row is the one part of the screen a
+ * find bar can occupy without covering the line it just found. Dockings means
+ * it is attached to the edge rather than a capsule hovering above it: the
+ * corners are rounded at the top only, and it takes the full width.
  *
  * Every target is [TOUCH_TARGET] tall even when the row is not: the icons are
  * drawn small and the touch area around them is not, because a finger does
@@ -108,7 +113,6 @@ fun TerminalFindBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
             .clip(FIND_BAR_SHAPE)
             .background(DroshSurfaceVariant)
             .border(1.dp, DroshBorderSubtle.copy(alpha = 0.3f), FIND_BAR_SHAPE),
@@ -268,9 +272,17 @@ private fun FindIconButton(
 }
 
 /**
- * The find bar's shape: a capsule, matching the pills it sits under.
+ * The find bar's shape: a panel attached to the bottom edge.
+ *
+ * Square where it meets the edge, rounded where it meets the terminal — the
+ * shape says which side of the screen it belongs to.
  */
-private val FIND_BAR_SHAPE = RoundedCornerShape(20.dp)
+private val FIND_BAR_SHAPE = RoundedCornerShape(
+    topStart = 18.dp,
+    topEnd = 18.dp,
+    bottomStart = 0.dp,
+    bottomEnd = 0.dp,
+)
 
 /**
  * The touch target of every control on the row, and the row's own height.

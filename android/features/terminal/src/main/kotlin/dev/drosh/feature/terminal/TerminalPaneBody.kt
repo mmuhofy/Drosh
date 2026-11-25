@@ -61,8 +61,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Color
@@ -297,6 +302,16 @@ internal fun TerminalPaneBody(
                 // honest colour there: it is the colour the grid is drawn on,
                 // and the chrome floats over the grid.
                 .background(Color(terminalBackgroundColor))
+                // The content inset the user asked for: the grid does not
+                // touch the edge of the pane, and neither does its selection
+                // chrome. Applied here rather than inside the host, because the
+                // pane's background has to stay full-bleed — the inset is empty
+                // space, not a smaller surface.
+                .padding(
+                    start = contentPaddingDp.dp,
+                    end = contentPaddingDp.dp,
+                    bottom = contentPaddingDp.dp,
+                )
                 // The grid's top padding, and it moves with the chrome — but the two
                 // states are not symmetric. Collapsed, the status bar is gone and
                 // the grid picks up right where the pills end. Expanded, only the
@@ -410,6 +425,34 @@ internal fun TerminalPaneBody(
                         .fillMaxSize()
                         .background(DroshBackground.copy(alpha = transitionAlpha.value)),
                 )
+            }
+
+            // The content's rounded corners.
+            //
+            // The terminal is a SurfaceView, and a SurfaceView is a window of
+            // its own: a Compose `clip` on it has nothing to clip, because the
+            // pixels never pass through the Compose layer. So the corners are
+            // painted over instead — four arcs of the pane's own ground, which
+            // is what the corner of a rounded card shows anyway.
+            if (cornerRadiusDp > 0) {
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    val radius = cornerRadiusDp.dp.toPx()
+                        .coerceAtMost(minOf(size.width, size.height) / 2f)
+                    if (radius <= 0f) return@Canvas
+                    val rounded = RoundRect(
+                        rect = Rect(0f, 0f, size.width, size.height),
+                        topLeft = CornerRadius(radius),
+                        topRight = CornerRadius(radius),
+                        bottomRight = CornerRadius(radius),
+                        bottomLeft = CornerRadius(radius),
+                    )
+                    val path = Path().apply {
+                        fillType = PathFillType.EvenOdd
+                        addRect(Rect(0f, 0f, size.width, size.height))
+                        addRoundRect(rounded)
+                    }
+                    drawPath(path, Color(terminalBackgroundColor))
+                }
             }
         }
         // No extra-key bar here.

@@ -58,11 +58,13 @@ class SelectionSnapshotTest {
 
     @Test
     fun `the picture's sub-row shift moves the box with it`() {
+        // The shift draws the grid lower, so the box goes lower with it. Row 1
+        // at a 20px cell starts at 20; the 5px shift puts it at 25.
         val selection = snapshot(1, 0, 1, 1)!!
         val box = selection.box(cellWidth = 10f, cellHeight = 20f, scrollOffsetPx = 5f)!!
 
-        assertEquals(15, box.top)
-        assertEquals(35, box.bottom)
+        assertEquals(25, box.top)
+        assertEquals(45, box.bottom)
     }
 
     @Test

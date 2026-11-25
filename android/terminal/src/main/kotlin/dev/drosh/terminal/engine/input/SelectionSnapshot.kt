@@ -112,15 +112,20 @@ internal class SelectionSnapshot(
      * The box's rectangle in the view's own pixels.
      *
      * The picture can hang a fraction of a row above the engine's window while
-     * a finger is down, and [scrollOffsetPx] is that shift. Without it the box
-     * — and the menu attached to it — would sit a fraction of a row below the
-     * cells it describes.
+     * a finger is down, and [scrollOffsetPx] is that shift. It moves the grid
+     * *down* by that much, so the box moves down with it: the shift is added,
+     * not subtracted.
+     *
+     * Subtracted — which is what this did — the box walked the wrong way the
+     * moment a drag began, one row per row of travel: the menu and the two
+     * grips slid off the cells they belong to as soon as the output was
+     * scrolled, and came back when it stopped.
      */
     fun box(cellWidth: Float, cellHeight: Float, scrollOffsetPx: Float): SelectionBox? {
         if (!hasVisibleCells) return null
         val width = cellWidth.coerceAtLeast(1f)
         val height = cellHeight.coerceAtLeast(1f)
-        val top = firstRow * height - scrollOffsetPx
+        val top = firstRow * height + scrollOffsetPx
         return SelectionBox(
             left = (firstColumn * width).toInt(),
             top = top.toInt(),
