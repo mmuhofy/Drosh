@@ -296,9 +296,6 @@ private fun AutoLockTimeout.tomlName(): String = name.lowercase()
 private fun PanePresentation.tomlName(): String = name.lowercase()
 private fun TerminalMode.tomlName(): String = name.lowercase()
 
-private fun TerminalMode.Companion.fromToml(value: String?): TerminalMode =
-    TerminalMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: TerminalMode.Stream
-
 private fun panePresentationFrom(value: String?): PanePresentation =
     PanePresentation.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: PanePresentation.DOCKED
 

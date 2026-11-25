@@ -28,17 +28,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # The library is a pure function of the Rust sources, the engine version
+      # and the NDK. Keyed on those, an APK build that did not touch `native/`
+      # skips the toolchain, the NDK download and the compile entirely — the
+      # .so comes back from the cache in seconds, and it is the same bytes the
+      # Native workflow produced for the same key.
+      - name: Restore the built library
+        id: so-cache
+        uses: actions/cache@v4
+        with:
+          path: native/target/aarch64-linux-android/release/libdrosh.so
+          key: drosh-so-arm64-v8a-${{ env.NDK_VERSION }}-${{ hashFiles('native/**', 'tools/fetch-ghostty-vt.sh') }}
+
       - name: Set up Rust
+        if: steps.so-cache.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
 
       - name: Cache cargo
+        if: steps.so-cache.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
 
       - name: Install libclang
+        if: steps.so-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           # bindgen parses the engine's headers with libclang.
@@ -65,6 +80,7 @@ jobs:
           fi
 
       - name: Install pinned NDK
+        if: steps.so-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
@@ -75,11 +91,13 @@ jobs:
       # authenticates the API call; the bytes are checked against SHA256SUMS
       # regardless of how they travel.
       - name: Fetch and verify libghostty-vt
+        if: steps.so-cache.outputs.cache-hit != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./tools/fetch-ghostty-vt.sh
 
       - name: Build libdrosh.so
+        if: steps.so-cache.outputs.cache-hit != 'true'
         working-directory: native
         env:
           DROSH_ABI: arm64-v8a
@@ -183,7 +201,10 @@ jobs:
 
       - name: Assemble debug
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace --max-workers=2
+        # --parallel and the full worker count: the runner has four cores, and
+        # Kotlin compilation of the feature modules is the long pole. Capping
+        # the workers at two was leaving two of them idle.
+        run: ./gradlew assembleDebug --no-daemon --stacktrace --parallel --max-workers=4
 
       # The selection model and the clipboard normalizer are pure Kotlin, so
       # their tests need no device and no emulator. They are named explicitly:
@@ -195,7 +216,7 @@ jobs:
           ./gradlew :terminal:testDebugUnitTest \
             --tests 'dev.drosh.terminal.engine.input.SelectionSnapshotTest' \
             --tests 'dev.drosh.terminal.engine.input.SelectionTextTest' \
-            --no-daemon --stacktrace --max-workers=2
+            --no-daemon --stacktrace --parallel --max-workers=4
 
       # The identity hash in the migration is a hand-copied constant, and a stale
       # one is invisible here: the build passes and the app crashes on first

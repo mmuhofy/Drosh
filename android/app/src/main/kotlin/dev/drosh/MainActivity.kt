@@ -100,7 +100,6 @@ import dev.drosh.ui.theme.DroshAppTheme
 import dev.drosh.feature.agent.ui.AgentChatScreen
 import dev.drosh.feature.agent.ui.AgentHomeScreen
 import dev.drosh.ui.settings.AboutCategory
-import dev.drosh.ui.settings.AppearanceCategory
 import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.ui.settings.KeyboardCategory
 import dev.drosh.ui.settings.SecurityCategory
