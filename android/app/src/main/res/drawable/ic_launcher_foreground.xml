@@ -4,9 +4,30 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Eyes (> and _) are holes (evenOdd) so the themed monochrome icon keeps them -->
-    <path
-        android:fillColor="#5795F0"
-        android:fillType="evenOdd"
-        android:pathData="M36,30h6v6h-6zM30,24h6v6h-6zM66,30h6v6h-6zM72,24h6v6h-6zM30,36h48v48h-48zM39,45h6v6h-6zM45,51h6v6h-6zM39,57h6v6h-6zM57,57h6v6h-6zM63,57h6v6h-6z" />
+    <group
+        android:pivotX="256"
+        android:pivotY="256"
+        android:scaleX="0.17"
+        android:scaleY="0.17"
+        android:translateX="-202"
+        android:translateY="-202">
+        <path
+            android:fillColor="#FFB000"
+            android:fillType="evenOdd"
+            android:pathData="M128 372V272A128 128 0 0 1 384 272V372ZM197.657 214.343L221.657 238.343A8 8 0 0 1 221.657 249.657L197.657 273.657A8 8 0 0 1 186.343 262.343L204.686 244L186.343 225.657A8 8 0 0 1 197.657 214.343ZM296 260H320A8 8 0 0 1 320 276H296A8 8 0 0 1 296 260ZM300.74 171.51A110 110 0 0 1 344.99 207.34A6 6 0 0 1 335.28 214.4A98 98 0 0 0 295.86 182.47A6 6 0 0 1 300.74 171.51ZM347.73 236.43a6 6 0 1 0 12 0a6 6 0 1 0 -12 0Z" />
+        <path
+            android:fillColor="#FFB000"
+            android:fillType="evenOdd"
+            android:pathData="M128 384H384V400A32 32 0 0 1 352 432H160A32 32 0 0 1 128 400ZM161 408a7 7 0 1 0 14 0a7 7 0 1 0 -14 0ZM185 408a7 7 0 1 0 14 0a7 7 0 1 0 -14 0ZM209 408a7 7 0 1 0 14 0a7 7 0 1 0 -14 0ZM301 402H345A6 6 0 0 1 345 414H301A6 6 0 0 1 301 402Z" />
+        <path
+            android:strokeColor="#FFB000"
+            android:strokeWidth="24"
+            android:strokeLineCap="round"
+            android:pathData="M180 140.4L152 91.9" />
+        <path
+            android:strokeColor="#FFB000"
+            android:strokeWidth="24"
+            android:strokeLineCap="round"
+            android:pathData="M332 140.4L360 91.9" />
+    </group>
 </vector>
