@@ -503,69 +503,6 @@ class TerminalSessionCoordinator(
         NativeSession.setScrollback(handle, engineScrollbackLines)
     }
 
-    /**
-     * The theme's twenty-two colours, as the engine's 256-entry palette.
-     *
-     * The first sixteen are the theme's own ANSI slots; the rest are the
-     * standard colour cube and the grey ramp, which is what every terminal
-     * with a sixteen-colour theme fills them with. A program asking for
-     * colour 208 gets a colour rather than whatever the library happened to
-     * have.
-     */
-    private fun buildEnginePalette(palette: dev.drosh.domain.settings.ThemePalette): IntArray {
-        val out = IntArray(256)
-        fun put(index: Int, hex: String) {
-            out[index] = parseHexColor(hex) ?: 0
-        }
-        put(0, palette.black)
-        put(1, palette.red)
-        put(2, palette.green)
-        put(3, palette.yellow)
-        put(4, palette.blue)
-        put(5, palette.magenta)
-        put(6, palette.cyan)
-        put(7, palette.white)
-        put(8, palette.brightBlack)
-        put(9, palette.brightRed)
-        put(10, palette.brightGreen)
-        put(11, palette.brightYellow)
-        put(12, palette.brightBlue)
-        put(13, palette.brightMagenta)
-        put(14, palette.brightCyan)
-        put(15, palette.brightWhite)
-
-        // Bold-brightening, switched off by making it a no-op.
-        //
-        // The engine resolves a bold cell to the bright half of the palette
-        // itself, so there is no flag to clear further down: the way to say
-        // "bold is not brighter" is to give the bright slots the same colours
-        // as the normal ones. The switch then means what it says — bold is
-        // weight, not light — without a renderer path that would have to
-        // un-brighten every bold cell it draws.
-        if (!boldBrightens) {
-            for (index in 0 until 8) {
-                out[index + 8] = out[index]
-            }
-        }
-
-        // The 6x6x6 colour cube: levels 0, 95, 135, 175, 215, 255.
-        val levels = intArrayOf(0, 95, 135, 175, 215, 255)
-        var index = 16
-        for (r in 0 until 6) {
-            for (g in 0 until 6) {
-                for (b in 0 until 6) {
-                    out[index] = (levels[r] shl 16) or (levels[g] shl 8) or levels[b]
-                    index += 1
-                }
-            }
-        }
-        // The grey ramp: 8, 18, 28, ... 238.
-        for (step in 0 until 24) {
-            val value = 8 + step * 10
-            out[232 + step] = (value shl 16) or (value shl 8) or value
-        }
-        return out
-    }
 
     /** Re-applies every pane's background: the image, or the theme colour. */
     private fun applyTerminalBackgrounds() {
@@ -1081,7 +1018,7 @@ class TerminalSessionCoordinator(
                 }
                 engineForeground = parseHexColor(palette.foreground) ?: engineForeground
                 engineBackground = bg ?: engineBackground
-                enginePalette = buildEnginePalette(palette)
+                enginePalette = buildEnginePalette(palette, boldBrightens)
                 applyEngineColors()
             }
             ?.launchIn(managerScope)
@@ -2800,10 +2737,3 @@ fun chromeCollapsed(
 ): Boolean = tuiActive || !hasScrolled || !atLiveEdge
 
 
-/** "#RRGGBB" as a colour, or null when it is not one. */
-private fun parseHexColor(hex: String): Int? {
-    val body = hex.removePrefix("#")
-    if (body.length != 6) return null
-    val value = body.toIntOrNull(16) ?: return null
-    return 0xFF000000.toInt() or value
-}
