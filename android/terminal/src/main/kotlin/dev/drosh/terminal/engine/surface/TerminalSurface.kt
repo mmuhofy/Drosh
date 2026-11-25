@@ -531,6 +531,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                // A pinch is two fingers, and this detector is fed every
+                // event. Engagement is still refused outside two: a third
+                // finger landing mid-gesture makes the span jump, and a jump
+                // is a zoom nobody asked for.
+                if (gesturePointers != 2) return false
                 pinchMachine.begin(textSizeSp)
                 return true
             }
@@ -548,15 +553,29 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             }
 
             override fun onScaleEnd(detector: ScaleGestureDetector) {
+                val zoomed = pinchMachine.isZooming
                 val settled = pinchMachine.end()
                 if (settled != null) {
                     zoomCommitListener(pinchMachine.quantise(settled, TerminalZoom.STEP_SP))
                 }
                 zoomSizeSp = 0f
-                zoomEndListener()
+                // The chrome only follows a real zoom. A two-finger press whose
+                // span never crossed the dead zone is not one, and flashing the
+                // size chip for it is the bug that made every two-finger touch
+                // look like a zoom.
+                if (zoomed) zoomEndListener()
+                // The fingers that remain after the second one lifts belong to
+                // a gesture that was a zoom: they must not start scrolling.
+                pinchLocked = true
             }
         },
-    )
+    ).apply {
+        // Android's "quick scale" is a double tap followed by a drag, and it
+        // reports itself through this same detector — so a double tap on a
+        // terminal would drag the font size around. A terminal needs the double
+        // tap for a word selection, and the zoom for two fingers only.
+        isQuickScaleEnabled = false
+    }
 
     // The gesture detector's own double-tap detection is switched off: with it
     // on, the second tap of a pair is routed to the double-tap callback and
@@ -744,6 +763,16 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     /** Whether the scale detector claimed any of this gesture. A pinch is not a tap. */
     private var pinchSeen: Boolean = false
+
+    /**
+     * True from the end of a zoom until every finger is up.
+     *
+     * A pinch ends when a finger lifts, not when the last one does: the events
+     * after that are a single finger still on the glass, and they are the tail
+     * of a gesture that has already been decided — one that must not become a
+     * scroll or a selection because it is now alone.
+     */
+    private var pinchLocked: Boolean = false
     private var lastTapAt: Long = 0L
     private var lastTapX: Float = 0f
     private var lastTapY: Float = 0f
@@ -831,6 +860,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             gesturePointers = 1
             pinchSeen = false
+            pinchLocked = false
             // A new gesture starts from a row boundary: the picture is where
             // the last gesture left it, and that is a fraction of a row the
             // finger is about to move anyway.
@@ -849,7 +879,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         }
         scaleDetector.onTouchEvent(event)
         if (scaleDetector.isInProgress) pinchSeen = true
-        if (!scaleDetector.isInProgress) {
+        // One finger only, and none of a gesture that was a zoom. Two fingers
+        // are the pinching pair; feeding them to the tap detector as well is
+        // how a pinch used to end in a selection.
+        if (!scaleDetector.isInProgress && event.pointerCount == 1 && !pinchLocked) {
             gestureDetector.onTouchEvent(event)
         }
 
@@ -1074,7 +1107,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // moved down by it — the row above the viewport filling the gap.
         renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
         syncSelectionAfterViewportChange()
-        renderThread.invalidate()
+        // A sub-row shift moves *every* row by the same fraction, and the
+        // engine reports no cell as changed for it: its grid did not move.
+        // Asking for a partial redraw here is what made a drag move the
+        // picture in strips — the rows it did not name stayed where they were.
+        if (target.delta == 0) renderThread.invalidateFull() else renderThread.invalidate()
         lastScrollPinned = target.pinned
     }
 

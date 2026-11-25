@@ -239,8 +239,17 @@ internal object Shaders {
 
             vec2 size = vec2(drawn.x * squeeze, drawn.y);
 
+            // A wide glyph (CJK, a Nerd Font icon) is one glyph in two cells,
+            // and its mask is narrower than the two cells it covers: the font
+            // gives it one advance, not two. Drawing it from the pen would put
+            // the ink hard against the left edge of the pair, so it is centred
+            // in the space it was given. Narrow cells are left alone — their
+            // left bearing is the font's, and moving it would shift every
+            // stroke in the grid.
+            float spare = (aSpan > 1u) ? max(0.0, targetWidth - size.x) * 0.5 : 0.0;
+
             gl_Position = vec4(
-                uProjection.xy + uProjection.zw * (cell + offset + corner * size),
+                uProjection.xy + uProjection.zw * (cell + offset + vec2(spare, 0.0) + corner * size),
                 0.0,
                 1.0
             );

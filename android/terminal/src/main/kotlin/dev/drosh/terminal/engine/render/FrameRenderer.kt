@@ -1647,8 +1647,17 @@ internal class FrameRenderer {
                 val glyph = colorAtlas.glyph(codepoint, span, cellHeight) ?: continue
                 if (glyph.isBlank) continue
 
-                // The atlas slot is rasterised at span×1, so the source UV
-                // covers the whole slot and the quad maps it 1:1 — no stretch.
+                // The slot is rasterised at span×1 with padding, and the quad
+                // is the largest square-per-cell box that fits the cells it
+                // covers — never the cells themselves.
+                //
+                // Drawing the slot into `span × cellWidth` by `cellHeight` is
+                // what squashed every emoji horizontally: a cell is about 0.6
+                // of its height wide, so a two-cell box is 1.2 tall-boxes wide
+                // and the square ink was stretched to fill it. Fitting the
+                // box to the glyph, and centring it, keeps the emoji an emoji.
+                val boxWidth = span * cellWidth
+                val side = minOf(boxWidth, cellHeight).coerceAtLeast(1f)
                 colorGlyphs.add(
                     ImageDraw(
                         texture = colorAtlasTexture,
@@ -1656,10 +1665,10 @@ internal class FrameRenderer {
                         z = 0,
                         col = 0,
                         row = 0,
-                        offsetX = (column * cellWidth).toInt(),
-                        offsetY = (gridRow * cellHeight).toInt(),
-                        width = (span * cellWidth).toInt(),
-                        height = cellHeight.toInt(),
+                        offsetX = (column * cellWidth + (boxWidth - side) / 2f).toInt(),
+                        offsetY = (gridRow * cellHeight + (cellHeight - side) / 2f).toInt(),
+                        width = side.toInt(),
+                        height = side.toInt(),
                         sourceU = glyph.x.toFloat() / colorAtlas.size.toFloat(),
                         sourceV = glyph.y.toFloat() / colorAtlas.size.toFloat(),
                         sourceU2 = (glyph.x + glyph.width).toFloat() / colorAtlas.size.toFloat(),
