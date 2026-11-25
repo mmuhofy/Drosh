@@ -51,7 +51,9 @@ class EnginePaletteTest {
     fun `the cube starts at 16 and the ramp at 232`() {
         val table = buildEnginePalette(palette, boldBrightens = true)
 
-        assertEquals(0, table[16])
+        // Black, and opaque: the cube and the ramp are written as ARGB, and a
+        // colour without its alpha byte is a transparent one.
+        assertEquals(0xFF000000.toInt(), table[16])
         // r=0, g=0, b=5 is the cube's own blue, at 16 + 5.
         assertEquals(0xFF0000FF.toInt(), table[21])
         // r=g=b=5 is white, the cube's last entry.

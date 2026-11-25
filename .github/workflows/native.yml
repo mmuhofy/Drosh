@@ -49,6 +49,11 @@ concurrency:
   group: native-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Pinned NDK (r28c): the Rust engine is linked with its clang, and the
+  # download is cached against this exact version.
+  NDK_VERSION: 28.2.13676358
+
 jobs:
   build:
     name: libdrosh.so (${{ inputs.abi }})
@@ -59,8 +64,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Always on when this workflow runs on its own — it is the gate for the
+      # hot-update path — and only when a caller asks for it.
       - name: "Guard: targetSdk stays 28"
-        if: inputs.guard_target_sdk
+        if: inputs.guard_target_sdk || github.event_name != 'workflow_call'
         run: |
           set -euo pipefail
           v=$(grep -oE 'TARGET_SDK *= *[0-9]+' android/build-logic/src/main/kotlin/dev/drosh/DroshBuildConfig.kt | grep -oE '[0-9]+')
