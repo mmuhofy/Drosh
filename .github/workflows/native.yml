@@ -39,8 +39,14 @@ on:
         type: boolean
         default: false
 
+# Keyed by the workflow that runs it, not by the ref alone.
+#
+# Called from Build Debug this job is part of that build; with a group of
+# `native-<ref>` it shared one with the standalone Native run for the same
+# commit, and the two cancelled each other at random — the APK's job was
+# reported as a failure while the other one finished.
 concurrency:
-  group: native-${{ github.ref }}
+  group: native-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -118,7 +124,16 @@ jobs:
         run: |
           set -euo pipefail
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
+          # The download is the flakiest step in this file: a 5xx from the SDK
+          # mirror failed a whole build. Three tries, and only then give up.
+          for attempt in 1 2 3; do
+            if "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"; then
+              exit 0
+            fi
+            echo "sdkmanager failed (attempt $attempt); retrying in 15s" >&2
+            sleep 15
+          done
+          exit 1
 
       # The engine is somebody else's build: downloaded, verified, and linked as
       # a dynamic dependency, so the APK carries one copy of it and this

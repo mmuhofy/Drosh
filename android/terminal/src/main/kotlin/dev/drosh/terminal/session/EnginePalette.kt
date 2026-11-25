@@ -53,12 +53,19 @@ internal fun buildEnginePalette(palette: ThemePalette, boldBrightens: Boolean): 
     }
 
     // The 6x6x6 colour cube: levels 0, 95, 135, 175, 215, 255.
+    //
+    // Opaque, explicitly: the engine reads the table as ARGB, and a colour
+    // written without its alpha byte is a fully transparent one — a program
+    // asking for colour 21 drew nothing at all. The ANSI slots got their alpha
+    // from `parseHexColor`; these two ranges are built from numbers, so they
+    // have to say it themselves.
+    val opaque = 0xFF000000.toInt()
     val levels = intArrayOf(0, 95, 135, 175, 215, 255)
     var index = 16
     for (r in 0 until 6) {
         for (g in 0 until 6) {
             for (b in 0 until 6) {
-                out[index] = (levels[r] shl 16) or (levels[g] shl 8) or levels[b]
+                out[index] = opaque or (levels[r] shl 16) or (levels[g] shl 8) or levels[b]
                 index += 1
             }
         }
@@ -66,7 +73,7 @@ internal fun buildEnginePalette(palette: ThemePalette, boldBrightens: Boolean): 
     // The grey ramp: 8, 18, 28, ... 238.
     for (step in 0 until 24) {
         val value = 8 + step * 10
-        out[232 + step] = (value shl 16) or (value shl 8) or value
+        out[232 + step] = opaque or (value shl 16) or (value shl 8) or value
     }
     return out
 }
