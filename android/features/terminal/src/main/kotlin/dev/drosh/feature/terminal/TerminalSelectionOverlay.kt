@@ -585,12 +585,13 @@ private fun SelectionGrip(
     // The grip follows the selection, it does not teleport to it: a drag moves
     // the endpoint a row at a time and a scroll moves both grips at once, and a
     // knob that jumped between frames reads as a flicker rather than as a
-    // handle. The spring is stiff, so it still feels attached to the finger.
+    // handle. The spring is quick and well damped, so it still feels attached
+    // to the finger while a row-at-a-time move reads as a slide, not a jump.
     val animatedX by animateFloatAsState(
         targetValue = centerX,
         animationSpec = spring(
             dampingRatio = 0.9f,
-            stiffness = Spring.StiffnessMediumHigh,
+            stiffness = Spring.StiffnessMedium,
         ),
         label = "selectionGripX",
     )
@@ -598,7 +599,7 @@ private fun SelectionGrip(
         targetValue = centerY,
         animationSpec = spring(
             dampingRatio = 0.9f,
-            stiffness = Spring.StiffnessMediumHigh,
+            stiffness = Spring.StiffnessMedium,
         ),
         label = "selectionGripY",
     )

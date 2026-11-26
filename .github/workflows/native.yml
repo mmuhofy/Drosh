@@ -56,9 +56,18 @@ env:
 
 jobs:
   build:
-    name: libdrosh.so (${{ inputs.abi }})
+    name: libdrosh.so (${{ inputs.abi || 'arm64-v8a' }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    # `inputs` only carries its defaults when this workflow is called; on a
+    # pull_request or a push the context is empty, so every `inputs.abi` was
+    # the empty string. The fetch script still downloaded arm64-v8a, but the
+    # build was told to look for `native/ghostty/lib/` itself, found no
+    # library there, and the link failed with `-lghostty-vt` not found.
+    env:
+      ABI: ${{ inputs.abi || 'arm64-v8a' }}
+      ARTIFACT_NAME: ${{ inputs.artifact_name || 'drosh-jni' }}
 
     steps:
       - name: Checkout
@@ -83,7 +92,7 @@ jobs:
           # The one ABI this project ships: the APK is arm64-v8a only, and the
           # build step below names the target triple explicitly.
           path: native/target/aarch64-linux-android/release/libdrosh.so
-          key: drosh-so-${{ inputs.abi }}-${{ env.NDK_VERSION }}-${{ hashFiles('native/**', 'tools/fetch-ghostty-vt.sh') }}
+          key: drosh-so-${{ env.ABI }}-${{ env.NDK_VERSION }}-${{ hashFiles('native/**', 'tools/fetch-ghostty-vt.sh') }}
 
       - name: Set up Rust
         if: steps.so-cache.outputs.cache-hit != 'true'
@@ -157,12 +166,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: native/ghostty
-          key: ghostty-vt-${{ inputs.abi }}-${{ hashFiles('tools/fetch-ghostty-vt.sh') }}
+          key: ghostty-vt-${{ env.ABI }}-${{ hashFiles('tools/fetch-ghostty-vt.sh') }}
 
       - name: Fetch and verify libghostty-vt
         if: steps.ghostty-cache.outputs.cache-hit != 'true'
         env:
-          GHOSTTY_VT_ABIS: ${{ inputs.abi }}
+          GHOSTTY_VT_ABIS: ${{ env.ABI }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./tools/fetch-ghostty-vt.sh
 
@@ -170,7 +179,7 @@ jobs:
         if: steps.so-cache.outputs.cache-hit != 'true'
         working-directory: native
         env:
-          DROSH_ABI: ${{ inputs.abi }}
+          DROSH_ABI: ${{ env.ABI }}
         run: |
           set -euo pipefail
           NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
@@ -195,7 +204,7 @@ jobs:
           }
           # The engine's own SONAME has to be the name the APK ships, or the
           # linker will look for a file that is not there.
-          engine="native/ghostty/lib/${{ inputs.abi }}/libghostty-vt.so"
+          engine="native/ghostty/lib/$ABI/libghostty-vt.so"
           test -f "$engine"
           readelf -d "$engine" | grep -q "SONAME.*libghostty-vt.so\\]" || {
             echo "::error::libghostty-vt.so still carries its upstream soname"
@@ -209,16 +218,16 @@ jobs:
       - name: Stage the JNI libraries
         run: |
           set -euo pipefail
-          dest="native/jni/${{ inputs.abi }}"
+          dest="native/jni/$ABI"
           mkdir -p "$dest"
           cp native/target/aarch64-linux-android/release/libdrosh.so "$dest/"
-          cp "native/ghostty/lib/${{ inputs.abi }}/libghostty-vt.so" "$dest/"
+          cp "native/ghostty/lib/$ABI/libghostty-vt.so" "$dest/"
           ls -l "$dest"
 
       - name: Upload the libraries
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.artifact_name }}
-          path: native/jni/${{ inputs.abi }}
+          name: ${{ env.ARTIFACT_NAME }}
+          path: native/jni/${{ env.ABI }}
           if-no-files-found: error
           retention-days: 1

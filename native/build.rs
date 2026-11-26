@@ -17,7 +17,14 @@ fn main() {
 
     // Which ABI's copy of the engine to link. The fetched release keeps one
     // directory per ABI.
-    let abi = std::env::var("DROSH_ABI").unwrap_or_else(|_| "arm64-v8a".to_string());
+    //
+    // An empty DROSH_ABI is no choice at all, not a choice of the ABI named "":
+    // a workflow that sets the variable from an unset input used to point the
+    // link search at `native/ghostty/lib/` itself, where no library is.
+    let abi = std::env::var("DROSH_ABI")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "arm64-v8a".to_string());
 
     let include = manifest.join("ghostty").join("include");
     let lib = manifest.join("ghostty").join("lib").join(&abi);
