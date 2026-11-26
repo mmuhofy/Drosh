@@ -71,6 +71,8 @@ internal fun SessionGroupCard(
     members: List<SessionSnapshot>,
     thumbnails: Map<String, ImageBitmap>,
     displayNames: Map<String, String>,
+    /** The brand slug of each member's foreground program, by session id. */
+    glyphSlugs: Map<String, String> = emptyMap(),
     pinnedIds: Set<String>,
     persistentIds: Set<String>,
     isDropTarget: Boolean,
@@ -191,6 +193,11 @@ internal fun SessionGroupCard(
                         contentDescription = stringResource(R.string.session_screen_thumbnail, name),
                         modifier = Modifier.size(MEMBER_TILE_THUMBNAIL),
                     )
+                    BrandGlyph(
+                        slug = glyphSlugs[member.id],
+                        tint = DroshTextMuted,
+                        sizeDp = 12,
+                    )
                     Text(
                         text = name,
                         color = DroshText,
@@ -243,6 +250,8 @@ internal fun SessionGroupOverlay(
     members: List<SessionSnapshot>,
     displayNames: Map<String, String>,
     thumbnails: Map<String, ImageBitmap>,
+    /** The brand slug of each member's foreground program, by session id. */
+    glyphSlugs: Map<String, String> = emptyMap(),
     pinnedIds: Set<String>,
     persistentIds: Set<String>,
     onDismiss: () -> Unit,
@@ -296,6 +305,11 @@ internal fun SessionGroupOverlay(
                             bitmap = thumbnails[member.id],
                             contentDescription = stringResource(R.string.session_screen_thumbnail, name),
                             modifier = Modifier.size(30.dp),
+                        )
+                        BrandGlyph(
+                            slug = glyphSlugs[member.id],
+                            tint = DroshTextMuted,
+                            sizeDp = 14,
                         )
                         Text(
                             text = name,

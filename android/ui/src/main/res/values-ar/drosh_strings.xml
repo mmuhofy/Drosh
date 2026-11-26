@@ -62,11 +62,6 @@
     <string name="settings_cursor_style_thin">block رفيع</string>
     <string name="settings_terminal_mode">وضع الطرفية</string>
     <string name="settings_terminal_mode_desc">كيفية ترتيب الأمر ومخرجاته</string>
-    <string name="settings_terminal_backend">محرك الطرفية</string>
-    <string name="settings_terminal_backend_termux">Termux</string>
-    <string name="settings_terminal_backend_termux_desc">الطرفية التي استخدمها التطبيق دائماً</string>
-    <string name="settings_terminal_backend_engine">Engine</string>
-    <string name="settings_terminal_backend_engine_desc">محرك Rust الجديد — تجريبي</string>
     <string name="settings_mode_terminal">الطرفية</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">الذكاء الاصطناعي</string>
@@ -84,12 +79,6 @@
     <string name="settings_section_shell">Shell</string>
     <string name="settings_section_rootfs">Rootfs</string>
     <string name="settings_section_editor">المحرر</string>
-    <string name="settings_terminal_scrollback">Scrollback</string>
-    <string name="settings_terminal_scrollback_value">%1$d سطر</string>
-    <string name="settings_terminal_bell">الجرس</string>
-    <string name="settings_terminal_bell_none">إيقاف</string>
-    <string name="settings_terminal_bell_vibrate">اهتزاز</string>
-    <string name="settings_terminal_bell_sound">صوت</string>
     <string name="settings_terminal_keep_awake">إبقاء الشاشة مضاءة</string>
     <string name="settings_terminal_keep_awake_desc">طالما كانت الطرفية ظاهرة على الشاشة</string>
     <string name="settings_terminal_immersive">إخفاء الواجهة تلقائيًا</string>

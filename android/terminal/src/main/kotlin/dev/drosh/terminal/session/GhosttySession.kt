@@ -30,6 +30,15 @@ import java.io.File
  * the engine's, and both are reached through the same native handle, so the
  * frame a session produces is the frame that session is showing.
  */
+/**
+ * How wide a session's card preview is drawn, in pixels.
+ *
+ * A card is a few hundred dp on the grid; drawing above that means the decoder
+ * does the downscale instead of the card stretching a small bitmap — which is
+ * what made the old surface-captured previews soft.
+ */
+internal const val SESSION_PREVIEW_WIDTH = 480
+
 class GhosttySession(
     /** The app's id for this session — the row in the session table. */
     val persistentId: String,
@@ -526,6 +535,22 @@ class GhosttySession(
     }
 
     /**
+     * The session's last screenful as a PNG, for its card on the grid.
+     *
+     * Unlike [frame], this does not need the session to be on screen or to have
+     * a Surface: the picture is drawn from the renderer's own cells, so a
+     * session in the background previews as truthfully as the active one.
+     *
+     * Blocking — a frame iteration, a rasterization when the screen changed and
+     * a PNG encode. Call it off the main thread.
+     */
+    fun snapshotPreview(maxWidth: Int = SESSION_PREVIEW_WIDTH): ByteArray? {
+        val handle = terminalHandle
+        if (handle == 0L) return null
+        return NativeSession.snapshot(handle, maxWidth)
+    }
+
+    /**
      * The title the program asked for, with `OSC 0` or `OSC 2`.
      *
      * A terminal's window title follows the program: `vim` puts the file name
@@ -537,15 +562,29 @@ class GhosttySession(
     var title: String? = null
         private set
 
+    /**
+     * The icon name the program asked for with `OSC 1`.
+     *
+     * A window manager's hint rather than a label: `vim` sets `vim`, a build
+     * sets `cargo`. The session card uses it to choose a glyph, so a grid of
+     * six shells does not draw six identical terminals.
+     */
+    @Volatile
+    var iconName: String? = null
+        private set
+
     /** Told when the program's title changes. */
     var onTitle: ((String?) -> Unit)? = null
+
+    /** Told when the program's icon name changes. */
+    var onIconName: ((String?) -> Unit)? = null
 
     private var lastTitlePollAt: Long = 0L
 
     /**
-     * Reads the title, now and then.
+     * Reads the title and the icon name, now and then.
      *
-     * The title changes when the program says so, which is not often, so it is
+     * They change when the program says so, which is not often, so they are
      * asked for twice a second rather than on every frame.
      */
     private fun pollTitle(handle: Long) {
@@ -553,9 +592,15 @@ class GhosttySession(
         if (now - lastTitlePollAt < TITLE_POLL_MILLIS) return
         lastTitlePollAt = now
         val read = NativeSession.title(handle)?.takeIf { it.isNotBlank() }
-        if (read == title) return
-        title = read
-        onTitle?.invoke(read)
+        if (read != title) {
+            title = read
+            onTitle?.invoke(read)
+        }
+        val icon = NativeSession.iconName(handle)?.takeIf { it.isNotBlank() }
+        if (icon != iconName) {
+            iconName = icon
+            onIconName?.invoke(icon)
+        }
     }
 
     /** Feed bytes to the parser — a bridged session's transport. */

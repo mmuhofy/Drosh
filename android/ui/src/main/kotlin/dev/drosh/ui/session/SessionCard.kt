@@ -80,6 +80,17 @@ internal fun SessionCard(
     displayName: String,
     /** The user rename when the title took the first line, or null. */
     subtitle: String?,
+    /** The program's `OSC 1` icon hint, when it set one. */
+    iconName: String? = null,
+    /**
+     * The brand slug of the program running in the foreground, when the
+     * registry knows it (`python`, `vim`, `claude`…).
+     *
+     * This is the card's first choice of glyph: it comes from the kernel's own
+     * answer about what is running, so it is right even for a program that
+     * never set `OSC 0/1/2`. Null falls back to the title heuristics.
+     */
+    glyphSlug: String? = null,
     /** The last screenshot of this session's terminal, or null if none yet. */
     thumbnail: ImageBitmap?,
     isActive: Boolean,
@@ -206,8 +217,11 @@ internal fun SessionCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            // Placeholder glyph. TODO: user-selectable session icons are a
-            // future step; until then every card uses the same terminal mark.
+            // The glyph is the program's, not the app's: an editor, an SSH
+            // host and a shell are three different things, and a grid of six
+            // identical terminal marks says nothing about any of them. The
+            // hint comes from `OSC 1`, with the title as the fallback.
+            val glyph = remember(iconName, displayName) { sessionGlyph(iconName, displayName) }
             Box(
                 modifier = Modifier
                     .size(22.dp)
@@ -215,12 +229,16 @@ internal fun SessionCard(
                     .background(DroshSurfaceVariant),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = DroshIcons.SquareTerminal,
-                    contentDescription = null,
-                    tint = DroshTextMuted,
-                    modifier = Modifier.size(13.dp),
-                )
+                if (BrandIcons.drawable(glyphSlug) != null) {
+                    BrandGlyph(slug = glyphSlug, tint = DroshTextMuted, sizeDp = 14)
+                } else {
+                    Icon(
+                        imageVector = glyph,
+                        contentDescription = null,
+                        tint = DroshTextMuted,
+                        modifier = Modifier.size(13.dp),
+                    )
+                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -412,3 +430,37 @@ private const val PRESS_SCALE = 0.98f
 
 /** High stiffness + full damping: tracks the finger, then settles without a bounce. */
 private const val SETTLE_STIFFNESS = 1100f
+
+/**
+ * The glyph a session's card wears.
+ *
+ * The program's `OSC 1` hint is the first answer, because that is exactly what
+ * the sequence is for; the title is the second, because most programs set only
+ * `OSC 0/2` (`vim` puts the file name there, `ssh` puts `user@host`). Both are
+ * matched loosely — the hint is a file name or a command, the title is prose —
+ * and anything unrecognised keeps the terminal mark rather than inventing a
+ * picture.
+ */
+private fun sessionGlyph(iconName: String?, title: String?): ImageVector {
+    // Whole words, not substrings: `vi` inside `virtual` is not a request for
+    // the editor's glyph, and a title is usually a whole sentence.
+    val words = "${iconName.orEmpty()} ${title.orEmpty()}"
+        .lowercase()
+        .split(NON_WORD)
+        .filter { it.isNotEmpty() }
+        .toSet()
+    fun anyOf(vararg candidates: String) = candidates.any { it in words }
+    return when {
+        anyOf("vim", "nvim", "vi", "nano", "emacs", "code", "edit", "micro") ->
+            DroshIcons.Code
+        anyOf("ssh", "scp", "sftp", "rsync", "mosh") -> DroshIcons.Globe
+        anyOf("htop", "top", "btop", "ps", "monitor") -> DroshIcons.Gauge
+        anyOf("git", "make", "cargo", "gradle", "build", "npm", "pnpm") ->
+            DroshIcons.Package
+        anyOf("root", "sudo") -> DroshIcons.Shield
+        else -> DroshIcons.SquareTerminal
+    }
+}
+
+/** What separates the words of a title: whitespace and punctuation. */
+private val NON_WORD = Regex("[^a-z0-9]+")

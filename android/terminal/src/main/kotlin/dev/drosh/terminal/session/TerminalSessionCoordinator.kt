@@ -1535,6 +1535,19 @@ class TerminalSessionCoordinator(
             _sessionTitles.value = titles
         }
 
+        // The program's icon name, as it changes. `OSC 1` is the hint a window
+        // manager would choose a picture with; the grid uses it for the card's
+        // glyph, so a shell and a running editor do not look the same.
+        session.onIconName = { icon ->
+            val icons = _sessionIcons.value.toMutableMap()
+            if (icon.isNullOrBlank()) {
+                icons.remove(persistentId)
+            } else {
+                icons[persistentId] = icon
+            }
+            _sessionIcons.value = icons
+        }
+
         // The session also joins the app's session list, so the sidebar, the
         // grid and the active-id tracking all see it — a session that exists
         // only in [liveSessions] would be invisible to every one of them.
@@ -1627,6 +1640,16 @@ class TerminalSessionCoordinator(
      */
     private val _sessionTitles = MutableStateFlow<Map<String, String>>(emptyMap())
     val sessionTitles: StateFlow<Map<String, String>> = _sessionTitles.asStateFlow()
+
+    /**
+     * The icon names the programs asked for, by session id (`OSC 1`).
+     *
+     * Separate from the titles above: a program sets an icon name for a
+     * window manager to pick a picture with, and the grid reads it for the
+     * same reason. Absent means the card falls back to the title.
+     */
+    private val _sessionIcons = MutableStateFlow<Map<String, String>>(emptyMap())
+    val sessionIcons: StateFlow<Map<String, String>> = _sessionIcons.asStateFlow()
 
     /**
      * The sessions that are running but not on screen.
@@ -1961,6 +1984,43 @@ class TerminalSessionCoordinator(
         if (lines.isEmpty()) return emptyList()
         if (lines.size <= maxLines) return lines
         return lines.subList(lines.size - maxLines, lines.size)
+    }
+
+    /**
+     * The session's last screenful as a PNG, for its card on the grid.
+     *
+     * The picture comes from the renderer's own cells, so it needs neither the
+     * pane nor a Surface: a session that is running in the background previews
+     * exactly like the one on screen. That is the whole difference from the old
+     * PixelCopy path, which could only capture the session that happened to be
+     * displayed — and the grid covers the display, so every card was a stale
+     * screenshot or a blank one.
+     *
+     * Blocking: a frame iteration plus, when the screen changed, a
+     * rasterization and a PNG encode. Callers off the main thread only.
+     */
+    fun sessionPreview(persistentId: String, maxWidth: Int = SESSION_PREVIEW_WIDTH): ByteArray? {
+        val session = liveSessions[persistentId]
+            ?: engineSessions.find { it.persistentId == persistentId }?.session
+            ?: return null
+        return session.snapshotPreview(maxWidth)
+    }
+
+    /**
+     * The program the session has in the foreground, as `/proc` names it.
+     *
+     * This is the kernel's answer — the process group `Ctrl+C` would signal —
+     * so it is the program on screen and not the runtime that started it. The
+     * session grid turns it into a card glyph; a card that showed a terminal
+     * outline for a Python REPL told the user nothing.
+     *
+     * A bridged session has no PTY and therefore no answer.
+     */
+    fun sessionProgram(persistentId: String): String? {
+        val session = liveSessions[persistentId]
+            ?: engineSessions.find { it.persistentId == persistentId }?.session
+            ?: return null
+        return session.foregroundProcessName()
     }
 
     /**

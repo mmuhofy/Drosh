@@ -62,11 +62,6 @@
     <string name="settings_cursor_style_thin">Manipis na block</string>
     <string name="settings_terminal_mode">Terminal mode</string>
     <string name="settings_terminal_mode_desc">Kung paano inaayos ang isang command at ang output nito</string>
-    <string name="settings_terminal_backend">Terminal backend</string>
-    <string name="settings_terminal_backend_termux">Termux</string>
-    <string name="settings_terminal_backend_termux_desc">Ang terminal na laging ginagamit ng app</string>
-    <string name="settings_terminal_backend_engine">Engine</string>
-    <string name="settings_terminal_backend_engine_desc">Ang bagoong Rust engine — experimental</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">AI</string>
@@ -84,12 +79,6 @@
     <string name="settings_section_shell">Shell</string>
     <string name="settings_section_rootfs">Rootfs</string>
     <string name="settings_section_editor">Editor</string>
-    <string name="settings_terminal_scrollback">Scrollback</string>
-    <string name="settings_terminal_scrollback_value">%1$d row</string>
-    <string name="settings_terminal_bell">Bell</string>
-    <string name="settings_terminal_bell_none">Naka-off</string>
-    <string name="settings_terminal_bell_vibrate">Vibrate</string>
-    <string name="settings_terminal_bell_sound">Tunog</string>
     <string name="settings_terminal_keep_awake">Panatilihing bukas ang screen</string>
     <string name="settings_terminal_keep_awake_desc">Habang bukas ang isang terminal sa screen</string>
     <string name="settings_terminal_immersive">Awtomatikong itago ang chrome</string>

@@ -159,6 +159,22 @@ fun SessionScreen(
      * Also used by the search pill, so a search for the program's title works.
      */
     titles: Map<String, String> = emptyMap(),
+    /**
+     * The `OSC 1` icon hints the programs set, by session id.
+     *
+     * A hint, not the answer: most programs never set one. A card's glyph is
+     * chosen from the foreground program first, then this, then the title.
+     */
+    icons: Map<String, String> = emptyMap(),
+    /**
+     * The program each session has in the foreground, by session id.
+     *
+     * The kernel's answer from `/proc`, so it is right even for a program that
+     * sets no title — which is most of them. This is what gives a Python REPL
+     * Python's mark and a `claude` prompt Claude's, instead of a row of
+     * identical terminal outlines.
+     */
+    programs: Map<String, String> = emptyMap(),
     onOpen: (String) -> Unit,
     onClose: (String) -> Unit,
     onNewSession: () -> Unit,
@@ -246,6 +262,18 @@ fun SessionScreen(
     // this set a non-first member falls through to the single branch below
     // and renders twice: once inside the group card and once as its own card.
     val groupedMemberIds = remember(groupsLive) { groupsLive.flatMap { it.memberIds }.toSet() }
+
+    // The brand slug per session: the foreground program first, the `OSC 1`
+    // hint second, the title's words last. Resolved once per change rather
+    // than per card, because the resolution walks a table.
+    val glyphSlugs: Map<String, String> = remember(live, titles, localNames, programs, icons) {
+        live.mapNotNull { session ->
+            ProgramGlyphs.resolve(
+                program = programs[session.id] ?: icons[session.id],
+                title = titles[session.id] ?: localNames[session.id] ?: session.name,
+            )?.let { slug -> session.id to slug }
+        }.toMap()
+    }
 
     val displayNames = remember(live, titles, localNames, fallbackName) {
         live.associate { it.id to sessionDisplayName(it.id, localNames, titles, fallbackName, it.name) }
@@ -359,7 +387,13 @@ fun SessionScreen(
             SessionScreenEmpty(
                 tab = tab,
                 hasQuery = query.isNotBlank(),
+                // A session can be live and still have no card in this view:
+                // every one of them may be inside a group while "Sessions" is
+                // showing. Saying "No sessions" there was a lie that left the
+                // groups one unreachable tap away.
+                hiddenByFilter = live.isNotEmpty(),
                 onClearQuery = { query = "" },
+                onShowGroups = { savedTab = SessionTab.Groups.name },
             )
         } else {
             LazyVerticalGrid(
@@ -389,6 +423,8 @@ fun SessionScreen(
                                     session.name,
                                     displayNames[session.id] ?: session.name,
                                 ),
+                                iconName = icons[session.id],
+                                glyphSlug = glyphSlugs[session.id],
                                 thumbnail = thumbnails[session.id],
                                 isActive = session.id == activeId,
                                 isPinned = session.id in pinnedIds,
@@ -449,6 +485,7 @@ fun SessionScreen(
                                 members = item.members,
                                 thumbnails = thumbnails,
                                 displayNames = displayNames,
+                                glyphSlugs = glyphSlugs,
                                 pinnedIds = pinnedIds,
                                 persistentIds = persistentIds,
                                 isDropTarget = item.group.memberIds.firstOrNull() == dropTarget,
@@ -535,6 +572,7 @@ fun SessionScreen(
                 members = live.filter { it.id in current.memberIds },
                 displayNames = displayNames,
                 thumbnails = thumbnails,
+                glyphSlugs = glyphSlugs,
                 pinnedIds = pinnedIds,
                 persistentIds = persistentIds,
                 onDismiss = { overlayGroup = null },
@@ -568,15 +606,23 @@ fun SessionScreen(
     // cannot move the question out from under the finger. One dialog serves both
     // a single close and close-all; the destructive call is not fired by the tap.
     if (pendingCloseId != null || pendingCloseAll) {
+        // The name the card shows, not the stored one: closing a card the
+        // user recognises by its title must not ask about a different string.
         val targetName = pendingCloseId
-            ?.let { id -> live.firstOrNull { it.id == id }?.name }
-            ?: "Session"
+            ?.let { id -> displayNames[id] ?: live.firstOrNull { it.id == id }?.name }
+            ?: stringResource(R.string.session_screen_default_name)
         CloseSessionDialog(
-            title = if (pendingCloseAll) "Tüm session'lar kapatılsın mı?" else "Session kapatılsın mı?",
+            title = stringResource(
+                if (pendingCloseAll) {
+                    R.string.session_screen_close_all_title
+                } else {
+                    R.string.session_screen_close_one_title
+                },
+            ),
             message = if (pendingCloseAll) {
-                "${live.size} açık session'ın tamamı kapanacak."
+                stringResource(R.string.session_screen_close_all_message, live.size)
             } else {
-                "\"$targetName\" kapatılacak. Çıktısı geri alınamaz."
+                stringResource(R.string.session_screen_close_one_message, targetName)
             },
             onConfirm = {
                 val id = pendingCloseId
@@ -718,7 +764,9 @@ private fun SessionScreenHeader(
 private fun SessionScreenEmpty(
     tab: SessionTab,
     hasQuery: Boolean,
+    hiddenByFilter: Boolean,
     onClearQuery: () -> Unit,
+    onShowGroups: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -747,6 +795,7 @@ private fun SessionScreenEmpty(
             text = stringResource(
                 when {
                     hasQuery -> R.string.session_screen_empty_search_title
+                    hiddenByFilter -> R.string.session_screen_empty_filtered_title
                     tab == SessionTab.Groups -> R.string.session_screen_empty_groups_title
                     else -> R.string.session_screen_empty_title
                 },
@@ -760,6 +809,7 @@ private fun SessionScreenEmpty(
             text = stringResource(
                 when {
                     hasQuery -> R.string.session_screen_empty_search_body
+                    hiddenByFilter -> R.string.session_screen_empty_filtered_body
                     tab == SessionTab.Groups -> R.string.session_screen_empty_groups_body
                     else -> R.string.session_screen_empty_body
                 },
@@ -769,6 +819,28 @@ private fun SessionScreenEmpty(
             lineHeight = 19.sp,
             textAlign = TextAlign.Center,
         )
+        if (hiddenByFilter) {
+            Spacer(Modifier.height(20.dp))
+            Box(
+                modifier = Modifier
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onShowGroups,
+                    )
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.session_screen_tab_groups),
+                    color = DroshTextMuted,
+                    fontSize = 13.sp,
+                )
+            }
+        }
         if (hasQuery) {
             Spacer(Modifier.height(20.dp))
             Box(
@@ -860,8 +932,16 @@ private fun CloseSessionDialog(
                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                DialogButton("İptal", DroshTextMuted, onDismiss)
-                DialogButton("Kapat", DroshError, onConfirm)
+                DialogButton(
+                    stringResource(R.string.session_screen_close_cancel),
+                    DroshTextMuted,
+                    onDismiss,
+                )
+                DialogButton(
+                    stringResource(R.string.session_screen_close_confirm),
+                    DroshError,
+                    onConfirm,
+                )
             }
         }
     }

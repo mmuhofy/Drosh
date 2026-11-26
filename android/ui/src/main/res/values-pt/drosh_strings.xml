@@ -62,11 +62,6 @@
     <string name="settings_cursor_style_thin">Block fino</string>
     <string name="settings_terminal_mode">Modo do terminal</string>
     <string name="settings_terminal_mode_desc">Como um comando e sua saída são organizados</string>
-    <string name="settings_terminal_backend">Backend do terminal</string>
-    <string name="settings_terminal_backend_termux">Termux</string>
-    <string name="settings_terminal_backend_termux_desc">O terminal que o app sempre usou</string>
-    <string name="settings_terminal_backend_engine">Engine</string>
-    <string name="settings_terminal_backend_engine_desc">O novo motor Rust — experimental</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">IA</string>
@@ -84,12 +79,6 @@
     <string name="settings_section_shell">Shell</string>
     <string name="settings_section_rootfs">Rootfs</string>
     <string name="settings_section_editor">Editor</string>
-    <string name="settings_terminal_scrollback">Scrollback</string>
-    <string name="settings_terminal_scrollback_value">%1$d linhas</string>
-    <string name="settings_terminal_bell">Campainha</string>
-    <string name="settings_terminal_bell_none">Desativada</string>
-    <string name="settings_terminal_bell_vibrate">Vibração</string>
-    <string name="settings_terminal_bell_sound">Som</string>
     <string name="settings_terminal_keep_awake">Manter a tela ligada</string>
     <string name="settings_terminal_keep_awake_desc">Enquanto um terminal estiver em tela</string>
     <string name="settings_terminal_immersive">Ocultar interface automaticamente</string>

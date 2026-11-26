@@ -61,11 +61,6 @@
     <string name="settings_cursor_style_thin">İnce blok</string>
     <string name="settings_terminal_mode">Terminal modu</string>
     <string name="settings_terminal_mode_desc">Komutun ve çıktısının nasıl yerleşeceği</string>
-    <string name="settings_terminal_backend">Terminal arka ucu</string>
-    <string name="settings_terminal_backend_termux">Termux</string>
-    <string name="settings_terminal_backend_termux_desc">Uygulamanın bugüne dek kullandığı terminal</string>
-    <string name="settings_terminal_backend_engine">Motor</string>
-    <string name="settings_terminal_backend_engine_desc">Yeni Rust motoru — deneysel</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Blok</string>
     <string name="settings_section_ai">Yapay zekâ</string>
@@ -83,12 +78,6 @@
     <string name="settings_section_shell">Kabuk</string>
     <string name="settings_section_rootfs">Kök dosya sistemi</string>
     <string name="settings_section_editor">Editör</string>
-    <string name="settings_terminal_scrollback">Geçmiş</string>
-    <string name="settings_terminal_scrollback_value">%1$d satır</string>
-    <string name="settings_terminal_bell">Zil</string>
-    <string name="settings_terminal_bell_none">Kapalı</string>
-    <string name="settings_terminal_bell_vibrate">Titreşim</string>
-    <string name="settings_terminal_bell_sound">Ses</string>
     <string name="settings_terminal_keep_awake">Ekranı açık tut</string>
     <string name="settings_terminal_keep_awake_desc">Terminal ekrandayken ekran kapanmaz</string>
     <string name="settings_terminal_immersive">Arayüzü kendiliğinden gizle</string>

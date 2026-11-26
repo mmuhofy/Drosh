@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kurulum akışı metinleri. -->
+<resources>
+    <string name="setup_cancel">İndirmeyi iptal et</string>
+    <string name="setup_cancelled">Kurulum iptal edildi</string>
+    <string name="setup_complete">Kurulum tamamlandı</string>
+    <string name="setup_download_progress">Ubuntu 24.04 indiriliyor — %1$.1f / %2$.1f MB (%3$.1f MB/s)</string>
+    <string name="setup_download_progress_unknown">Ubuntu 24.04 indiriliyor — %1$.1f MB (%2$.1f MB/s)</string>
+    <string name="setup_failed_short">Kurulum başarısız</string>
+    <string name="setup_installing">Ubuntu kuruluyor…</string>
+    <string name="setup_service_title">Ubuntu kurulumu</string>
+</resources>

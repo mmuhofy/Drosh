@@ -96,6 +96,7 @@ pub const CURSOR_IS_RECTANGLE: u16 = 1 << 2;
 /// `GL_UNSIGNED_BYTE` normalised hands the fragment shader as `vec4`. The
 /// previous packing put R in the high byte, so the renderer read green as
 /// red, blue as green, and the real alpha byte as a colour channel.
+#[cfg(feature = "engine")]
 pub(super) fn rgba(color: crate::ghostty::GhosttyColorRgb) -> u32 {
     u32::from(color.r) | (u32::from(color.g) << 8) | (u32::from(color.b) << 16) | (0xff << 24)
 }

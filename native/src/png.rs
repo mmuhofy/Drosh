@@ -189,3 +189,27 @@ unsafe fn decode(
     (*out).data_len = rgba_len;
     true
 }
+
+/// Encode RGBA pixels as a PNG.
+///
+/// The session grid shows every session as a card, and the picture is made
+/// here — the renderer's own pixels, not a screenshot of a Surface that only
+/// exists while the session is on screen. PNG rather than raw RGBA because the
+/// bytes cross the JNI boundary and then sit in a StateFlow: a screenful of
+/// terminals is tens of kilobytes compressed and about a megabyte raw.
+///
+/// Returns `None` when the encoder refuses the image, never a partial buffer.
+pub fn encode_rgba(width: u32, height: u32, rgba: &[u8]) -> Option<Vec<u8>> {
+    if width == 0 || height == 0 || rgba.len() != width as usize * height as usize * 4 {
+        return None;
+    }
+    let mut out = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut out, width, height);
+        encoder.set_color(ColorType::Rgba);
+        encoder.set_depth(BitDepth::Eight);
+        let mut writer = encoder.write_header().ok()?;
+        writer.write_image_data(rgba).ok()?;
+    }
+    Some(out)
+}

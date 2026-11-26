@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Yan menü, süreç listesi ve kaynak izleyici metinleri. -->
+<resources>
+    <string name="sidebar_close">Menüyü kapat</string>
+    <string name="sidebar_dashboard_brand">DROSH</string>
+    <string name="sidebar_dashboard_section">Özellikler</string>
+
+    <string name="sidebar_processes_title">Süreçler</string>
+    <string name="sidebar_processes_desc">Açık oturumlar, süreç kimlikleri ve çalışan işleri.</string>
+    <string name="sidebar_processes_empty">Şu anda çalışan süreç yok</string>
+    <string name="sidebar_processes_jobs">İşler: %1$s</string>
+    <string name="sidebar_processes_no_jobs">İş yok</string>
+    <string name="sidebar_processes_pid">PID %1$d</string>
+    <string name="sidebar_processes_pid_unknown">PID bilinmiyor</string>
+
+    <string name="sidebar_resource_title">Kaynak İzleyici</string>
+    <string name="sidebar_resource_desc">İşlemciden, bellekten ve çiziciden canlı ölçümler.</string>
+    <string name="sidebar_resource_cpu">İşlemci</string>
+    <string name="sidebar_resource_cpu_value">%1$.1f%%</string>
+    <string name="sidebar_resource_ram">Bellek: %1$d / %2$d MB</string>
+    <string name="sidebar_resource_fps">FPS</string>
+    <string name="sidebar_resource_fps_value">%1$.1f</string>
+    <string name="sidebar_resource_frame">Kare süresi: %1$s</string>
+    <string name="sidebar_resource_frame_value">%1$.1f ms</string>
+    <string name="sidebar_resource_unavailable">—</string>
+    <string name="sidebar_resource_gpu_unavailable">Stok Android\'de GPU kullanım verisi yok.</string>
+    <string name="sidebar_resource_diagnostics">Tanılamayı aç</string>
+    <string name="sidebar_resource_diagnostics_note">Terminal ekranının ürettiği tam motor raporu.</string>
+
+    <string name="sidebar_tile_keyboard">Klavye</string>
+    <string name="sidebar_tile_keyboard_subtitle">Drosh klavye ayarlarını aç</string>
+    <string name="sidebar_tile_processes">Süreçler</string>
+    <string name="sidebar_tile_processes_subtitle">Oturumları, PID\'leri ve işlerini aç</string>
+    <string name="sidebar_tile_resources">Kaynak İzleyici</string>
+    <string name="sidebar_tile_resources_subtitle">İşlemci, bellek ve kare süresi</string>
+    <string name="sidebar_tile_settings">Ayarlar</string>
+    <string name="sidebar_tile_settings_subtitle">Görünüm, terminal ve uygulama ayarları</string>
+</resources>

@@ -62,11 +62,6 @@
     <string name="settings_cursor_style_thin">Тонкий block</string>
     <string name="settings_terminal_mode">Режим терминала</string>
     <string name="settings_terminal_mode_desc">Как располагаются команда и её вывод</string>
-    <string name="settings_terminal_backend">Движок терминала</string>
-    <string name="settings_terminal_backend_termux">Termux</string>
-    <string name="settings_terminal_backend_termux_desc">Терминал, который приложение всегда использовало</string>
-    <string name="settings_terminal_backend_engine">Engine</string>
-    <string name="settings_terminal_backend_engine_desc">Новый движок на Rust — экспериментальный</string>
     <string name="settings_mode_terminal">Терминал</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">ИИ</string>
@@ -84,12 +79,6 @@
     <string name="settings_section_shell">Shell</string>
     <string name="settings_section_rootfs">Rootfs</string>
     <string name="settings_section_editor">Редактор</string>
-    <string name="settings_terminal_scrollback">Scrollback</string>
-    <string name="settings_terminal_scrollback_value">%1$d строк</string>
-    <string name="settings_terminal_bell">Звуковой сигнал</string>
-    <string name="settings_terminal_bell_none">Выкл.</string>
-    <string name="settings_terminal_bell_vibrate">Вибрация</string>
-    <string name="settings_terminal_bell_sound">Звук</string>
     <string name="settings_terminal_keep_awake">Не выключать экран</string>
     <string name="settings_terminal_keep_awake_desc">Пока терминал на экране</string>
     <string name="settings_terminal_immersive">Автоскрытие интерфейса</string>

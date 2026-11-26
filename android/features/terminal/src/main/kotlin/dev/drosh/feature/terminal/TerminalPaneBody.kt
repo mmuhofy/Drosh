@@ -69,7 +69,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import dev.drosh.ui.LocalDroshActivity
@@ -243,7 +242,6 @@ internal fun TerminalPaneBody(
     /** The selection asked for a new session that runs it. */
     onRunInNewSession: (String) -> Unit = {},
     /** Told this pane's last frame, for the session grid's card. */
-    onThumbnail: (String, ImageBitmap) -> Unit,
 ) {
     // A TUI (nano, vim, htop) takes over the alternate screen buffer, so the raw
     // terminal view has to be shown rather than the block list — the shell is
@@ -405,7 +403,6 @@ internal fun TerminalPaneBody(
                 onUrlClick = onUrlClick,
                 onSearchSelection = onSearchSelection,
                 onRunInNewSession = onRunInNewSession,
-                onThumbnail = onThumbnail,
                 modifier = Modifier.fillMaxSize(),
             )
 

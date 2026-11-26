@@ -65,6 +65,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import dev.drosh.ui.LocalDroshActivity
@@ -372,6 +374,11 @@ internal fun ReadyScreen(
      * card is the dismissal.
      */
     var sessionsGridOpen by remember { mutableStateOf(false) }
+    /**
+     * The program each session has in the foreground, refreshed while the grid
+     * is open. Empty outside the grid: nothing else draws a card.
+     */
+    var sessionPrograms by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val sidebarPush = rememberSidebarPushState(sidebarOpen)
     /**
      * The session the drawer is carrying, or null.
@@ -475,6 +482,7 @@ internal fun ReadyScreen(
     // The titles the programs asked for (OSC 0/2): `vim` puts the file name
     // there, a shell puts the directory.
     val sessionTitles by terminalManager.sessionTitles.collectAsStateWithLifecycle()
+    val sessionIcons by terminalManager.sessionIcons.collectAsStateWithLifecycle()
 
     /**
      * The sessions a log can be taken from, most recently used first.
@@ -1146,9 +1154,6 @@ internal fun ReadyScreen(
                         searchActive = true
                     },
                     onRunInNewSession = { command -> runSelectionInNewTab(command) },
-                    onThumbnail = { id, bitmap ->
-                        sessionSwitcherViewModel.setThumbnail(id, bitmap)
-                    },
                 )
             },
             secondary = {
@@ -1214,9 +1219,6 @@ internal fun ReadyScreen(
                         searchActive = true
                     },
                     onRunInNewSession = { command -> runSelectionInNewTab(command) },
-                    onThumbnail = { id, bitmap ->
-                        sessionSwitcherViewModel.setThumbnail(id, bitmap)
-                    },
                 )
             },
         )
@@ -1400,6 +1402,8 @@ internal fun ReadyScreen(
             SessionScreen(
                 backgroundIds = backgroundSessionIds,
                 titles = sessionTitles,
+                icons = sessionIcons,
+                programs = sessionPrograms,
                 sessions = sessions,
                 activeId = activeId,
                 onOpen = { id ->
@@ -1438,6 +1442,48 @@ internal fun ReadyScreen(
                     .background(DroshSurface)
                     .zIndex(3f),
             )
+        }
+
+        // Session previews.
+        //
+        // Every card shows its session's last screenful. A session in the
+        // background has no Surface to copy from, so the picture is rendered
+        // from the engine's own frame instead — the same cells the on-screen
+        // renderer draws, at a card's size. The poll runs only while the grid
+        // is open, one session at a time, off the main thread.
+        //
+        // The PNG is compared before it is decoded: a still screen encodes to
+        // the same bytes, and decoding it again would hand the grid a new
+        // bitmap every second for a picture that did not change.
+        val previewPngs = remember { mutableMapOf<String, ByteArray>() }
+        LaunchedEffect(sessionsGridOpen, sessions) {
+            if (!sessionsGridOpen) return@LaunchedEffect
+            while (isActive) {
+                // What each session is running, from the kernel's own answer.
+                // A card's mark comes from this, so a grid of six shells shows
+                // the six different programs they are actually running.
+                sessionPrograms = withContext(Dispatchers.Default) {
+                    sessions
+                        .filter { it.state != SessionState.Closed }
+                        .mapNotNull { session ->
+                            terminalManager.sessionProgram(session.id)?.let { session.id to it }
+                        }
+                        .toMap()
+                }
+                for (session in sessions) {
+                    if (session.state == SessionState.Closed) continue
+                    val png = withContext(Dispatchers.Default) {
+                        terminalManager.sessionPreview(session.id)
+                    } ?: continue
+                    if (previewPngs[session.id]?.contentEquals(png) == true) continue
+                    previewPngs[session.id] = png
+                    val bitmap = withContext(Dispatchers.Default) {
+                        BitmapFactory.decodeByteArray(png, 0, png.size)?.asImageBitmap()
+                    } ?: continue
+                    sessionSwitcherViewModel.setThumbnail(session.id, bitmap)
+                }
+                delay(PREVIEW_POLL_MILLIS)
+            }
         }
 
         // Sidebar açıkken terminal'le HİÇBİR etkileşim olmasın — sadece

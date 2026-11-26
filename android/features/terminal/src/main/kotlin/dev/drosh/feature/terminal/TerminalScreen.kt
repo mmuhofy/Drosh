@@ -373,6 +373,16 @@ internal fun buildSystemInfo(
 internal const val GRID_TRANSITION_MILLIS = 240
 
 /**
+ * How often the session grid asks for a fresh card preview.
+ *
+ * The picture is a still frame, not a video: a card is read at a glance, and a
+ * screen that changes between two polls still has its last state drawn. One
+ * second is fast enough to feel live and slow enough that a grid of a dozen
+ * sessions costs no visible CPU.
+ */
+internal const val PREVIEW_POLL_MILLIS = 1_000L
+
+/**
  * How long the scrim takes to clear after a session switch.
  *
  * Short: it is there to soften the change, not to delay it.

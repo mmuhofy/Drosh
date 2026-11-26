@@ -245,6 +245,28 @@ object NativeSession {
         return nativeTitle(handle)?.takeIf { it.isNotBlank() }
     }
 
+    /** The icon name the program asked for with OSC 1, or null. */
+    fun iconName(handle: Long): String? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeIconName(handle)?.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * The session's last screenful as a PNG, for a card on the session grid.
+     *
+     * Drawn from the renderer's own cells, so a session that is in the
+     * background — with no Surface and no pane — still has a truthful
+     * preview. The native side caches the encoding against the frame, so a
+     * still session costs a hash rather than a rasterization.
+     *
+     * Blocking: a frame iteration plus, when the screen changed, a
+     * rasterization and a PNG encode. Call it off the main thread.
+     */
+    fun snapshot(handle: Long, maxWidth: Int): ByteArray? {
+        if (handle == 0L || maxWidth <= 0 || !NativeLibraries.ensureLoaded()) return null
+        return nativeSnapshot(handle, maxWidth)
+    }
+
     fun scrollbar(handle: Long): Scrollbar? {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
         val values = nativeScrollbar(handle)
@@ -362,6 +384,10 @@ object NativeSession {
     ): Byte
     private external fun nativeSetScrollback(handle: Long, lines: Long): Byte
     private external fun nativeTitle(handle: Long): String?
+
+    private external fun nativeIconName(handle: Long): String?
+
+    private external fun nativeSnapshot(handle: Long, maxWidth: Int): ByteArray?
     private external fun nativeImages(handle: Long): ByteArray?
     private external fun nativeSetCursor(handle: Long, style: Int, blink: Int): Byte
     private external fun nativeSetHighlight(

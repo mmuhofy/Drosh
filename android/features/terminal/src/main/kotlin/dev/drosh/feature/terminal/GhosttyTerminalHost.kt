@@ -21,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalContext
@@ -39,7 +38,6 @@ import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
@@ -123,13 +121,6 @@ fun GhosttyTerminalHost(
      */
     backgroundFile: java.io.File? = null,
     backgroundOpacity: Int = 255,
-    /**
-     * Told the last captured frame of a session, for the session grid's card.
-     *
-     * The host owns the only SurfaceView showing that session, so it is the only
-     * place a picture can be taken. Without a session id nothing is captured.
-     */
-    onThumbnail: (String, ImageBitmap) -> Unit = { _, _ -> },
     /**
      * The colour a search match is drawn in.
      *
@@ -535,84 +526,16 @@ fun GhosttyTerminalHost(
 
     pane.onSessionExited = { code -> status = "session ended ($code)" }
 
-    // Thumbnails. The surface is only readable while the host is on screen; the
-    // last frame before a session is switched away (or the app backgrounds) is
-    // kept for the grid's card. The callbacks are read live so these effects do
-    // not have to be rebuilt when the caller changes.
-    var hostVisible by remember { mutableStateOf(true) }
-    val currentSessionId = rememberUpdatedState(sessionId)
-    val currentOnThumbnail = rememberUpdatedState(onThumbnail)
-    val thumbnailPublisher = remember { ThumbnailPublisher(THUMBNAIL_CAPTURE_INTERVAL_MS) }
-    val captureThumbnail: (String, Boolean) -> Unit = { id, force ->
-        // The surface is the only thing that can be sampled, and the id is the
-        // only key the grid can store it under. Neither being ready is a silent
-        // no-op, never a publish under an empty key.
-        if (id.isNotEmpty()) {
-            val surface = runCatching { pane.view.holder.surface }.getOrNull()
-            if (surface != null) {
-                captureSessionThumbnail(
-                    surface = surface,
-                    viewWidth = pane.view.width,
-                    viewHeight = pane.view.height,
-                    sessionId = id,
-                    shouldPublish = { key, bitmap -> thumbnailPublisher.shouldPublish(key, bitmap, force) },
-                    onThumbnail = currentOnThumbnail.value,
-                )
-            }
-        }
-    }
-
-    // The active session is refreshed at the normal interval. The dedupe and
-    // throttle are per session now, so publishing a background session's final
-    // frame cannot disturb the active one's cadence.
-    LaunchedEffect(hostVisible, pane, sessionId) {
-        if (!hostVisible || sessionId.isEmpty()) return@LaunchedEffect
-        while (isActive && hostVisible) {
-            delay(THUMBNAIL_CAPTURE_INTERVAL_MS)
-            captureThumbnail(sessionId, false)
-        }
-    }
-
-    // A session that loses pane focus in a split still has a live surface, so a
-    // final frame here keeps its card honest even if it is polled less often.
-    LaunchedEffect(focusedPane, sessionId) {
-        if (focusedPane != paneSlot && sessionId.isNotEmpty()) {
-            captureThumbnail(sessionId, true)
-        }
-    }
-
-    DisposableEffect(pane, sessionId) {
-        onDispose {
-            // One last frame for the session that is leaving this pane. Declared
-            // before the release effect below, so the surface is still ours.
-            // Forced: the session's last normal capture may have been inside the
-            // 2s throttle window, but a card must keep a last-good picture.
-            captureThumbnail(sessionId, true)
-        }
-    }
-
-    DisposableEffect(pane) {
-        onDispose {
-            terminalManager.unregisterPane(paneSlot)
-            pane.release()
-        }
-    }
-
+    // The host's own lifecycle is still the pane's: the terminal is told when
+    // it is shown and hidden, which is what its cursor blink and its reader
+    // thread's pacing key off. A card's picture no longer comes from this
+    // SurfaceView — the session grid renders it from the engine's frame, so a
+    // background session previews as well as the one on screen.
     DisposableEffect(lifecycleOwner, pane) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> {
-                    hostVisible = true
-                    pane.onHostResume()
-                }
-                Lifecycle.Event.ON_PAUSE -> {
-                    hostVisible = false
-                    pane.onHostPause()
-                    // Going to the background is the last chance to sample this
-                    // surface. Force past the 2s throttle; transparency and
-                    // per-session dedupe still apply inside the publisher.
-                    captureThumbnail(currentSessionId.value, true)
-                }
+                Lifecycle.Event.ON_RESUME -> pane.onHostResume()
+                Lifecycle.Event.ON_PAUSE -> pane.onHostPause()
                 else -> Unit
             }
         }

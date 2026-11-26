@@ -62,11 +62,6 @@
     <string name="settings_cursor_style_thin">Dünner block</string>
     <string name="settings_terminal_mode">Terminal-Modus</string>
     <string name="settings_terminal_mode_desc">Wie ein Befehl und seine Ausgabe angeordnet werden</string>
-    <string name="settings_terminal_backend">Terminal-Backend</string>
-    <string name="settings_terminal_backend_termux">Termux</string>
-    <string name="settings_terminal_backend_termux_desc">Das Terminal, das die App immer verwendet hat</string>
-    <string name="settings_terminal_backend_engine">Engine</string>
-    <string name="settings_terminal_backend_engine_desc">Die neue Rust-Engine — experimentell</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">KI</string>
@@ -84,12 +79,6 @@
     <string name="settings_section_shell">Shell</string>
     <string name="settings_section_rootfs">Rootfs</string>
     <string name="settings_section_editor">Editor</string>
-    <string name="settings_terminal_scrollback">Scrollback</string>
-    <string name="settings_terminal_scrollback_value">%1$d Zeilen</string>
-    <string name="settings_terminal_bell">Signalton</string>
-    <string name="settings_terminal_bell_none">Aus</string>
-    <string name="settings_terminal_bell_vibrate">Vibration</string>
-    <string name="settings_terminal_bell_sound">Ton</string>
     <string name="settings_terminal_keep_awake">Bildschirm an lassen</string>
     <string name="settings_terminal_keep_awake_desc">Solange ein Terminal angezeigt wird</string>
     <string name="settings_terminal_immersive">Oberfläche automatisch ausblenden</string>

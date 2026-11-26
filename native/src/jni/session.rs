@@ -389,6 +389,46 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     new_byte_array(&mut env, &images)
 }
 
+/// The icon name the program asked for (OSC 1), or null.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeIconName(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jstring {
+    let Some(session) = session_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    match session.icon_name() {
+        Some(name) => new_string(&mut env, name),
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// The session's last screenful as a PNG, for a card on the session grid.
+///
+/// The picture is drawn from the renderer's own cells, so it works for a
+/// session that is in the background and has no Surface. Null when the session
+/// has no frame yet.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeSnapshot(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    max_width: jint,
+) -> jbyteArray {
+    if !(1..=4096).contains(&max_width) {
+        return std::ptr::null_mut();
+    }
+    let Some(session) = session_handle(handle) else {
+        return std::ptr::null_mut();
+    };
+    match session.snapshot_png(max_width as u32) {
+        Some(png) => new_byte_array(&mut env, &png),
+        None => std::ptr::null_mut(),
+    }
+}
+
 /// The window title the program asked for (OSC 0/2), or the process name.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeTitle(

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Oturum ekranı metinleri. -->
+<resources>
+    <string name="session_screen_title">Oturumlar</string>
+    <string name="session_screen_count">%1$d açık</string>
+    <!-- Kullanıcı adı ve OSC başlığı olmayan oturumun adı. -->
+    <string name="session_screen_default_name">kabuk</string>
+
+    <string name="session_screen_search_hint">Oturum ara</string>
+    <string name="session_screen_search_clear">Aramayı temizle</string>
+    <string name="session_screen_clear_search">Aramayı temizle</string>
+
+    <string name="session_screen_tab_groups">Gruplar</string>
+    <string name="session_screen_tab_singles">Oturumlar</string>
+    <!-- İki yönlü kart filtresini açan okun erişilebilirlik etiketi. -->
+    <string name="session_screen_filter">Görünümü değiştir</string>
+
+    <string name="session_screen_new">Yeni oturum</string>
+    <string name="session_screen_add">Oturum ekle</string>
+
+    <string name="session_screen_empty_title">Oturum yok</string>
+    <string name="session_screen_empty_body">Yeni bir kabuk açın, kartı burada belirsin.</string>
+    <string name="session_screen_empty_groups_title">Henüz grup yok</string>
+    <string name="session_screen_empty_groups_body">Grup oluşturmak için bir oturum kartını diğerinin üzerine sürükleyin.</string>
+    <string name="session_screen_empty_filtered_title">Tüm oturumlar bir grupta</string>
+    <string name="session_screen_empty_filtered_body">Görmek için Gruplar görünümüne geçin.</string>
+    <string name="session_screen_empty_search_title">Eşleşme yok</string>
+    <string name="session_screen_empty_search_body">Bu aramayla eşleşen oturum yok.</string>
+
+    <string name="session_screen_group_title">Grup · %1$d oturum</string>
+    <string name="session_screen_group_open">Grubu açmak için dokunun</string>
+    <string name="session_screen_group_empty">Bu grupta açık oturum yok.</string>
+    <!-- Sabit yükseklikli kartın içine sığmayan üye sayısı. -->
+    <string name="session_screen_group_more">+%1$d daha</string>
+    <string name="session_screen_group_remove">Gruptan çıkar</string>
+    <string name="session_screen_group_ungroup">Grubu dağıt</string>
+    <string name="session_screen_group_close">Kapat</string>
+
+    <string name="session_screen_split_title">Bölme seç…</string>
+    <string name="session_screen_split_subtitle">Birlikte bölünecek oturumu seçin.</string>
+    <string name="session_screen_split_empty">Bölünecek başka oturum yok.</string>
+    <string name="session_screen_split_cancel">İptal</string>
+
+    <string name="session_screen_header_menu">Diğer seçenekler</string>
+    <string name="session_screen_overflow">Oturum seçenekleri</string>
+    <string name="session_screen_menu_split">Bölme seç…</string>
+    <string name="session_screen_menu_pin">Üste sabitle</string>
+    <string name="session_screen_menu_unpin">Sabitlemeyi kaldır</string>
+    <string name="session_screen_menu_persistent">Kalıcı</string>
+    <string name="session_screen_menu_rename">Yeniden adlandır</string>
+    <string name="session_screen_menu_close">Kapat</string>
+    <string name="session_screen_menu_close_all">Tüm oturumları kapat</string>
+
+    <!-- Kapatma onayı. Yıkıcı eylem, soran dokunuşla çalışmaz; bu yüzden iki
+         durum da neyin kaybolacağını söyler. -->
+    <string name="session_screen_close_one_title">Oturum kapatılsın mı?</string>
+    <string name="session_screen_close_one_message">%1$s kapatılacak. Çıktısı geri alınamaz.</string>
+    <string name="session_screen_close_all_title">Tüm oturumlar kapatılsın mı?</string>
+    <string name="session_screen_close_all_message">%1$d açık oturum kapatılacak.</string>
+    <string name="session_screen_close_confirm">Kapat</string>
+    <string name="session_screen_close_cancel">İptal</string>
+
+    <string name="session_screen_chip_pin">SABİT</string>
+    <string name="session_screen_chip_persistent">KALICI</string>
+
+    <!-- Karttaki gerçek terminal önizlemesinin erişilebilirlik etiketi. -->
+    <string name="session_screen_thumbnail">%1$s için terminal önizlemesi</string>
+</resources>
