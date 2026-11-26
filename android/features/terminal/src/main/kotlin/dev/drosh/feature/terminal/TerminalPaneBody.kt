@@ -244,6 +244,8 @@ internal fun TerminalPaneBody(
     onUrlClick: (String) -> Unit,
     /** The selection asked the screen's find bar to search its text. */
     onSearchSelection: (String) -> Unit = {},
+    /** The selection asked for a new session that runs it. */
+    onRunInNewSession: (String) -> Unit = {},
     /** Told this pane's last frame, for the session grid's card. */
     onThumbnail: (String, ImageBitmap) -> Unit,
 ) {
@@ -396,6 +398,7 @@ internal fun TerminalPaneBody(
                 // the screen decides what opening it means.
                 onUrlClick = onUrlClick,
                 onSearchSelection = onSearchSelection,
+                onRunInNewSession = onRunInNewSession,
                 onThumbnail = onThumbnail,
                 modifier = Modifier.fillMaxSize(),
             )

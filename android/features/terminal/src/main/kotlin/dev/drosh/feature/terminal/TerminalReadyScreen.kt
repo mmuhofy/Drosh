@@ -968,6 +968,25 @@ internal fun ReadyScreen(
     }
 
     /**
+     * Runs a selected command in a session of its own.
+     *
+     * The command is handed to the manager *before* the tab exists: the tab's
+     * shell reads one queued command as it starts, so the new session is
+     * already running the selection by the time the user looks at it — no
+     * typing into a prompt that may not be up yet.
+     *
+     * The tab is named after the command's first words, which is what makes
+     * four of them distinguishable in the session grid.
+     */
+    fun runSelectionInNewTab(command: String) {
+        val trimmed = command.trim()
+        if (trimmed.isEmpty()) return
+        terminalManager.queueStartupCommand(trimmed)
+        val name = trimmed.lineSequence().first().trim().take(24).ifBlank { "run" }
+        sessionSwitcherViewModel.createNew(name)
+    }
+
+    /**
      * Opens the keyboard when the screen appears.
      *
      * Since the window no longer opens it on focus, something has to, and the
@@ -1127,6 +1146,7 @@ internal fun ReadyScreen(
                         scannedQuery = query
                         searchActive = true
                     },
+                    onRunInNewSession = { command -> runSelectionInNewTab(command) },
                     onThumbnail = { id, bitmap ->
                         sessionSwitcherViewModel.setThumbnail(id, bitmap)
                     },
@@ -1195,6 +1215,7 @@ internal fun ReadyScreen(
                         scannedQuery = query
                         searchActive = true
                     },
+                    onRunInNewSession = { command -> runSelectionInNewTab(command) },
                     onThumbnail = { id, bitmap ->
                         sessionSwitcherViewModel.setThumbnail(id, bitmap)
                     },

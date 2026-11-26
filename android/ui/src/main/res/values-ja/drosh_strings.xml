@@ -322,4 +322,8 @@
     <string name="selection_dismiss">Close</string>
     <string name="selection_share">Share</string>
     <string name="selection_paste">Paste</string>
+    <string name="selection_more">More</string>
+    <string name="selection_run_here">Run here</string>
+    <string name="selection_run_new">New tab</string>
+    <string name="selection_open_browser">Browser</string>
 </resources>

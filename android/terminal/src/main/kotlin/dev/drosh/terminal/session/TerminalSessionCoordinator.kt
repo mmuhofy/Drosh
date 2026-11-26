@@ -949,6 +949,36 @@ class TerminalSessionCoordinator(
 
     private var guestStartCommand: String = ""
 
+    /**
+     * A command the next session's shell runs as soon as it is up.
+     *
+     * The selection's "run in a new tab" is one command, once: it is set
+     * before the session is created and cleared by the shell integration that
+     * consumes it, so it cannot run again in the session after that — or in
+     * the one the user already had.
+     */
+    @Volatile
+    private var pendingStartupCommand: String? = null
+
+    /**
+     * Queue [command] for the next session this manager starts.
+     *
+     * It is typed into that session's shell once the session is up, not baked
+     * into the shared rc script: the script belongs to every session, and a
+     * command installed there would run in whichever one reloaded it first.
+     */
+    fun queueStartupCommand(command: String) {
+        val trimmed = command.trim()
+        if (trimmed.isNotEmpty()) pendingStartupCommand = trimmed
+    }
+
+    /** Take the queued command, if there is one. Reading it clears it. */
+    fun takeStartupCommand(): String? {
+        val command = pendingStartupCommand ?: return null
+        pendingStartupCommand = null
+        return command
+    }
+
     /** The shell's locale, from the file; "" leaves the image's default. */
     private var shellLocale: String = ""
 

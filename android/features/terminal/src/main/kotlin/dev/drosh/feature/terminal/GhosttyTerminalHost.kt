@@ -160,6 +160,14 @@ fun GhosttyTerminalHost(
      * panes and remembers one query. The pane only hands the text up.
      */
     onSearchSelection: (String) -> Unit = {},
+    /**
+     * Open a new session that runs this text.
+     *
+     * Starting a session is the screen's job — it owns the session list and
+     * the switch that follows — so the pane hands the command up and nothing
+     * else. Running it *here* needs no such help: the pane has the PTY.
+     */
+    onRunInNewSession: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -475,6 +483,14 @@ fun GhosttyTerminalHost(
             return@LaunchedEffect
         }
 
+        // A command queued for the next session — the selection's "run in a
+        // new tab" — is typed once this shell is up, so it runs here and in
+        // no other session. Consumed, not remembered: the tab after this one
+        // is an ordinary shell.
+        terminalManager.takeStartupCommand()?.let { command ->
+            pane.view.runCommand(command)
+        }
+
         // The session runs; keep the counters up until frames are being drawn.
         // Zero bytes is one bug, zero frames another, and a renderer that never
         // came up is a third — and it is the only one whose cause is invisible.
@@ -692,6 +708,48 @@ fun GhosttyTerminalHost(
                     if (text.isNotEmpty()) onSearchSelection(text)
                 },
                 onDismiss = { pane.clearSelection() },
+                // The clipboard is the app's business, not the engine's: the
+                // manager already owns the paste path (bracketed when the
+                // shell asked for it) and the focus that decides who gets it.
+                onPaste = { terminalManager.pasteClipboard() },
+                onShare = {
+                    val text = pane.selectionText().trim()
+                    if (text.isNotEmpty()) {
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                            .setType("text/plain")
+                            .putExtra(android.content.Intent.EXTRA_TEXT, text)
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent.createChooser(send, null)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    }
+                },
+                onRun = { pane.view.runSelection() },
+                onRunInNewSession = {
+                    val command = pane.selectionText().trim()
+                    if (command.isNotEmpty()) {
+                        onRunInNewSession(command)
+                        pane.clearSelection()
+                    }
+                },
+                onOpenInBrowser = {
+                    // A selection that is not a link still has a good guess in
+                    // it — a bare host name is a link as far as a browser is
+                    // concerned — so the first word is what is opened.
+                    val candidate = pane.selectionText()
+                        .lineSequence()
+                        .firstOrNull { it.isNotBlank() }
+                        ?.trim()
+                        ?.substringBefore(' ')
+                        .orEmpty()
+                    if (candidate.isNotEmpty()) {
+                        onUrlClick(
+                            if (candidate.contains("://")) candidate else "https://$candidate",
+                        )
+                    }
+                },
                 onExtend = { x, y, topLeft -> pane.extendSelectionTo(x, y, topLeft) },
                 onExtendEnd = { pane.endSelectionGripDrag() },
                 topLeftHandle = topLeft,

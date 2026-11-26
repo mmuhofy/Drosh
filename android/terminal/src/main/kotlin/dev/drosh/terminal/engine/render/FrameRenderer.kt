@@ -1640,8 +1640,22 @@ internal class FrameRenderer {
         colorGlyphFirstRowY = frame.firstRowY
         colorGlyphCellWidth = cellWidth
         colorGlyphCellHeight = cellHeight
-        colorGlyphGeneration = colorAtlas.generation
 
+        // A build can fill the atlas, and a full atlas starts over. The rects
+        // collected before that point describe the old atlas, so the whole
+        // list is collected again — once — from the atlas as it is now. One
+        // pass is enough: a reset leaves an empty atlas, and the emoji of one
+        // frame are a few hundred at most.
+        val generationBefore = colorAtlas.generation
+        collectColorGlyphs(frame)
+        if (colorAtlas.generation != generationBefore) {
+            collectColorGlyphs(frame)
+        }
+        colorGlyphGeneration = colorAtlas.generation
+    }
+
+    /** Walk the frame's cells and collect its emoji. */
+    private fun collectColorGlyphs(frame: Frame) {
         colorGlyphs.clear()
         for (row in 0 until frame.rowCount) {
             val gridRow = row + frame.firstRowY
@@ -1672,8 +1686,13 @@ internal class FrameRenderer {
                         z = 0,
                         col = 0,
                         row = 0,
-                        offsetX = (column * cellWidth).toInt(),
-                        offsetY = (gridRow * cellHeight).toInt(),
+                        // The cell's own edges, not its rounded origin: an
+                        // emoji at column 7 of a 24.4px cell belongs at 170.8,
+                        // and truncating the offset to 170 shifted every quad a
+                        // fraction of a pixel with it — a seam that reads as a
+                        // clipped emoji where two of them meet.
+                        offsetX = (column * cellWidth).roundToInt(),
+                        offsetY = (gridRow * cellHeight).roundToInt(),
                         width = (span * cellWidth).roundToInt(),
                         height = cellHeight.roundToInt(),
                         sourceU = glyph.x.toFloat() / colorAtlas.size.toFloat(),
@@ -1686,7 +1705,16 @@ internal class FrameRenderer {
         }
     }
 
-    /** The emoji of the last build, and the geometry it was built for. */
+    /**
+     * The emoji of the last build, and the geometry it was built for.
+     *
+     * The generation is recorded *after* the build, not before it: an atlas
+     * that fills up mid-build starts over, and every rect added before that
+     * point is dead. Recording the old generation made the next frame rebuild
+     * (correct) but left this one drawing the stale rects (a screen of wrong
+     * emoji for one frame). Recording the new one is the same rebuild, one
+     * frame earlier.
+     */
     private var colorGlyphsBuilt = false
     private var colorGlyphColumns = 0
     private var colorGlyphRows = 0

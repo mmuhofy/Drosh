@@ -1,9 +1,16 @@
 package dev.drosh.feature.terminal
 
 import android.graphics.Rect
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,31 +21,48 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.theme.DroshOutline
+import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextSecondary
@@ -66,6 +90,14 @@ import kotlin.math.roundToInt
  * The grips use the selection's ordered endpoints, not the corners of the
  * box: a selection that starts mid-row and wraps has a top-left endpoint that
  * is not the box's left edge on its first row.
+ *
+ * ## Motion
+ *
+ * Everything here follows the selection instead of teleporting to it, but it
+ * never *travels* across the pane: a toolbar that changes sides has been
+ * re-placed, not moved, and animating that move is the jump the user saw while
+ * dragging a grip. Small moves — a row as the selection grows, a column while
+ * the finger drags — glide; a side change snaps.
  */
 @Composable
 fun TerminalSelectionOverlay(
@@ -90,10 +122,20 @@ fun TerminalSelectionOverlay(
     /** The terminal's background, for contrast. */
     terminalBackground: Color = Color.Black,
     cellHeight: Float = 0f,
+    /** Put the selection on the clipboard and paste the clipboard into the session. */
+    onPaste: () -> Unit = {},
+    /** Hand the selection to the platform's share sheet. */
+    onShare: () -> Unit = {},
+    /** Type the selection into the focused session and run it. */
+    onRun: () -> Unit = {},
+    /** Open a new session that runs the selection. */
+    onRunInNewSession: () -> Unit = {},
+    /** Open the selection as a link. */
+    onOpenInBrowser: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    val handleSize = 20.dp
+    val handleSize = 22.dp
     val handleSizePx = with(density) { handleSize.toPx() }
     val cellH = if (cellHeight > 0f) cellHeight else bounds.height().toFloat().coerceAtLeast(1f)
 
@@ -110,127 +152,273 @@ fun TerminalSelectionOverlay(
         paneOrigin.y + bounds.bottom - cellH / 2f
     }
 
+    // The toolbar's second row. Closed by default: six actions on a selection
+    // covered the text the user had just chosen, and the ones that matter for
+    // a terminal — run, open — were lost among copy and select-all.
+    var expanded by remember { mutableStateOf(false) }
+
     BoxWithConstraints(modifier = modifier) {
         val paneWidth = constraints.maxWidth.toFloat()
         val paneHeight = constraints.maxHeight.toFloat()
-        val menuHeight = with(density) { MENU_HEIGHT_DP.dp.toPx() }
-        val menuWidth = with(density) { menuWidthFor(ACTION_COUNT).toPx() }
-        val edge = with(density) { 4.dp.toPx() }
+        val edge = with(density) { MENU_EDGE_DP.dp.toPx() }
 
-        // Above the selection when there is room, below it otherwise. A
-        // selection touching the top of the pane is the common case while the
-        // keyboard is open, and a menu placed above it would be clipped to a
-        // sliver of its own border.
+        val menuWidth = with(density) { MENU_WIDTH_DP.dp.toPx() }
+        // The surface's own height, measured from what it draws: the padding at
+        // both ends, the first row, and — when open — the divider and the two
+        // rows under it. A menu that guessed short was placed as though it
+        // fitted above a selection it then covered.
+        val menuHeight = with(density) {
+            (
+                2 * MENU_PAD_DP + ACTION_HEIGHT_DP +
+                    if (expanded) {
+                        EXTRA_DIVIDER_DP + EXTRA_GAP_DP + 2 * ACTION_HEIGHT_DP
+                    } else {
+                        0
+                    }
+                ).dp.toPx()
+        }
+
         val selectionTop = paneOrigin.y + bounds.top
         val selectionBottom = paneOrigin.y + bounds.bottom
-        val menuY = if (selectionTop - menuHeight - edge >= 0f) {
-            selectionTop - menuHeight - edge
-        } else {
-            (selectionBottom + edge).coerceAtMost((paneHeight - menuHeight - edge).coerceAtLeast(edge))
-        }
+        val fitsAbove = selectionTop - menuHeight - edge >= 0f
+        val fitsBelow = selectionBottom + menuHeight + edge <= paneHeight
         val selectionCenterX = paneOrigin.x + (bounds.left + bounds.right) / 2f
         val menuX = (selectionCenterX - menuWidth / 2f)
             .coerceIn(edge, (paneWidth - menuWidth - edge).coerceAtLeast(edge))
 
-        // The menu rides the selection on the same spring as the grips. It
-        // follows a scroll and a growing selection, so it has to move for the
-        // same reason they do: a menu that stayed behind its cells was the other
-        // half of "the selection moves while the output scrolls".
-        val animatedMenuX by animateFloatAsState(
-            targetValue = menuX,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessMediumLow,
-            ),
-            label = "selectionMenuX",
-        )
-        val animatedMenuY by animateFloatAsState(
-            targetValue = menuY,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessMediumLow,
-            ),
-            label = "selectionMenuY",
+        // Which side the toolbar hangs on, decided with a bias towards where it
+        // already is. Without the bias, a selection whose top crosses the
+        // toolbar's height flipped it from above to below on every row of a
+        // drag — and the animation that carried it across looked like the menu
+        // shooting to the top of the screen and back.
+        var below by remember { mutableStateOf(false) }
+        val preferBelow = when {
+            below && fitsBelow -> true
+            !below && fitsAbove -> false
+            fitsBelow -> true
+            fitsAbove -> false
+            // Neither side has room: the one with more of the pane goes.
+            else -> selectionTop < paneHeight / 2f
+        }
+        val sideChanged = preferBelow != below
+        LaunchedEffect(preferBelow) { below = preferBelow }
+
+        // The edge the toolbar is anchored by stays put: its bottom when it
+        // hangs above the selection, its top when it hangs below. Expanding it
+        // therefore grows away from the text rather than pushing the toolbar
+        // over it.
+        val targetTop = if (preferBelow) {
+            (selectionBottom + edge).coerceAtMost((paneHeight - menuHeight - edge).coerceAtLeast(edge))
+        } else {
+            (selectionTop - menuHeight - edge).coerceAtLeast(edge)
+        }
+
+        val animatedMenu = smoothOffset(
+            target = Offset(menuX, targetTop),
+            snap = sideChanged,
         )
 
         // The grips, at the selection's own endpoints. A grip whose endpoint
         // has scrolled off the screen is not drawn: it would sit on a row that
         // has nothing to do with the selection.
-        topLeftHandle?.let { handle ->
-            SelectionGrip(
-                centerX = paneOrigin.x + handle.x,
-                centerY = startCenterY,
-                sizePx = handleSizePx,
-                cellPx = cellH,
-                stemDown = true,
-                paneOrigin = paneOrigin,
-                accent = DroshWarning,
-                terminalBackground = terminalBackground,
-                onDrag = { x, y -> onExtend(x, y, true) },
-                onDragEnd = onExtendEnd,
-            )
+        //
+        // Each grip has a stable identity. Without one, a grip that appeared
+        // while the other was hidden took its sibling's animation state and
+        // slid into place from the other end's position — the "handle flies to
+        // the top and comes back" the drag used to show.
+        key("selection-grip-start") {
+            topLeftHandle?.let { handle ->
+                SelectionGrip(
+                    centerX = paneOrigin.x + handle.x,
+                    centerY = startCenterY,
+                    sizePx = handleSizePx,
+                    cellPx = cellH,
+                    stemDown = true,
+                    paneOrigin = paneOrigin,
+                    accent = DroshWarning,
+                    terminalBackground = terminalBackground,
+                    onDrag = { x, y -> onExtend(x, y, true) },
+                    onDragEnd = onExtendEnd,
+                )
+            }
         }
-        bottomRightHandle?.let { handle ->
-            SelectionGrip(
-                centerX = paneOrigin.x + handle.x,
-                centerY = endCenterY,
-                sizePx = handleSizePx,
-                cellPx = cellH,
-                stemDown = false,
-                paneOrigin = paneOrigin,
-                accent = DroshWarning,
-                terminalBackground = terminalBackground,
-                onDrag = { x, y -> onExtend(x, y, false) },
-                onDragEnd = onExtendEnd,
-            )
+        key("selection-grip-end") {
+            bottomRightHandle?.let { handle ->
+                SelectionGrip(
+                    centerX = paneOrigin.x + handle.x,
+                    centerY = endCenterY,
+                    sizePx = handleSizePx,
+                    cellPx = cellH,
+                    stemDown = false,
+                    paneOrigin = paneOrigin,
+                    accent = DroshWarning,
+                    terminalBackground = terminalBackground,
+                    onDrag = { x, y -> onExtend(x, y, false) },
+                    onDragEnd = onExtendEnd,
+                )
+            }
         }
 
-        // The toolbar. Its own background is opaque enough to read over a
-        // busy terminal, and the border keeps it separate from a same-coloured
-        // line of output underneath.
-        Row(
+        // The toolbar. Glass rather than a flat chip: a translucent surface, a
+        // hairline of light along its top edge and a shadow underneath it, so
+        // it reads as a pane of glass over the output instead of as another
+        // rectangle of colour pasted on it.
+        Column(
             modifier = Modifier
-                .offset { IntOffset(animatedMenuX.roundToInt(), animatedMenuY.roundToInt()) }
+                .offset {
+                    IntOffset(
+                        animatedMenu.x.roundToInt(),
+                        animatedMenu.y.roundToInt(),
+                    )
+                }
+                .width(MENU_WIDTH_DP.dp)
+                .shadow(
+                    elevation = 14.dp,
+                    shape = MenuShape,
+                    ambientColor = Color.Black.copy(alpha = 0.55f),
+                    spotColor = Color.Black.copy(alpha = 0.55f),
+                )
                 .clip(MenuShape)
-                .background(DroshSurfaceHigh.copy(alpha = 0.96f))
-                .border(1.dp, DroshOutline, MenuShape)
-                .padding(horizontal = 3.dp, vertical = 3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(1.dp),
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            DroshSurfaceHigh.copy(alpha = 0.84f),
+                            DroshSurfaceHigh.copy(alpha = 0.68f),
+                        ),
+                    ),
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.16f),
+                            Color.White.copy(alpha = 0.03f),
+                        ),
+                    ),
+                    shape = MenuShape,
+                )
+                .padding(horizontal = MENU_PAD_DP.dp, vertical = MENU_PAD_DP.dp),
         ) {
-            MenuAction(DroshIcons.Copy, stringResource(R.string.selection_copy), onCopy)
-            MenuAction(
-                DroshIcons.ALargeSmall,
-                stringResource(R.string.selection_select_word),
-                onSelectWord,
-            )
-            MenuAction(
-                DroshIcons.ListChecks,
-                stringResource(R.string.selection_select_line),
-                onSelectLine,
-            )
-            MenuAction(DroshIcons.Square, stringResource(R.string.selection_select_all), onSelectAll)
-            MenuAction(DroshIcons.Search, stringResource(R.string.selection_search), onSearch)
-            MenuAction(DroshIcons.X, stringResource(R.string.selection_dismiss), onDismiss)
+            Row(horizontalArrangement = Arrangement.spacedBy(ACTION_GAP_DP.dp)) {
+                MenuAction(DroshIcons.Copy, stringResource(R.string.selection_copy), onCopy)
+                MenuAction(
+                    DroshIcons.ClipboardPaste,
+                    stringResource(R.string.selection_paste),
+                    onPaste,
+                )
+                MoreAction(
+                    expanded = expanded,
+                    onToggle = { expanded = !expanded },
+                )
+                MenuAction(DroshIcons.X, stringResource(R.string.selection_dismiss), onDismiss)
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                Column {
+                    Box(
+                        Modifier
+                            .padding(top = MENU_PAD_DP.dp, bottom = EXTRA_GAP_DP.dp)
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color.White.copy(alpha = 0.07f)),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(ACTION_GAP_DP.dp)) {
+                        MenuAction(
+                            DroshIcons.ALargeSmall,
+                            stringResource(R.string.selection_select_word),
+                            onSelectWord,
+                        )
+                        MenuAction(
+                            DroshIcons.ListChecks,
+                            stringResource(R.string.selection_select_line),
+                            onSelectLine,
+                        )
+                        MenuAction(
+                            DroshIcons.Square,
+                            stringResource(R.string.selection_select_all),
+                            onSelectAll,
+                        )
+                        MenuAction(
+                            DroshIcons.Search,
+                            stringResource(R.string.selection_search),
+                            onSearch,
+                        )
+                    }
+                    Spacer(Modifier.height(EXTRA_GAP_DP.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(ACTION_GAP_DP.dp)) {
+                        MenuAction(
+                            DroshIcons.Share,
+                            stringResource(R.string.selection_share),
+                            onShare,
+                        )
+                        MenuAction(
+                            DroshIcons.Play,
+                            stringResource(R.string.selection_run_here),
+                            onRun,
+                        )
+                        MenuAction(
+                            DroshIcons.SquarePlus,
+                            stringResource(R.string.selection_run_new),
+                            onRunInNewSession,
+                        )
+                        MenuAction(
+                            DroshIcons.Globe,
+                            stringResource(R.string.selection_open_browser),
+                            onOpenInBrowser,
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
-private val MenuShape = RoundedCornerShape(12.dp)
+/**
+ * Follow [target] on a spring, or land on it at once.
+ *
+ * [snap] is for a change that is a re-placement rather than a move: animating
+ * that is the toolbar travelling across the pane, which reads as a glitch.
+ */
+@Composable
+private fun smoothOffset(target: Offset, snap: Boolean): Offset {
+    val animated = remember { Animatable(target, Offset.VectorConverter) }
+    LaunchedEffect(target, snap) {
+        if (snap) {
+            animated.snapTo(target)
+        } else {
+            animated.animateTo(
+                targetValue = target,
+                animationSpec = spring(
+                    dampingRatio = 0.9f,
+                    stiffness = Spring.StiffnessMedium,
+                ),
+            )
+        }
+    }
+    return animated.value
+}
 
-/** Width of one action cell, including the gaps around it. */
+private val MenuShape = RoundedCornerShape(18.dp)
+
+/** One action cell. Four fit a phone's width with the menu's own padding. */
 private const val ACTION_DP = 44
-private const val ACTION_GAP_DP = 1
-private const val MENU_EDGE_DP = 3
-private const val ACTION_COUNT = 6
+private const val ACTION_GAP_DP = 2
+private const val ACTION_HEIGHT_DP = 44
+private const val MENU_PAD_DP = 4
+private const val MENU_EDGE_DP = 8
 
-/** The menu row's height, used to decide whether it fits above a selection. */
-private const val MENU_HEIGHT_DP = 44
+/** The gap between the toolbar's two rows, and between its rows and divider. */
+private const val EXTRA_GAP_DP = 2
 
-/** What the toolbar will occupy for [actionCount] actions. */
-private fun menuWidthFor(actionCount: Int): androidx.compose.ui.unit.Dp =
-    (actionCount * ACTION_DP + (actionCount - 1).coerceAtLeast(0) * ACTION_GAP_DP +
-        MENU_EDGE_DP * 2).dp
+/** The divider between the toolbar's first row and the panel above it. */
+private const val EXTRA_DIVIDER_DP = 7
+
+/** The toolbar's width: four action cells plus the gaps between them. */
+private const val MENU_WIDTH_DP = 4 * ACTION_DP + 3 * ACTION_GAP_DP + 2 * MENU_PAD_DP
 
 /**
  * One toolbar action: icon over a short label.
@@ -241,26 +429,27 @@ private fun menuWidthFor(actionCount: Int): androidx.compose.ui.unit.Dp =
  */
 @Composable
 private fun MenuAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     onClick: () -> Unit,
+    tint: Color = DroshText,
 ) {
     Box(
         modifier = Modifier
-            .size(ACTION_DP.dp, 38.dp)
-            .clip(RoundedCornerShape(9.dp))
+            .size(ACTION_DP.dp, ACTION_HEIGHT_DP.dp)
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(1.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = DroshText,
-                modifier = Modifier.size(16.dp),
+                tint = tint,
+                modifier = Modifier.size(17.dp),
             )
             Text(
                 text = label,
@@ -268,6 +457,61 @@ private fun MenuAction(
                 fontSize = 8.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * The "more" button: the toolbar's door to the actions that do not fit.
+ *
+ * It is a normal action cell with a rotating chevron, so it reads as "this row
+ * has a second half" rather than as a menu button bolted onto a toolbar.
+ */
+@Composable
+private fun MoreAction(expanded: Boolean, onToggle: () -> Unit) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "selectionMoreRotation",
+    )
+    Box(
+        modifier = Modifier
+            .size(ACTION_DP.dp, ACTION_HEIGHT_DP.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (expanded) {
+                    DroshPrimary.copy(alpha = 0.16f)
+                } else {
+                    Color.Transparent
+                },
+            )
+            .clickable(onClick = onToggle),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Icon(
+                imageVector = DroshIcons.ChevronDown,
+                contentDescription = stringResource(R.string.selection_more),
+                tint = if (expanded) DroshPrimary else DroshText,
+                modifier = Modifier
+                    .size(17.dp)
+                    .rotate(rotation),
+            )
+            Text(
+                text = stringResource(R.string.selection_more),
+                color = if (expanded) DroshPrimary else DroshTextSecondary,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -277,7 +521,7 @@ private fun MenuAction(
  * A draggable grip at one end of the selection.
  *
  * The drawing is a lollipop: a thin stem that runs the height of the endpoint's
- * own row and a small round knob sitting just outside the selection, on the
+ * own row and a round knob sitting just outside the selection, on the
  * selection's edge. That is the shape that keeps the grip out of the text — a
  * big knob centred on the character hides the very cell the user is adjusting —
  * while still reading as one object instead of a floating dot.
@@ -286,9 +530,12 @@ private fun MenuAction(
  * one — so the two grips read as the edges they belong to, and the knob marks
  * the edge from the outside.
  *
- * The touch target is 44 dp and stays centred on the endpoint, even though the
- * drawing is a few dp wide. A terminal is a dense grid, and a grip that is only
- * as big as its drawing is a grip the user misses on the first try.
+ * A press grows the knob and brightens its halo: it is the confirmation that
+ * the finger found the grip, given before the drag has moved anything.
+ *
+ * The touch target is 48 dp and stays centred on the endpoint, even though the
+ * drawing is smaller. A terminal is a dense grid, and a grip that is only as
+ * big as its drawing is a grip the user misses on the first try.
  */
 @Composable
 private fun SelectionGrip(
@@ -305,14 +552,28 @@ private fun SelectionGrip(
     onDragEnd: () -> Unit,
 ) {
     val density = LocalDensity.current
-    val touchPx = with(density) { 44.dp.toPx() }
+    val touchPx = with(density) { 48.dp.toPx() }
     val currentCenter by rememberUpdatedState(Offset(centerX, centerY))
     val currentPaneOrigin by rememberUpdatedState(paneOrigin)
+    val haptics = LocalHapticFeedback.current
+
+    var pressed by remember { mutableStateOf(false) }
+
+    // The press is a spring with a little bounce: a grip is a physical thing
+    // under the finger, and a linear tween reads as a tooltip.
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 1.32f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.5f,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "selectionGripPress",
+    )
 
     // Thin enough to sit between two characters without covering either, wide
     // enough to survive being sampled on a phone's screen.
-    val stemWidth = sizePx * 0.14f
-    val knobRadius = sizePx * 0.30f
+    val stemWidth = sizePx * 0.16f
+    val knobRadius = sizePx * 0.34f
     // One row long, but never longer than the touch box can show: a large font
     // would otherwise draw a stem that is clipped by the box's own edge.
     val stemLength = if (cellPx > 0f) {
@@ -324,21 +585,20 @@ private fun SelectionGrip(
     // The grip follows the selection, it does not teleport to it: a drag moves
     // the endpoint a row at a time and a scroll moves both grips at once, and a
     // knob that jumped between frames reads as a flicker rather than as a
-    // handle. The spring is stiff enough to feel attached to the finger and
-    // has no overshoot, so it never lags behind a drag.
+    // handle. The spring is stiff, so it still feels attached to the finger.
     val animatedX by animateFloatAsState(
         targetValue = centerX,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow,
+            dampingRatio = 0.9f,
+            stiffness = Spring.StiffnessMediumHigh,
         ),
         label = "selectionGripX",
     )
     val animatedY by animateFloatAsState(
         targetValue = centerY,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow,
+            dampingRatio = 0.9f,
+            stiffness = Spring.StiffnessMediumHigh,
         ),
         label = "selectionGripY",
     )
@@ -351,11 +611,21 @@ private fun SelectionGrip(
                     (animatedY - touchPx / 2f).roundToInt(),
                 )
             }
-            .size(44.dp)
+            .size(48.dp)
             .pointerInput(Unit) {
                 detectDragGestures(
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() },
+                    onDragStart = {
+                        pressed = true
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
+                    onDragEnd = {
+                        pressed = false
+                        onDragEnd()
+                    },
+                    onDragCancel = {
+                        pressed = false
+                        onDragEnd()
+                    },
                 ) { change, _ ->
                     change.consume()
                     val center = currentCenter
@@ -379,21 +649,33 @@ private fun SelectionGrip(
             // as the knob at a lower alpha: one object, brighter where it is
             // held.
             drawRoundRect(
-                color = accent.copy(alpha = 0.65f),
+                color = accent.copy(alpha = if (pressed) 0.85f else 0.65f),
                 topLeft = Offset(gripX - stemWidth / 2f, stemTop),
                 size = Size(stemWidth, stemLength),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(stemWidth / 2f),
+                cornerRadius = CornerRadius(stemWidth / 2f),
             )
 
             // The knob sits outside the selection, with its inner edge on the
             // line the stem ends at. A soft halo instead of a ring: a border on
-            // a 6px dot is a hard edge, and on a dark terminal it read as a
+            // a small dot is a hard edge, and on a dark terminal it read as a
             // little white circle with a blue centre rather than as a handle.
             val knobY = if (stemDown) edgeY - knobRadius else edgeY + knobRadius
             val knobCenter = Offset(gripX, knobY)
             val halo = if (terminalBackground.luminance() < 0.5f) Color.Black else Color.White
-            drawCircle(color = halo.copy(alpha = 0.35f), radius = knobRadius * 1.45f, center = knobCenter)
-            drawCircle(color = accent, radius = knobRadius, center = knobCenter)
+            val radius = knobRadius * pressScale
+            drawCircle(
+                color = halo.copy(alpha = if (pressed) 0.45f else 0.32f),
+                radius = radius * 1.6f,
+                center = knobCenter,
+            )
+            drawCircle(color = accent, radius = radius, center = knobCenter)
+            // A glint on the knob's upper half: it is what makes a flat disc
+            // read as a rounded object rather than as a dot of paint.
+            drawCircle(
+                color = Color.White.copy(alpha = 0.35f),
+                radius = radius * 0.42f,
+                center = Offset(knobCenter.x - radius * 0.28f, knobCenter.y - radius * 0.32f),
+            )
         }
     }
 }

@@ -624,4 +624,8 @@ terminal session açmana gerek yok.</string>
     <string name="selection_dismiss">Close</string>
     <string name="selection_share">Share</string>
     <string name="selection_paste">Paste</string>
+    <string name="selection_more">Diğer</string>
+    <string name="selection_run_here">Burada</string>
+    <string name="selection_run_new">Yeni sekme</string>
+    <string name="selection_open_browser">Tarayıcı</string>
 </resources>

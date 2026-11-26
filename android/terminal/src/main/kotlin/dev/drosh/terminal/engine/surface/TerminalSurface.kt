@@ -1524,6 +1524,37 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.invalidateFull()
     }
 
+    /**
+     * Type the selection into the session and press return.
+     *
+     * The text is written as one paste, not as a stream of keystrokes: a
+     * command is a command whether it was typed or chosen, and a shell in
+     * bracketed-paste mode is told that the block is a paste. The newline is a
+     * separate write, because it is the *submission* — the text is the command.
+     *
+     * The selection is a way to pick text the user already has on screen; the
+     * surface never asks whether it looks like a command. A user who selects a
+     * file name and runs it means exactly that.
+     */
+    fun runSelection(): Boolean = runCommand(selectedText().trimEnd())
+
+    /**
+     * Type [command] into the session and press return.
+     *
+     * The command is one write and the return is another: a shell in
+     * bracketed-paste mode is told that the block is a paste, and the return
+     * that submits it is the same byte a keyboard's return key sends (a
+     * carriage return, which the line discipline turns into a submit).
+     */
+    fun runCommand(command: String): Boolean {
+        val text = command.trimEnd()
+        if (text.isEmpty()) return false
+        if (ptyHandle == 0L) return false
+        write(text.toByteArray(Charsets.UTF_8))
+        write(byteArrayOf('\r'.code.toByte()))
+        return true
+    }
+
     /** Copy the selection to the clipboard; true when there was something. */
     fun copySelection(): Boolean {
         val text = selectedText()

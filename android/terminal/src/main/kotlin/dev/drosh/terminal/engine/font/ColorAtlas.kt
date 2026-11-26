@@ -59,6 +59,24 @@ internal class ColorAtlas(
 
     private val bitmap: Bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
 
+    /**
+     * Where an emoji is drawn once before it is fitted into its slot.
+     *
+     * An emoji's ink is measured from pixels rather than from
+     * `Paint.getTextBounds`: a colour emoji is a bitmap font, and the bounds a
+     * text measurement returns for it are not the picture that is drawn. The
+     * two disagreed, so the fitted size was wrong by a factor that varied per
+     * codepoint — the emoji was drawn larger than its slot and clipped to a
+     * fragment of itself, and adding one beside it changed the measurement of
+     * the other. Pixels cannot disagree with the pixels that are drawn.
+     *
+     * One scratch picture, reused: it is only touched when a codepoint is
+     * rasterised, and every codepoint is cached after that.
+     */
+    private val scratch: Bitmap =
+        Bitmap.createBitmap(SCRATCH_PX, SCRATCH_PX, Bitmap.Config.ARGB_8888)
+    private val scratchCanvas = Canvas(scratch)
+
     /** Set when a glyph was added and the texture has to be re-uploaded. */
     var dirty = true
 
@@ -189,54 +207,59 @@ internal class ColorAtlas(
         // emoji is the height of the text beside it, it is never squashed
         // sideways, and two emoji standing next to each other each stay inside
         // their own cells instead of being stretched into one another.
-        //
-        // It used to be rasterised with a 1.4× pad into a square, which is why
-        // an emoji changed size with the font and never matched the line it sat
-        // on: the quad and the slot described different boxes.
         val scale = rasterScale
         val widthPx = kotlin.math.round(span * cellWidth * scale).toInt()
         val heightPx = kotlin.math.round(rasterPx).toInt()
         if (widthPx <= 0 || heightPx <= 0 || widthPx > size || heightPx > size) return null
 
-        var slot = reserve(widthPx, heightPx)
+        // Drawn once at a nominal size, then measured from its own pixels.
+        // `getTextBounds` is not used: for a bitmap emoji font it reports a
+        // box that is not the picture, and a fit computed from it drew the
+        // emoji past its slot — clipped to a fragment — with the factor
+        // changing from one codepoint to the next.
+        paint.textSize = NOMINAL_PX
+        scratchCanvas.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR)
+        val centre = SCRATCH_PX / 2f
+        scratchCanvas.drawText(text, centre, centre - (paint.fontMetrics.ascent + paint.fontMetrics.descent) / 2f, paint)
+
+        val ink = inkBounds()
+        if (ink == null) return null
+
+        // A texel of transparent room around the slot, so the atlas's linear
+        // filter never samples a neighbouring emoji at the slot's edge.
+        val paddedWidth = widthPx + SAMPLE_PAD * 2
+        val paddedHeight = heightPx + SAMPLE_PAD * 2
+
+        var slot = reserve(paddedWidth, paddedHeight)
         if (slot == null) {
             reset()
-            slot = reserve(widthPx, heightPx) ?: return null
+            slot = reserve(paddedWidth, paddedHeight) ?: return null
         }
 
-        val canvas = Canvas(bitmap)
-        canvas.save()
-        canvas.clipRect(slot.x, slot.y, slot.x + widthPx, slot.y + heightPx)
-
-        // Measure the ink at a nominal size, then scale it so it fills the
-        // slot: the largest the glyph can be without touching its edges. The
-        // bounds are the ink, not the em box, so a font whose emoji sit high
-        // above the baseline still lands centred in its cell.
-        val bounds = android.graphics.Rect()
-        paint.textSize = NOMINAL_PX
-        paint.getTextBounds(text, 0, text.length, bounds)
-        val inkWidth = bounds.width().coerceAtLeast(1)
-        val inkHeight = bounds.height().coerceAtLeast(1)
+        // The ink, scaled to the slot with its aspect kept and centred in it.
         val room = INK_ROOM
         val fit = minOf(
-            (widthPx * room) / inkWidth.toFloat(),
-            (heightPx * room) / inkHeight.toFloat(),
+            widthPx * room / ink.width().toFloat(),
+            heightPx * room / ink.height().toFloat(),
         )
-        paint.textSize = NOMINAL_PX * fit
+        val destWidth = ink.width() * fit
+        val destHeight = ink.height() * fit
+        val destLeft = slot.x + SAMPLE_PAD + (widthPx - destWidth) / 2f
+        val destTop = slot.y + SAMPLE_PAD + (heightPx - destHeight) / 2f
 
-        // Centred on the ink's own bounds, so the slot is filled top and bottom
-        // whatever the font's baseline does.
-        val fitted = android.graphics.Rect()
-        paint.getTextBounds(text, 0, text.length, fitted)
-        val baseline = slot.y + heightPx / 2f - (fitted.top + fitted.bottom) / 2f
-        canvas.drawText(text, slot.x + widthPx / 2f, baseline, paint)
-        canvas.restore()
+        val canvas = Canvas(bitmap)
+        canvas.drawBitmap(
+            scratch,
+            android.graphics.Rect(ink.left, ink.top, ink.right, ink.bottom),
+            android.graphics.RectF(destLeft, destTop, destLeft + destWidth, destTop + destHeight),
+            paint,
+        )
 
         // Only the slot is copied out: the whole bitmap is four megabytes.
-        val row = IntArray(widthPx)
-        for (line in 0 until heightPx) {
-            bitmap.getPixels(row, 0, widthPx, slot.x, slot.y + line, widthPx, 1)
-            for (column in 0 until widthPx) {
+        val row = IntArray(paddedWidth)
+        for (line in 0 until paddedHeight) {
+            bitmap.getPixels(row, 0, paddedWidth, slot.x, slot.y + line, paddedWidth, 1)
+            for (column in 0 until paddedWidth) {
                 val colour = row[column]
                 val base = ((slot.y + line) * size + slot.x + column) * 4
                 pixels.put(base, (colour ushr 16 and 0xff).toByte())
@@ -249,7 +272,41 @@ internal class ColorAtlas(
         dirty = true
         if (slot.y < dirtyTopY) dirtyTopY = slot.y
 
-        return ColorGlyph(x = slot.x, y = slot.y, width = widthPx, height = heightPx)
+        return ColorGlyph(
+            x = slot.x + SAMPLE_PAD,
+            y = slot.y + SAMPLE_PAD,
+            width = widthPx,
+            height = heightPx,
+        )
+    }
+
+    /**
+     * The box the last scratch draw's ink occupies, or null when it drew
+     * nothing.
+     *
+     * Read one row at a time: the scratch picture is under a megabyte, and the
+     * emoji is the only thing in it, so a bounding box found from its opaque
+     * pixels is the picture itself.
+     */
+    private fun inkBounds(): android.graphics.Rect? {
+        val row = IntArray(SCRATCH_PX)
+        var left = SCRATCH_PX
+        var top = SCRATCH_PX
+        var right = -1
+        var bottom = -1
+        for (y in 0 until SCRATCH_PX) {
+            scratch.getPixels(row, 0, SCRATCH_PX, 0, y, SCRATCH_PX, 1)
+            for (x in 0 until SCRATCH_PX) {
+                // Anything less than this is antialiasing haze, not ink.
+                if (row[x] ushr 24 < INK_ALPHA) continue
+                if (x < left) left = x
+                if (x > right) right = x
+                if (y < top) top = y
+                if (y > bottom) bottom = y
+            }
+        }
+        if (right < left || bottom < top) return null
+        return android.graphics.Rect(left, top, right + 1, bottom + 1)
     }
 
     private fun reserve(width: Int, height: Int): Slot? {
@@ -276,5 +333,21 @@ internal class ColorAtlas(
 
         /** The size the ink is measured at before it is scaled to its slot. */
         const val NOMINAL_PX = 128f
+
+        /**
+         * The scratch picture's side, in texels.
+         *
+         * Twice the nominal size: a glyph drawn at [NOMINAL_PX] fits in it with
+         * room for the ones that hang below their baseline or draw past their
+         * em box. Nothing is clipped by it, so the ink it reports is the whole
+         * picture, and the picture is small enough to scan in one frame.
+         */
+        const val SCRATCH_PX = 256
+
+        /** Transparent texels around a slot, so filtering cannot reach a neighbour. */
+        const val SAMPLE_PAD = 1
+
+        /** The coverage below which a texel is haze rather than ink. */
+        const val INK_ALPHA = 8
     }
 }
