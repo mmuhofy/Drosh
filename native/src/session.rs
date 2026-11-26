@@ -20,7 +20,6 @@
 //! inconsistent for one frame, and the next update repairs it.
 
 use std::ffi::c_void;
-use std::sync::Mutex;
 
 /// The engine palette's length.
 const PALETTE_LEN: usize = 256;
