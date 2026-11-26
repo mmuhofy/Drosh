@@ -83,7 +83,7 @@ fun GeneralCategory(
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_appearance),
-            items = 4,
+            items = 3,
         ) { index, cap ->
             // The theme row leads: it is the one appearance setting that
             // rewrites the other twenty-two, and burying it below the theme
@@ -138,21 +138,9 @@ fun GeneralCategory(
                     onClick = onOpenFontStore,
                 ) { SettingsChevron() }
 
-                // The drawer's shape, last: it is the one row here that changes
-                // how the session list is built rather than how it is coloured.
-                3 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_session_surface),
-                    icon = DroshIcons.Smartphone,
-                    supporting = stringResource(R.string.settings_session_surface_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.appearance.sessionSurface,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(appearance = it.appearance.copy(sessionSurface = on)) }
-                        },
-                    )
-                }
+                // The session rows on a surface left with the session list: the
+                // drawer is a dashboard now, and the row that shaped rows it no
+                // longer draws was a switch that changed nothing.
             }
         }
 

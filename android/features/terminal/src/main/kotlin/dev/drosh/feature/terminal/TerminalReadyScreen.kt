@@ -1106,7 +1106,6 @@ internal fun ReadyScreen(
                     dimmed = appearance.terminal.dimInactivePanes &&
                         focusedPaneSlot != PaneSlot.PRIMARY,
                     keepAwake = appearance.terminal.keepAwake,
-                    keepPositionWhileReading = appearance.terminal.keepPositionWhileReading,
                     terminalViewModel = terminalViewModel,
                     blockEngineViewModel = blockEngineViewModel,
                     inputBarViewModel = inputBarViewModel,
@@ -1171,7 +1170,6 @@ internal fun ReadyScreen(
                     dimmed = appearance.terminal.dimInactivePanes &&
                         focusedPaneSlot != PaneSlot.SECONDARY,
                     keepAwake = appearance.terminal.keepAwake,
-                    keepPositionWhileReading = appearance.terminal.keepPositionWhileReading,
                     terminalViewModel = terminalViewModel,
                     blockEngineViewModel = blockEngineViewModel,
                     inputBarViewModel = inputBarViewModel,

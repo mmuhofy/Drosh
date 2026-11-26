@@ -61,15 +61,6 @@ data class AppearanceSettings(
     val terminalFontId: String = "",
     /** BCP-47-ish tag; "" follows the system. */
     val language: String = "",
-    /**
-     * Whether the sidebar's session rows sit on a surface of their own.
-     *
-     * Off, they are lines on the drawer — the current look. On, each row is
-     * a tile with a gap between it and the next, which is what matches the
-     * settings screen and what a dragged session wants to look like when it
-     * lands. The accent mark and the press highlight stay either way.
-     */
-    val sessionSurface: Boolean = true,
 ) {
     companion object {
         val DEFAULT = AppearanceSettings()
@@ -88,38 +79,15 @@ data class TerminalSettings(
     val mode: TerminalMode = TerminalMode.Stream,
     /** Which isolation engine runs the Linux guest. */
     val guestIsolation: GuestIsolation = GuestIsolation.DEFAULT,
-    /**
-     * Which terminal implementation the app runs.
-     *
-     * Termux until the engine has been through a device: the vendored path is
-     * the one the app is known to work on, and the setting is what lets the
-     * engine be tried without a rebuild.
-     */
-    /**
-     * Which engine draws the terminal.
-     *
-     * On (the default) is the Ghostty engine. The Rust engine no longer ships
-     * in the APK, so off would leave a pane with no engine behind it — the
-     * switch stays only so a rollback build can force one path without a
-     * rebuild.
-     */
-    val ghosttyEngine: Boolean = true,
+    // The engine switch is gone. The old Rust engine's library is not in the
+    // APK any more, so its "off" was a choice between the one engine and a
+    // missing one. There is one engine, and nothing to switch.
     /** The size a session opens at. A pinch moves the session, not this. */
     val defaultFontSizeSp: Float = TerminalZoom.DEFAULT_SP,
     val cursorStyle: CursorStyle = CursorStyle.Block,
     /** Milliseconds; 0 is off. The view accepts 100..2000. */
     val cursorBlinkMs: Int = 500,
     val keepAwake: Boolean = false,
-    /**
-     * The terminal keeps its place while the user reads.
-     *
-     * New output pulls the viewport back to the live edge, which is right
-     * for output the shell produced on its own and wrong for the user who
-     * has scrolled up to read something. With this on, a terminal that is
-     * scrolled up stays where it is; scrolling to the bottom by hand is
-     * still what brings it back.
-     */
-    val keepPositionWhileReading: Boolean = false,
     /** Bold text in the first eight colours uses the bright half. */
     val boldBrightens: Boolean = true,
     /** Programming-ligature shaping, where the typeface carries them. */

@@ -752,6 +752,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      */
     private val bottomEdgeFraction: Float = 0.8f
 
+    /** The top fifth: where the [KeyboardActivation.TopEdgeTap] mode answers. */
+    private val topEdgeFraction: Float = 0.2f
+
     /**
      * How many fingers this gesture has had down at its peak.
      *
@@ -1242,16 +1245,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     /**
      * Whether a tap at this point is allowed to raise the keyboard.
      *
-     * The bottom-edge mode counts from the pane's own height, so it means the
-     * same thing in a split as on a full screen: the lowest fifth is where the
-     * prompt is. The two-finger mode says no to every one-finger tap, and its
-     * own gesture is handled in [onTouchEvent]. [Never] says no to all of them.
+     * The edge modes count from the pane's own height, so they mean the same
+     * thing in a split as on a full screen: the lowest fifth is where the
+     * prompt is, and the highest fifth is the strip a thumb can reach without
+     * covering a line of output. The two-finger mode says no to every one-finger
+     * tap, and its own gesture is handled in [onTouchEvent]. [Never] says no to
+     * all of them.
      */
     private fun tapRaisesKeyboard(y: Float): Boolean = when (keyboardActivation) {
         dev.drosh.domain.settings.KeyboardActivation.Tap -> true
         dev.drosh.domain.settings.KeyboardActivation.TwoFingerTap -> false
         dev.drosh.domain.settings.KeyboardActivation.BottomEdgeTap ->
             y >= height * bottomEdgeFraction
+        dev.drosh.domain.settings.KeyboardActivation.TopEdgeTap ->
+            y <= height * topEdgeFraction
         dev.drosh.domain.settings.KeyboardActivation.Never -> false
     }
 

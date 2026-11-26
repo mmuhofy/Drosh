@@ -154,6 +154,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 
 /** How far the unfocused pane of a split is dimmed. */
 private val DimInactivePane = Color.Black.copy(alpha = 0.4f)
@@ -191,11 +192,6 @@ internal fun TerminalPaneBody(
      */
     dimmed: Boolean,
     keepAwake: Boolean,
-    /**
-     * New output does not pull the viewport back to the live edge while the
-     * user is reading something further up.
-     */
-    keepPositionWhileReading: Boolean,
     terminalViewModel: TerminalViewModel,
     blockEngineViewModel: BlockEngineViewModel,
     inputBarViewModel: InputBarViewModel,
@@ -260,6 +256,16 @@ internal fun TerminalPaneBody(
     val blockList by blockEngineViewModel.blocks.collectAsState()
     val runningBlock by blockEngineViewModel.runningBlock.collectAsState()
     val paneContext = LocalContext.current
+
+    // Keep the screen awake while this pane is on it, if the user asked. The
+    // flag belongs to the window, so it is set on the pane's own view and
+    // cleared when the pane leaves or the setting turns off: a toggle that
+    // only ever set it would leave the phone awake after the terminal closed.
+    val paneView = LocalView.current
+    DisposableEffect(keepAwake) {
+        paneView.keepScreenOn = keepAwake
+        onDispose { paneView.keepScreenOn = false }
+    }
 
     // Which session this slot shows. Read from the flow, not from a lookup: a
     // plain function call is not a state read, so the grid could open a session

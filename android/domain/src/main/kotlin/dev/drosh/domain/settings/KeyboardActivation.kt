@@ -22,6 +22,8 @@ package dev.drosh.domain.settings
  *   never turns into a zoom, and a one-finger tap never turns into typing.
  * - [BottomEdgeTap] — a tap in the bottom fifth of the pane, where the prompt
  *   is. Reading anywhere above it does not raise the keyboard.
+ * - [TopEdgeTap] — a tap in the top fifth of the pane, the edge a thumb reaches
+ *   without covering the output. Reading below it does not raise the keyboard.
  * - [Never] — only the keyboard button does. For someone whose terminal is
  *   mostly read, or who types on a hardware keyboard, this is the quiet one.
  */
@@ -29,6 +31,7 @@ enum class KeyboardActivation {
     Tap,
     TwoFingerTap,
     BottomEdgeTap,
+    TopEdgeTap,
     Never;
 
     val tomlName: String get() = name.lowercase()

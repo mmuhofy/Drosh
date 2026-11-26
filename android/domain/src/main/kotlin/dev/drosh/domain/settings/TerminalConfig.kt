@@ -49,13 +49,6 @@ data class TerminalConfig(
     val lineHeight: Float = 1f,
     /** Which touch raises the keyboard. */
     val keyboardActivation: KeyboardActivation = KeyboardActivation.Tap,
-    /**
-     * Which engine draws the terminal.
-     *
-     * Read by the pane host before the view is built: an engine is chosen once
-     * per pane, and a pane cannot swap one underneath itself.
-     */
-    val ghosttyEngine: Boolean = false,
     /** The size of the text, in sp. */
     val textSizeSp: Float = 14f,
     /** Which face the text is drawn in. */

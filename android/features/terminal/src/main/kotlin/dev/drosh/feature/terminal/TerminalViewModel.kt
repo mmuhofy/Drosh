@@ -122,7 +122,6 @@ class TerminalViewModel @Inject constructor(
                 keyboardActivation = settings.input.keyboardActivation,
                 textSizeSp = settings.terminal.defaultFontSizeSp,
                 fontPack = settings.appearance.fontPack,
-                ghosttyEngine = settings.terminal.ghosttyEngine,
             )
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalConfig())

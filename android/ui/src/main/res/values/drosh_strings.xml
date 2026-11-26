@@ -21,8 +21,6 @@
     <string name="settings_font_inter">Inter</string>
     <string name="settings_font_geist_desc">Geist Sans with Geist Mono</string>
     <string name="settings_font_inter_desc">Inter with JetBrains Mono</string>
-    <string name="settings_terminal_keep_position">Keep the position while reading</string>
-    <string name="settings_terminal_keep_position_desc">New output does not pull the terminal back to the bottom while you are reading something above</string>
     <string name="settings_font_size_value">%1$ssp</string>
     <string name="settings_cursor_blink">Cursor blink</string>
     <string name="settings_cursor_blink_off">Off</string>
@@ -233,8 +231,6 @@
     <string name="setup_report_sublabel">Copies a diagnostic bundle to your clipboard.</string>
     <string name="setup_diagnostic_copied">Diagnostic copied to clipboard</string>
     <string name="terminal_engine_session_exited">The terminal\'s session ended (exit %1$d).</string>
-    <string name="settings_terminal_engine">Ghostty engine</string>
-    <string name="settings_terminal_engine_desc">Draws the terminal with the Ghostty core. New panes only; a pane keeps the engine it started with. Sessions on it do not appear in the sidebar yet.</string>
     <string name="terminal_open_link_title">Open link?</string>
     <string name="terminal_open_link_open">Open</string>
     <string name="terminal_open_link_cancel">Cancel</string>
@@ -354,8 +350,6 @@ no terminal session needed.</string>
     <string name="about_version">Version</string>
     <string name="about_version_code">Version code</string>
     <string name="about_build_hash">Build hash</string>
-    <string name="settings_session_surface">Session rows on a surface</string>
-    <string name="settings_session_surface_desc">Off: lines on the drawer. On: a tile per session, with a gap.</string>
     <string name="sidebar_close_split">Close split</string>
     <string name="agent_search_models">Search models</string>
     <string name="agent_no_models">No model matches that search.</string>
@@ -381,6 +375,7 @@ no terminal session needed.</string>
     <string name="settings_keyboard_activation_tap">Tap anywhere</string>
     <string name="settings_keyboard_activation_two_finger">Two-finger tap</string>
     <string name="settings_keyboard_activation_bottom">Tap the bottom edge</string>
+    <string name="settings_keyboard_activation_top">Tap the top edge</string>
     <string name="settings_keyboard_activation_never">Never — hardware key only</string>
     <string name="settings_scrollback">Scrollback</string>
     <string name="settings_scrollback_desc">How much history the terminal keeps above the screen</string>

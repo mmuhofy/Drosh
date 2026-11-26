@@ -75,7 +75,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_terminal),
-            items = 6,
+            items = 5,
         ) { index, cap ->
             when (index) {
                 0 -> SettingsTile(
@@ -184,24 +184,10 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                 // not in the APK any more, so "off" was a choice between the
                 // one engine and a crash. There is one engine now, and the
                 // setting that could not be turned off is gone with it.
-
-                else -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_terminal_keep_position),
-                    icon = DroshIcons.ArrowUp,
-                    supporting = stringResource(R.string.settings_terminal_keep_position_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.terminal.keepPositionWhileReading,
-                        onCheckedChange = { on ->
-                            onUpdate {
-                                it.copy(
-                                    terminal = it.terminal.copy(keepPositionWhileReading = on),
-                                )
-                            }
-                        },
-                    )
-                }
+                //
+                // "Keep the position while reading" is gone for the same
+                // reason: the viewport is the engine's, the engine never pulled
+                // it back on its own, and the switch guarded nothing.
             }
         }
 
@@ -238,6 +224,8 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                                     R.string.settings_keyboard_activation_two_finger
                                 KeyboardActivation.BottomEdgeTap ->
                                     R.string.settings_keyboard_activation_bottom
+                                KeyboardActivation.TopEdgeTap ->
+                                    R.string.settings_keyboard_activation_top
                                 KeyboardActivation.Never -> R.string.settings_keyboard_activation_never
                             },
                         )
@@ -699,7 +687,7 @@ private class StarsState {
         if (count != null || failed) return
         Thread {
             try {
-                val url = java.net.URL("https://api.github.com/repos/mmuhofy/Drosh")
+                val url = java.net.URL("https://api.github.com/repos/dexbycode/Drosh")
                 val connection = url.openConnection() as java.net.HttpURLConnection
                 connection.connectTimeout = 5000
                 connection.readTimeout = 5000

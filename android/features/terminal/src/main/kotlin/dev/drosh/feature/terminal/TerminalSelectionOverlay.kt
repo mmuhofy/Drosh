@@ -44,12 +44,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.animation.core.snap
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -232,11 +230,8 @@ fun TerminalSelectionOverlay(
                     centerX = paneOrigin.x + handle.x,
                     centerY = startCenterY,
                     sizePx = handleSizePx,
-                    cellPx = cellH,
-                    stemDown = true,
                     paneOrigin = paneOrigin,
                     accent = DroshWarning,
-                    terminalBackground = terminalBackground,
                     onDrag = { x, y -> onExtend(x, y, true) },
                     onDragEnd = onExtendEnd,
                 )
@@ -248,11 +243,8 @@ fun TerminalSelectionOverlay(
                     centerX = paneOrigin.x + handle.x,
                     centerY = endCenterY,
                     sizePx = handleSizePx,
-                    cellPx = cellH,
-                    stemDown = false,
                     paneOrigin = paneOrigin,
                     accent = DroshWarning,
-                    terminalBackground = terminalBackground,
                     onDrag = { x, y -> onExtend(x, y, false) },
                     onDragEnd = onExtendEnd,
                 )
@@ -282,8 +274,8 @@ fun TerminalSelectionOverlay(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            DroshSurfaceHigh.copy(alpha = 0.84f),
-                            DroshSurfaceHigh.copy(alpha = 0.68f),
+                            DroshSurfaceHigh.copy(alpha = 0.96f),
+                            DroshSurfaceHigh.copy(alpha = 0.88f),
                         ),
                     ),
                 )
@@ -520,18 +512,24 @@ private fun MoreAction(expanded: Boolean, onToggle: () -> Unit) {
 /**
  * A draggable grip at one end of the selection.
  *
- * The drawing is a lollipop: a thin stem that runs the height of the endpoint's
- * own row and a round knob sitting just outside the selection, on the
- * selection's edge. That is the shape that keeps the grip out of the text — a
- * big knob centred on the character hides the very cell the user is adjusting —
- * while still reading as one object instead of a floating dot.
+ * The drawing is one plain disc, the accent's yellow. No stem reaching into the
+ * row and no ring around it: the extra line beside the terminal's own rows read
+ * as a stray glyph, and a halo on a dark terminal read as a second, dimmer
+ * handle behind the real one. A solid dot on the endpoint says the same thing
+ * with one shape.
  *
- * The stem points into the selection — down for the top grip, up for the bottom
- * one — so the two grips read as the edges they belong to, and the knob marks
- * the edge from the outside.
+ * A press grows the disc: it is the confirmation that the finger found the
+ * grip, given before the drag has moved anything.
  *
- * A press grows the knob and brightens its halo: it is the confirmation that
- * the finger found the grip, given before the drag has moved anything.
+ * ## Dragging
+ *
+ * A drag is measured from where the finger went down, never from where the disc
+ * is drawn. The disc follows the selection on a spring, so its drawn position
+ * lags a frame or two behind the endpoint; adding each frame's delta to that
+ * lagging position fed the animation back into its own input, and the grip
+ * wandered off to other rows under a steady finger. A base captured at
+ * [detectDragGestures]'s start plus the accumulated delta is monotonic: the
+ * finger moves one cell, the endpoint moves one cell.
  *
  * The touch target is 48 dp and stays centred on the endpoint, even though the
  * drawing is smaller. A terminal is a dense grid, and a grip that is only as
@@ -542,19 +540,14 @@ private fun SelectionGrip(
     centerX: Float,
     centerY: Float,
     sizePx: Float,
-    /** The row's height in pixels: the stem is exactly one row long. */
-    cellPx: Float,
-    stemDown: Boolean,
     paneOrigin: Offset,
     accent: Color,
-    terminalBackground: Color,
     onDrag: (x: Float, y: Float) -> Unit,
     onDragEnd: () -> Unit,
 ) {
     val density = LocalDensity.current
     val touchPx = with(density) { 48.dp.toPx() }
     val currentCenter by rememberUpdatedState(Offset(centerX, centerY))
-    val currentPaneOrigin by rememberUpdatedState(paneOrigin)
     val haptics = LocalHapticFeedback.current
 
     var pressed by remember { mutableStateOf(false) }
@@ -570,39 +563,34 @@ private fun SelectionGrip(
         label = "selectionGripPress",
     )
 
-    // Thin enough to sit between two characters without covering either, wide
-    // enough to survive being sampled on a phone's screen.
-    val stemWidth = sizePx * 0.16f
-    val knobRadius = sizePx * 0.34f
-    // One row long, but never longer than the touch box can show: a large font
-    // would otherwise draw a stem that is clipped by the box's own edge.
-    val stemLength = if (cellPx > 0f) {
-        cellPx.coerceAtMost((touchPx - 2f * knobRadius).coerceAtLeast(sizePx))
-    } else {
-        sizePx
-    }
+    val knobRadius = sizePx * 0.44f
 
-    // The grip follows the selection, it does not teleport to it: a drag moves
-    // the endpoint a row at a time and a scroll moves both grips at once, and a
-    // knob that jumped between frames reads as a flicker rather than as a
-    // handle. The spring is quick and well damped, so it still feels attached
-    // to the finger while a row-at-a-time move reads as a slide, not a jump.
+    // The grip follows the selection, it does not teleport to it — but under a
+    // finger it must not lag: the spring is exactly what made a drag feel like
+    // it was slipping away, so a pressed grip tracks its endpoint directly.
     val animatedX by animateFloatAsState(
         targetValue = centerX,
-        animationSpec = spring(
-            dampingRatio = 0.9f,
-            stiffness = Spring.StiffnessMedium,
-        ),
+        animationSpec = if (pressed) {
+            snap()
+        } else {
+            spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMedium)
+        },
         label = "selectionGripX",
     )
     val animatedY by animateFloatAsState(
         targetValue = centerY,
-        animationSpec = spring(
-            dampingRatio = 0.9f,
-            stiffness = Spring.StiffnessMedium,
-        ),
+        animationSpec = if (pressed) {
+            snap()
+        } else {
+            spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMedium)
+        },
         label = "selectionGripY",
     )
+
+    // Where the finger went down, in the pane's pixels, and how far it has
+    // moved since. Both are only written while a drag is in flight.
+    var dragBase by remember { mutableStateOf(Offset.Zero) }
+    var dragTotal by remember { mutableStateOf(Offset.Zero) }
 
     Box(
         modifier = Modifier
@@ -617,6 +605,8 @@ private fun SelectionGrip(
                 detectDragGestures(
                     onDragStart = {
                         pressed = true
+                        dragBase = currentCenter - paneOrigin
+                        dragTotal = Offset.Zero
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     },
                     onDragEnd = {
@@ -627,55 +617,18 @@ private fun SelectionGrip(
                         pressed = false
                         onDragEnd()
                     },
-                ) { change, _ ->
+                ) { change, dragAmount ->
                     change.consume()
-                    val center = currentCenter
-                    val origin = currentPaneOrigin
-                    val screenX = (center.x - touchPx / 2f) + change.position.x
-                    val screenY = (center.y - touchPx / 2f) + change.position.y
-                    onDrag(screenX - origin.x, screenY - origin.y)
+                    dragTotal += dragAmount
+                    onDrag(dragBase.x + dragTotal.x, dragBase.y + dragTotal.y)
                 }
             },
     ) {
         Canvas(Modifier.matchParentSize()) {
-            val gripX = size.width / 2f
-            val gripY = size.height / 2f
-
-            // The selection's edge for this grip: the top of the first row for
-            // the top grip, the bottom of the last row for the bottom one.
-            val edgeY = if (stemDown) gripY - stemLength / 2f else gripY + stemLength / 2f
-            val stemTop = if (stemDown) edgeY else edgeY - stemLength
-
-            // The stem first, so the knob covers its end. It is the same colour
-            // as the knob at a lower alpha: one object, brighter where it is
-            // held.
-            drawRoundRect(
-                color = accent.copy(alpha = if (pressed) 0.85f else 0.65f),
-                topLeft = Offset(gripX - stemWidth / 2f, stemTop),
-                size = Size(stemWidth, stemLength),
-                cornerRadius = CornerRadius(stemWidth / 2f),
-            )
-
-            // The knob sits outside the selection, with its inner edge on the
-            // line the stem ends at. A soft halo instead of a ring: a border on
-            // a small dot is a hard edge, and on a dark terminal it read as a
-            // little white circle with a blue centre rather than as a handle.
-            val knobY = if (stemDown) edgeY - knobRadius else edgeY + knobRadius
-            val knobCenter = Offset(gripX, knobY)
-            val halo = if (terminalBackground.luminance() < 0.5f) Color.Black else Color.White
-            val radius = knobRadius * pressScale
             drawCircle(
-                color = halo.copy(alpha = if (pressed) 0.45f else 0.32f),
-                radius = radius * 1.6f,
-                center = knobCenter,
-            )
-            drawCircle(color = accent, radius = radius, center = knobCenter)
-            // A glint on the knob's upper half: it is what makes a flat disc
-            // read as a rounded object rather than as a dot of paint.
-            drawCircle(
-                color = Color.White.copy(alpha = 0.35f),
-                radius = radius * 0.42f,
-                center = Offset(knobCenter.x - radius * 0.28f, knobCenter.y - radius * 0.32f),
+                color = accent,
+                radius = knobRadius * pressScale,
+                center = Offset(size.width / 2f, size.height / 2f),
             )
         }
     }
