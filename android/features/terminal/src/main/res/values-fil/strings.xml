@@ -1,0 +1,17 @@
+<resources>
+    <string name="topbar_more_actions">Higit pang aksyon</string>
+    <string name="topbar_refresh">I-refresh ang terminal</string>
+    <string name="topbar_find">Maghanap sa output</string>
+    <string name="terminal_delete_last_session_title">I-delete ang huling session?</string>
+    <string name="terminal_delete_last_session_ended_body">Natapos ito sa exit code na %1$d. Ang pag-delete dito ay magsasara ng app; magsisimula mula sa simula ang bagong session.</string>
+    <string name="terminal_delete_last_session_body">Ang pag-delete dito ay magsasara ng app; magsisimula mula sa simula ang bagong session.</string>
+    <string name="terminal_preparing">Naghahanda…</string>
+    <string name="terminal_extracting_rootfs">Kinukuha ang Ubuntu rootfs…</string>
+    <string name="terminal_configuring">Kino-configure ang system…</string>
+    <string name="terminal_cleaning">Nililinis…</string>
+    <string name="terminal_ready">Handa na</string>
+    <string name="terminal_setting_up">Sineset up ang terminal</string>
+    <string name="terminal_setup_failed">Nabigo ang pag-setup ng terminal</string>
+    <string name="motd_dismiss">Isara ang MOTD</string>
+    <string name="topbar_open_sessions">Buksan ang mga session</string>
+</resources>

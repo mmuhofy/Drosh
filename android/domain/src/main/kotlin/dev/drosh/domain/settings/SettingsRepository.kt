@@ -57,6 +57,16 @@ interface SettingsRepository {
     suspend fun setMouseReporting(enabled: Boolean)
 
     /**
+     * Hot stream of the command-prediction flag. Emits true on first launch:
+     * the suggestions come from the session's own history and never leave the
+     * device, so they are on until the user says otherwise.
+     */
+    val commandPrediction: Flow<Boolean>
+
+    /** Persists the command-prediction flag. */
+    suspend fun setCommandPrediction(enabled: Boolean)
+
+    /**
      * Hot stream of the bell's flag. Emits true on first launch: a terminal
      * that says nothing when a program rings the bell is a terminal that
      * swallowed something.

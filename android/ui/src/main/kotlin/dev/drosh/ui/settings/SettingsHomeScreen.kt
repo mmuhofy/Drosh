@@ -46,14 +46,14 @@ private fun statusBarInset(): Dp =
  * place behind [SettingsCategoryRoute].
  */
 enum class SettingsCategoryRoute(val id: String) {
-    Appearance("appearance"),
+    General("general"),
     Terminal("terminal"),
     Keyboard("keyboard"),
     Shell("shell"),
     Security("security"),
-    Language("language"),
     About("about"),
     ThemeStore("theme_store"),
+    FontStore("font_store"),
     Updates("updates"),
     ;
 
@@ -67,7 +67,6 @@ enum class SettingsCategoryRoute(val id: String) {
 fun SettingsHomeScreen(
     onBack: () -> Unit,
     onOpenCategory: (SettingsCategoryRoute) -> Unit,
-    onOpenBackupRestore: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
     deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel(),
@@ -105,27 +104,20 @@ fun SettingsHomeScreen(
 
             Spacer(Modifier.height(GROUP_GAP))
 
+            // One row for the app's own half. The theme, the fonts, the
+            // backdrop, the language and the backup used to be three screens
+            // and four rows; a settings app is browsed, not searched.
             SettingsGroupColumn(
                 label = stringResource(R.string.settings_home_group_app),
-                items = 2,
-            ) { index, cap ->
-                when (index) {
-                    0 -> SettingsTile(
-                        cap = cap,
-                        title = stringResource(R.string.settings_category_appearance),
-                        icon = DroshIcons.Palette,
-                        supporting = appearanceSummary(settings),
-                        onClick = { onOpenCategory(SettingsCategoryRoute.Appearance) },
-                    ) { SettingsChevron() }
-
-                    else -> SettingsTile(
-                        cap = cap,
-                        title = stringResource(R.string.settings_language),
-                        icon = DroshIcons.Languages,
-                        supporting = languageSummary(settings),
-                        onClick = { onOpenCategory(SettingsCategoryRoute.Language) },
-                    ) { SettingsChevron() }
-                }
+                items = 1,
+            ) { _, cap ->
+                SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_category_general),
+                    icon = DroshIcons.Palette,
+                    supporting = generalSummary(settings),
+                    onClick = { onOpenCategory(SettingsCategoryRoute.General) },
+                ) { SettingsChevron() }
             }
 
             Spacer(Modifier.height(GROUP_GAP))
@@ -168,55 +160,46 @@ fun SettingsHomeScreen(
             // here worried about first.
             SettingsGroupColumn(
                 label = stringResource(R.string.settings_home_group_privacy),
+                items = 1,
+            ) { _, cap ->
+                // Backup lives inside General now, with the rest of what the
+                // app keeps: it is a copy of those settings and the directory
+                // they live in, not a privacy control.
+                SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_category_security),
+                    icon = DroshIcons.Shield,
+                    supporting = securitySummary(settings),
+                    onClick = { onOpenCategory(SettingsCategoryRoute.Security) },
+                ) { SettingsChevron() }
+            }
+
+            Spacer(Modifier.height(GROUP_GAP))
+
+            // The app's own half: what it is, what it is made of, and how to
+            // get a newer one. About and version management used to be two
+            // one-row groups with an English heading between them.
+            SettingsGroupColumn(
+                label = stringResource(R.string.settings_home_group_about),
                 items = 2,
             ) { index, cap ->
                 when (index) {
                     0 -> SettingsTile(
                         cap = cap,
-                        title = stringResource(R.string.settings_category_security),
-                        icon = DroshIcons.Shield,
-                        supporting = securitySummary(settings),
-                        onClick = { onOpenCategory(SettingsCategoryRoute.Security) },
+                        title = stringResource(R.string.updates_title),
+                        icon = DroshIcons.Download,
+                        supporting = stringResource(R.string.settings_version_supporting),
+                        onClick = { onOpenCategory(SettingsCategoryRoute.Updates) },
                     ) { SettingsChevron() }
 
                     else -> SettingsTile(
                         cap = cap,
-                        title = "Yedekle ve geri yükle",
-                        icon = DroshIcons.Archive,
-                        supporting = "Uygulama verisi ve Linux dizini yedeği",
-                        onClick = { onOpenBackupRestore() },
+                        title = stringResource(R.string.settings_category_about),
+                        icon = DroshIcons.Info,
+                        supporting = stringResource(R.string.settings_default_build_description),
+                        onClick = { onOpenCategory(SettingsCategoryRoute.About) },
                     ) { SettingsChevron() }
                 }
-            }
-
-            Spacer(Modifier.height(GROUP_GAP))
-
-            SettingsGroupColumn(
-                label = "Updates & Version Management",
-                items = 1,
-            ) { _, cap ->
-                SettingsTile(
-                    cap = cap,
-                    title = "Updates & Version Management",
-                    icon = DroshIcons.Download,
-                    supporting = "components, channels, rollback",
-                    onClick = { onOpenCategory(SettingsCategoryRoute.Updates) },
-                ) { SettingsChevron() }
-            }
-
-            Spacer(Modifier.height(GROUP_GAP))
-
-            SettingsGroupColumn(
-                label = stringResource(R.string.settings_home_group_about),
-                items = 1,
-            ) { _, cap ->
-                SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_category_about),
-                    icon = DroshIcons.Info,
-                    supporting = stringResource(R.string.settings_default_build_description),
-                    onClick = { onOpenCategory(SettingsCategoryRoute.About) },
-                ) { SettingsChevron() }
             }
 
             Spacer(Modifier.height(32.dp))
@@ -238,6 +221,26 @@ private fun appearanceSummary(settings: DroshSettings): String =
         ThemeMode.Light -> stringResource(R.string.settings_theme_light)
         ThemeMode.Dark -> stringResource(R.string.settings_theme_dark)
     }
+
+@Composable
+private fun backgroundSummary(settings: DroshSettings): String =
+    if (!settings.background.imageEnabled) {
+        stringResource(R.string.settings_summary_off)
+    } else {
+        stringResource(
+            R.string.settings_background_summary,
+            settings.background.imageOpacity,
+            settings.background.blurRadius,
+        )
+    }
+
+/** The two answers a person checks on the General row: theme and language. */
+@Composable
+private fun generalSummary(settings: DroshSettings): String = stringResource(
+    R.string.settings_summary_general,
+    appearanceSummary(settings),
+    languageSummary(settings),
+)
 
 @Composable
 private fun terminalSummary(settings: DroshSettings): String {

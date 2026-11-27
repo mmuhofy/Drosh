@@ -3,10 +3,10 @@ package dev.drosh.domain.terminal
 /**
  * Terminal zoom limits and gesture tuning.
  *
- * In `:domain` because both ends of the zoom need them and neither may import
- * the other: the engine's terminal view lives in `:terminal`, and
- * `TerminalViewModel` lives in `:ui`, which is forbidden from importing
- * `:terminal` (AGENT.md). `:domain` is the one module both already depend on.
+ * In `:domain` because both ends of the zoom need them: the engine's terminal
+ * view lives in `:terminal`, and `TerminalViewModel` lives in the terminal
+ * feature. Keeping the limits in `:domain` means neither layer has to own the
+ * other's number, and any future terminal front end can share them.
  */
 object TerminalZoom {
     /** Smallest readable terminal font, in sp. */

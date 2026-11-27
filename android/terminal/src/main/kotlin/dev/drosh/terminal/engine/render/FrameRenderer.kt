@@ -4,6 +4,7 @@ import android.opengl.GLES20
 import android.opengl.GLES30
 import dev.drosh.terminal.engine.font.ColorAtlas
 import dev.drosh.terminal.engine.font.Emoji
+import dev.drosh.terminal.engine.font.LigaturePolicy
 import dev.drosh.terminal.engine.font.TextAtlas
 import dev.drosh.terminal.engine.gl.GlBuffer
 import dev.drosh.terminal.engine.gl.GlProgram
@@ -13,6 +14,7 @@ import dev.drosh.terminal.engine.protocol.Frame
 import dev.drosh.terminal.engine.protocol.FrameFormat
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.roundToInt
 
 /**
  * Draws a [Frame].
@@ -147,6 +149,9 @@ internal class FrameRenderer {
      */
     private val cells = Cells()
 
+    /** The global background, as Ghostty's first full-screen pass. */
+    private val screenBackground = ScreenBackgroundPass()
+
     /** How many bytes the background buffer on the GPU holds. */
     private var glBackgroundBytes = 0
 
@@ -162,6 +167,7 @@ internal class FrameRenderer {
         val foregroundOk = foregroundProgram.create()
         val cursorOk = cursorProgram.create()
         val imageOk = imageProgram.create()
+        screenBackground.create()
         if (!backgroundOk || !foregroundOk || !cursorOk || !imageOk) {
             failure = shaderFailure() ?: "the shaders did not compile"
             return
@@ -209,6 +215,7 @@ internal class FrameRenderer {
             foregroundProgram.error,
             cursorProgram.error,
             imageProgram.error,
+            screenBackground.failure,
         ).lastOrNull { it != null }
 
     /** Release every GL object. */
@@ -217,6 +224,7 @@ internal class FrameRenderer {
         foregroundProgram.release()
         cursorProgram.release()
         imageProgram.release()
+        screenBackground.release()
         atlasTexture.release()
         colorAtlasTexture.release()
         backgroundBuffer.release()
@@ -370,8 +378,18 @@ internal class FrameRenderer {
         // previous picture alone, which is what stops the screen from wiping to
         // the clear colour and coming back.
         GLES20.glViewport(0, 0, size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
-        GLES20.glClearColor(backgroundR, backgroundG, backgroundB, if (transparentBackground) 0f else 1f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        val backgroundArgb = packBackground(
+            backgroundR,
+            backgroundG,
+            backgroundB,
+            if (transparentBackground) 0f else 1f,
+        )
+        if (screenBackground.available) {
+            screenBackground.draw(backgroundArgb)
+        } else {
+            GLES20.glClearColor(backgroundR, backgroundG, backgroundB, if (transparentBackground) 0f else 1f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        }
 
         // Decided once, before either pass reads it: the block cursor inverts
         // exactly one cell, and both the background and the glyph of that cell
@@ -397,7 +415,6 @@ internal class FrameRenderer {
         // fills is a pass that draws whatever was left in it — which is how the
         // coloured bars of a full-screen program went missing while the text
         // kept rendering.
-        measureSelection(frame, size)
         cells.resize(frame)
 
         val backgroundBuildStart = System.nanoTime()
@@ -470,6 +487,15 @@ internal class FrameRenderer {
             uploadNanos = uploadEnd - buildEnd,
             drawNanos = drawEnd - uploadEnd,
         )
+    }
+
+    /** A float colour as the packed ARGB the background pass takes. */
+    private fun packBackground(r: Float, g: Float, b: Float, a: Float): Int {
+        val red = (r.coerceIn(0f, 1f) * 255f).toInt()
+        val green = (g.coerceIn(0f, 1f) * 255f).toInt()
+        val blue = (b.coerceIn(0f, 1f) * 255f).toInt()
+        val alpha = (a.coerceIn(0f, 1f) * 255f).toInt()
+        return (alpha shl 24) or (red shl 16) or (green shl 8) or blue
     }
 
     // --- geometry ----------------------------------------------------------
@@ -922,52 +948,8 @@ internal class FrameRenderer {
 
     private val imageTextures = HashMap<Int, ImageTexture>()
 
-    /**
-     * The cells the engine says are selected, in view pixels.
-     *
-     * The renderer is the one that sees the selected cells — the engine marks
-     * them in the frame — so it is the one that can say where they are. The
-     * chrome hangs its selection menu on that rectangle.
-     */
-    @Volatile
-    var selectionBounds: android.graphics.Rect? = null
-        private set
-
     /** The pictures of the last frame, in the order they are drawn. */
     private val images = ArrayList<ImageDraw>()
-
-    /**
-     * Where the selected cells are, in view pixels.
-     *
-     * The engine marks the selected cells and the renderer draws them, so this
-     * is the one place that knows both the cells and where they land. The
-     * rectangle is what the chrome's menu hangs on.
-     */
-    private fun measureSelection(frame: Frame, size: SizeInfo) {
-        var left = Int.MAX_VALUE
-        var top = Int.MAX_VALUE
-        var right = Int.MIN_VALUE
-        var bottom = Int.MIN_VALUE
-        for (index in 0 until frame.cellCount) {
-            if (!frame.isSelected(index)) continue
-            val column = index % frame.columns
-            val row = index / frame.columns - frame.overscanAbove
-            if (column < left) left = column
-            if (column > right) right = column
-            if (row < top) top = row
-            if (row > bottom) bottom = row
-        }
-        selectionBounds = if (left == Int.MAX_VALUE) {
-            null
-        } else {
-            android.graphics.Rect(
-                (left * cellWidth).toInt(),
-                (top * cellHeight).toInt(),
-                ((right + 1) * cellWidth).toInt(),
-                ((bottom + 1) * cellHeight).toInt(),
-            )
-        }
-    }
 
     /**
      * The pictures, sorted the way they are drawn.
@@ -1253,6 +1235,25 @@ internal class FrameRenderer {
     @Volatile
     var focused: Boolean = true
 
+    /**
+     * Whether adjacent operator cells may shape into ligatures.
+     *
+     * Off by default would be the conservative choice, but the setting's
+     * default is on and the renderer is told the setting through
+     * [setLigatures]. The per-cell path is always available, so a font without
+     * ligature tables simply draws the same glyphs it drew before.
+     */
+    private var ligatures: Boolean = true
+
+    /** Follow the terminal setting. The atlas keeps both shaped and plain masks. */
+    fun setLigatures(enabled: Boolean) {
+        ligatures = enabled
+        forceFullFrame = true
+    }
+
+    /** A shaped run: its text and how many cells it replaces. */
+    private data class LigatureRun(val cells: Int, val text: String)
+
     private fun backgroundOf(frame: Frame, index: Int): Int =
         if (index == invertedCell) frame.foreground(index) else frame.background(index)
 
@@ -1284,47 +1285,108 @@ internal class FrameRenderer {
             spriteCellHeight = cellHeight
         }
         cells.buildSprites(frame, dirty, cellSizeChanged) { buffer, index, column, gridRow ->
-            val codepoint = frame.codepoint(index)
-            if (codepoint == 0 || codepoint == ' '.code || Emoji.isEmoji(codepoint)) {
-                // An emoji is the colour pass's: a mask of it is a silhouette.
-                false
+            val run = ligatureRunAt(frame, index, column)
+            val attributes = frame.attributes(index)
+            val bold = attributes and FrameFormat.ATTR_BOLD != 0
+            val italic = attributes and FrameFormat.ATTR_ITALIC != 0
+            val blink = attributes and FrameFormat.ATTR_BLINK != 0
+            val entry = if (run != null) {
+                atlas.run(run.text, bold, italic, rasterPx)
             } else {
-                val attributes = frame.attributes(index)
-                val bold = attributes and FrameFormat.ATTR_BOLD != 0
-                val italic = attributes and FrameFormat.ATTR_ITALIC != 0
-                val blink = attributes and FrameFormat.ATTR_BLINK != 0
-                val entry = atlas.glyph(codepoint, bold, italic, rasterPx)
-                if (entry == null || entry.isBlank) {
-                    false
+                val codepoint = frame.codepoint(index)
+                if (codepoint == 0 || codepoint == ' '.code || Emoji.isEmoji(codepoint)) {
+                    // An emoji is the colour pass's: a mask of it is a silhouette.
+                    null
                 } else {
-                    // The mask's line box, centred in the cell it is drawn in.
-                    //
-                    // The cell is the font's line box, so the two have the
-                    // same height and the remainder is zero — almost. The atlas
-                    // rasterises a mask in whole rows (`ceil`) at a size that
-                    // may be supersampled, while the cell is a measured float,
-                    // so the mask can end up a pixel taller than its cell.
-                    // Ghostty puts exactly that remainder half above and half
-                    // below the face (font/Metrics.zig derives `cell_baseline`
-                    // from `(cell_height - face_height) / 2`), so a glyph never
-                    // sits a whole pixel low in its cell.
-                    val lineBox = cellHeight * atlas.scale - entry.height
-                    buffer.putShort(entry.x.toShort())
-                    buffer.putShort(entry.y.toShort())
-                    buffer.putShort(entry.width.toShort())
-                    buffer.putShort(entry.height.toShort())
-                    buffer.putShort(entry.left.toShort())
-                    buffer.putShort((entry.top + lineBox / 2f).toInt().toShort())
-                    buffer.putShort(column.toShort())
-                    buffer.putShort(gridRow.toShort())
-                    putColor(buffer, foregroundOf(frame, index))
-                    buffer.putShort((if (blink) FLAG_BLINK else FLAG_NONE).toShort())
-                    buffer.putShort((if (frame.width(index) == 2) 2 else 1).toShort())
-                    true
+                    atlas.glyph(codepoint, bold, italic, rasterPx)
                 }
+            }
+            if (entry == null || entry.isBlank) {
+                if (run != null) run.cells else 0
+            } else {
+                putSprite(
+                    buffer = buffer,
+                    entry = entry,
+                    column = column,
+                    gridRow = gridRow,
+                    color = foregroundOf(frame, index),
+                    blink = blink,
+                    span = run?.cells ?: if (frame.width(index) == 2) 2 else 1,
+                )
+                run?.cells ?: 1
             }
         }
         return cells.spriteCount
+    }
+
+    /**
+     * A run that can be shaped as one ligature, or null for a single cell.
+     *
+     * The scan stops at the cursor, a style or colour change, a wide cell, an
+     * emoji, a blank, or the end of the row. Those are the same breaks Ghostty
+     * uses: a run is the largest span whose glyphs may legally share a shape.
+     */
+    private fun ligatureRunAt(frame: Frame, index: Int, column: Int): LigatureRun? {
+        if (!ligatures) return null
+
+        val first = frame.codepoint(index)
+        if (!isShapable(first)) return null
+
+        val attributes = frame.attributes(index)
+        val color = foregroundOf(frame, index)
+        val base = index - column
+        val limit = minOf(frame.columns, column + LigaturePolicy.MAX_CELLS)
+        // The scan is asked about the run's own column: `column` is where this
+        // run starts in the row, and the cells are read from there.
+        val count = LigaturePolicy.runLength(column, limit) { at ->
+            val cell = base + at
+            cell != invertedCell &&
+                isShapable(frame.codepoint(cell)) &&
+                frame.width(cell) == 1 &&
+                frame.attributes(cell) == attributes &&
+                foregroundOf(frame, cell) == color
+        }
+        if (count < 2) return null
+        val shaped = IntArray(count) { frame.codepoint(base + column + it) }
+        if (!LigaturePolicy.canShape(shaped)) return null
+        return LigatureRun(count, String(shaped, 0, count))
+    }
+
+    private fun isShapable(codepoint: Int): Boolean =
+        codepoint > 0 && codepoint != ' '.code && !Emoji.isEmoji(codepoint)
+
+    /** Write one sprite record; the layout is the shader's vertex layout. */
+    private fun putSprite(
+        buffer: java.nio.ByteBuffer,
+        entry: dev.drosh.terminal.engine.font.GlyphMask,
+        column: Int,
+        gridRow: Int,
+        color: Int,
+        blink: Boolean,
+        span: Int,
+    ) {
+        // The mask's line box, centred in the cell it is drawn in.
+        //
+        // The cell is the font's line box, so the two have the same height and
+        // the remainder is zero — almost. The atlas rasterises a mask in whole
+        // rows (`ceil`) at a size that may be supersampled, while the cell is a
+        // measured float, so the mask can end up a pixel taller than its cell.
+        // Ghostty puts exactly that remainder half above and half below the
+        // face (font/Metrics.zig derives `cell_baseline` from
+        // `(cell_height - face_height) / 2`), so a glyph never sits a whole
+        // pixel low in its cell.
+        val lineBox = cellHeight * atlas.scale - entry.height
+        buffer.putShort(entry.x.toShort())
+        buffer.putShort(entry.y.toShort())
+        buffer.putShort(entry.width.toShort())
+        buffer.putShort(entry.height.toShort())
+        buffer.putShort(entry.left.toShort())
+        buffer.putShort((entry.top + lineBox / 2f).toInt().toShort())
+        buffer.putShort(column.toShort())
+        buffer.putShort(gridRow.toShort())
+        putColor(buffer, color)
+        buffer.putShort((if (blink) FLAG_BLINK else FLAG_NONE).toShort())
+        buffer.putShort(span.toShort())
     }
 
     // --- drawing -----------------------------------------------------------
@@ -1559,12 +1621,17 @@ internal class FrameRenderer {
      * usually the ones the foreground pass is walking anyway.
      */
     private fun buildColorGlyphs(frame: Frame, contentDirty: Boolean) {
+        // The atlas's generation is part of the geometry: a full atlas starts
+        // over, and every emoji then sits at a different place in the texture.
+        // Rebuilt on a stale rect, the picture samples whatever moved into
+        // that part of the atlas — a different emoji, or nothing.
         val geometryChanged = !colorGlyphsBuilt ||
             frame.columns != colorGlyphColumns ||
             frame.rowCount != colorGlyphRows ||
             frame.firstRowY != colorGlyphFirstRowY ||
             cellWidth != colorGlyphCellWidth ||
-            cellHeight != colorGlyphCellHeight
+            cellHeight != colorGlyphCellHeight ||
+            colorAtlas.generation != colorGlyphGeneration
         if (!geometryChanged && !contentDirty) return
 
         colorGlyphsBuilt = true
@@ -1574,6 +1641,21 @@ internal class FrameRenderer {
         colorGlyphCellWidth = cellWidth
         colorGlyphCellHeight = cellHeight
 
+        // A build can fill the atlas, and a full atlas starts over. The rects
+        // collected before that point describe the old atlas, so the whole
+        // list is collected again — once — from the atlas as it is now. One
+        // pass is enough: a reset leaves an empty atlas, and the emoji of one
+        // frame are a few hundred at most.
+        val generationBefore = colorAtlas.generation
+        collectColorGlyphs(frame)
+        if (colorAtlas.generation != generationBefore) {
+            collectColorGlyphs(frame)
+        }
+        colorGlyphGeneration = colorAtlas.generation
+    }
+
+    /** Walk the frame's cells and collect its emoji. */
+    private fun collectColorGlyphs(frame: Frame) {
         colorGlyphs.clear()
         for (row in 0 until frame.rowCount) {
             val gridRow = row + frame.firstRowY
@@ -1583,11 +1665,20 @@ internal class FrameRenderer {
                 val codepoint = frame.codepoint(index)
                 if (codepoint == 0 || !Emoji.isEmoji(codepoint)) continue
                 val span = if (frame.width(index) == 2) 2 else 1
-                val glyph = colorAtlas.glyph(codepoint, span, cellHeight) ?: continue
+                val glyph = colorAtlas.glyph(codepoint, span, cellWidth, cellHeight) ?: continue
                 if (glyph.isBlank) continue
 
-                // The atlas slot is rasterised at span×1, so the source UV
-                // covers the whole slot and the quad maps it 1:1 — no stretch.
+                // The quad is exactly the cells the emoji covers, and the slot
+                // in the atlas is exactly those cells too — so the mapping is
+                // 1:1 and nothing is stretched.
+                //
+                // It used to be the largest *square* that fitted the cells,
+                // centred inside them. A two-cell emoji is 1.2 cells wide and
+                // one tall, so the square was a cell high: every emoji came out
+                // smaller than the text beside it, with a gap on each side, and
+                // two of them side by side looked pinched. Drawing the cells
+                // themselves makes the emoji the size of the line it is on, and
+                // keeps each one inside its own cells.
                 colorGlyphs.add(
                     ImageDraw(
                         texture = colorAtlasTexture,
@@ -1595,10 +1686,15 @@ internal class FrameRenderer {
                         z = 0,
                         col = 0,
                         row = 0,
-                        offsetX = (column * cellWidth).toInt(),
-                        offsetY = (gridRow * cellHeight).toInt(),
-                        width = (span * cellWidth).toInt(),
-                        height = cellHeight.toInt(),
+                        // The cell's own edges, not its rounded origin: an
+                        // emoji at column 7 of a 24.4px cell belongs at 170.8,
+                        // and truncating the offset to 170 shifted every quad a
+                        // fraction of a pixel with it — a seam that reads as a
+                        // clipped emoji where two of them meet.
+                        offsetX = (column * cellWidth).roundToInt(),
+                        offsetY = (gridRow * cellHeight).roundToInt(),
+                        width = (span * cellWidth).roundToInt(),
+                        height = cellHeight.roundToInt(),
                         sourceU = glyph.x.toFloat() / colorAtlas.size.toFloat(),
                         sourceV = glyph.y.toFloat() / colorAtlas.size.toFloat(),
                         sourceU2 = (glyph.x + glyph.width).toFloat() / colorAtlas.size.toFloat(),
@@ -1609,13 +1705,23 @@ internal class FrameRenderer {
         }
     }
 
-    /** The emoji of the last build, and the geometry it was built for. */
+    /**
+     * The emoji of the last build, and the geometry it was built for.
+     *
+     * The generation is recorded *after* the build, not before it: an atlas
+     * that fills up mid-build starts over, and every rect added before that
+     * point is dead. Recording the old generation made the next frame rebuild
+     * (correct) but left this one drawing the stale rects (a screen of wrong
+     * emoji for one frame). Recording the new one is the same rebuild, one
+     * frame earlier.
+     */
     private var colorGlyphsBuilt = false
     private var colorGlyphColumns = 0
     private var colorGlyphRows = 0
     private var colorGlyphFirstRowY = 0
     private var colorGlyphCellWidth = 0f
     private var colorGlyphCellHeight = 0f
+    private var colorGlyphGeneration = 0
 
     /** Hand the emoji to the GPU: the rows that changed, or all of them. */
     private fun uploadColorAtlas() {

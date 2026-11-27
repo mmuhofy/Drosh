@@ -73,11 +73,16 @@ class CellsTest {
         return parsed
     }
 
-    /** One sprite per cell that has text, the way the renderer writes them. */
-    private fun writer(frame: Frame): (ByteBuffer, Int, Int, Int) -> Boolean =
+    /**
+     * One sprite per cell that has text, the way the renderer writes them.
+     *
+     * The callback answers with the cells the sprite covers: one for a glyph,
+     * none for an empty cell. A ligature is the only sprite that covers more.
+     */
+    private fun writer(frame: Frame): (ByteBuffer, Int, Int, Int) -> Int =
         { buffer, index, column, gridRow ->
             if (frame.codepoint(index) == 0) {
-                false
+                0
             } else {
                 buffer.putShort(0.toShort())
                 buffer.putShort(0.toShort())
@@ -90,7 +95,7 @@ class CellsTest {
                 buffer.putInt(0xFFE8E8E8.toInt())
                 buffer.putShort(0.toShort())
                 buffer.putShort(1.toShort())
-                true
+                1
             }
         }
 
@@ -216,6 +221,43 @@ class CellsTest {
         assertEquals(before + 4, cells.spriteCount)
         assertEquals(8 * Cells.SPRITE_BYTES, cells.spriteUploadStart())
         assertEquals(cells.spriteCount * Cells.SPRITE_BYTES, cells.spriteUploadEnd())
+    }
+
+    /**
+     * A writer whose sprite at a given column covers several cells, as a
+     * shaped ligature does.
+     */
+    private fun spanWriter(spans: Map<Int, Int>): (ByteBuffer, Int, Int, Int) -> Int =
+        { buffer, _, column, _ ->
+            val span = spans[column] ?: 1
+            repeat(Cells.SPRITE_BYTES / 2) { buffer.putShort(0.toShort()) }
+            span
+        }
+
+    @Test
+    fun `a ligature run consumes the cells it covers`() {
+        val cells = Cells()
+        val frame = frame(columns = 4, viewportRows = 1, text = { _, _ -> 'x' })
+        cells.resize(frame)
+        cells.buildSprites(frame, BooleanArray(3) { true }, true, spanWriter(mapOf(0 to 2)))
+
+        // The span at column zero is one sprite for columns zero and one; the
+        // columns it covers must not each get one of their own, or the run is
+        // drawn twice. Three sprites a row, in the viewport's three rows.
+        assertEquals(9, cells.spriteCount)
+        assertEquals(0, cells.spriteUploadStart())
+    }
+
+    @Test
+    fun `a run at the end of a row does not spill into the next`() {
+        val cells = Cells()
+        val frame = frame(columns = 4, viewportRows = 1, text = { _, _ -> 'x' })
+        cells.resize(frame)
+        // A run starting at column two that claims three cells runs past the
+        // row's four. The walk must stop with the row, not write sprites for
+        // cells the row does not have.
+        cells.buildSprites(frame, BooleanArray(3) { true }, true, spanWriter(mapOf(2 to 3)))
+        assertEquals(9, cells.spriteCount)
     }
 
     @Test

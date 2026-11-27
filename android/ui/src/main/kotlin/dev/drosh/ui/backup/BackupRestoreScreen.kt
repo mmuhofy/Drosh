@@ -39,7 +39,7 @@ import dev.drosh.domain.backup.BackupProgress
 import dev.drosh.domain.backup.BackupSectionKind
 import dev.drosh.domain.backup.RestoreSelection
 import dev.drosh.ui.DroshIcons
-import dev.drosh.ui.agent.components.ActionButton
+import dev.drosh.ui.components.ActionButton
 import dev.drosh.ui.settings.GROUP_GAP
 import dev.drosh.ui.settings.SettingsCategoryScreen
 import dev.drosh.ui.settings.SettingsGroupColumn
@@ -54,28 +54,6 @@ import java.util.Locale
 
 /** Which half of the screen is showing. The two never share a row. */
 private enum class BackupSegment { Backup, Restore }
-
-/**
- * The steps the repository reports, as something a person reads.
- *
- * The contract asks the repository for "short, stable" step names and says the
- * UI may map them to a phrase — the phrase is what the progress row shows.
- * Known names are mapped; anything unknown falls through unchanged, so a step
- * the repository learns later still reaches the screen rather than being
- * swallowed as blank.
- */
-private fun stepLabel(step: String): String = when (step) {
-    "settings" -> STEP_SETTINGS
-    "app data" -> STEP_APP_DATA
-    "database" -> STEP_DATABASE
-    "themes" -> STEP_THEMES
-    "snippets" -> STEP_SNIPPETS
-    "input preferences" -> STEP_INPUT_PREFS
-    "rootfs" -> STEP_ROOTFS
-    "manifest" -> STEP_MANIFEST
-    "verifying" -> STEP_VERIFYING
-    else -> step
-}
 
 /**
  * Backup and restore, in one screen with two halves.
@@ -684,15 +662,15 @@ private const val SECTION_ROOTFS = "Rootfs"
 
 private const val PROGRESS_WORKING = "Hazırlanıyor…"
 
-private const val STEP_SETTINGS = "Ayarlar"
-private const val STEP_APP_DATA = "Uygulama verisi"
-private const val STEP_DATABASE = "Oturumlar ve sohbetler"
-private const val STEP_THEMES = "Temalar"
-private const val STEP_SNIPPETS = "Kod parçaları"
-private const val STEP_INPUT_PREFS = "Klavye tercihleri"
-private const val STEP_ROOTFS = "Linux dizini"
-private const val STEP_MANIFEST = "Arşiv içeriği"
-private const val STEP_VERIFYING = "Doğrulanıyor"
+internal const val STEP_SETTINGS = "Ayarlar"
+internal const val STEP_APP_DATA = "Uygulama verisi"
+internal const val STEP_DATABASE = "Oturumlar ve sohbetler"
+internal const val STEP_THEMES = "Temalar"
+internal const val STEP_SNIPPETS = "Kod parçaları"
+internal const val STEP_INPUT_PREFS = "Klavye tercihleri"
+internal const val STEP_ROOTFS = "Linux dizini"
+internal const val STEP_MANIFEST = "Arşiv içeriği"
+internal const val STEP_VERIFYING = "Doğrulanıyor"
 
 private const val RESTART_TITLE = "Drosh'u yeniden başlat"
 private const val RESTART_BODY =

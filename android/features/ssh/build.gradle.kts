@@ -6,16 +6,19 @@
 
 plugins {
     alias(libs.plugins.dev.drosh.android.library)
+    alias(libs.plugins.dev.drosh.android.compose)
     alias(libs.plugins.dev.drosh.android.hilt)
     alias(libs.plugins.dev.drosh.kotlin.serialization)
 }
 
 android {
-    namespace = "dev.drosh.ssh"
+    namespace = "dev.drosh.feature.ssh"
 }
 
 dependencies {
     api(project(":domain"))
+    implementation(project(":ui"))
+    implementation(project(":theme"))
     implementation(project(":core"))
     // The bridged TerminalSession lives here — the SSH wire is the byte source.
     implementation(project(":terminal"))
@@ -33,6 +36,8 @@ dependencies {
     // was never on the classpath of anything in this module.
 
     // coroutines
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.hilt.navigation.compose)
     implementation(libs.kotlinx.coroutines.android)
 
     // logging

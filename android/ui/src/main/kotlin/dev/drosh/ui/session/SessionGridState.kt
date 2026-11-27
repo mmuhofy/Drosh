@@ -43,7 +43,9 @@ internal fun addToGroup(
 ): List<SessionGroup> {
     val affected = (target.memberIds + incoming).toSet()
     val kept = groups.filterNot { group -> group.memberIds.any { it in affected } }
-    return kept + SessionGroup((target.memberIds + incoming).distinct())
+    // The target's name survives an addition: a group the user named is still
+    // that group after one more card joins it.
+    return kept + SessionGroup((target.memberIds + incoming).distinct(), target.name)
 }
 
 /** Removes one member. The group dissolves when it would fall below two members. */
@@ -57,7 +59,11 @@ internal fun removeFromGroup(
     // already dropped a closed member, while [groups] still holds the original.
     val ids = target.memberIds.toSet()
     val kept = groups.filterNot { group -> group.memberIds.any { it in ids } }
-    return if (remaining.size >= MIN_GROUP_MEMBERS) kept + SessionGroup(remaining) else kept
+    return if (remaining.size >= MIN_GROUP_MEMBERS) {
+        kept + SessionGroup(remaining, target.name)
+    } else {
+        kept
+    }
 }
 
 /** Dissolves a group completely, returning all of its members to the singles view. */
@@ -87,6 +93,23 @@ internal fun groupTwoSessions(
 ): List<SessionGroup> {
     if (targetId == heldId) return groups
     return groups + SessionGroup(listOf(targetId, heldId))
+}
+
+/**
+ * Moves one member [offset] places inside its group, clamped to the ends.
+ *
+ * The panel reorders with arrows rather than a drag: a member row is 56dp and a
+ * drag inside a scrolling list is a gesture the scroll claims first.
+ */
+internal fun moveGroupMember(group: SessionGroup, memberId: String, offset: Int): SessionGroup {
+    val from = group.memberIds.indexOf(memberId)
+    if (from < 0 || offset == 0) return group
+    val to = (from + offset).coerceIn(0, group.memberIds.lastIndex)
+    if (to == from) return group
+    val reordered = group.memberIds.toMutableList()
+    reordered.removeAt(from)
+    reordered.add(to, memberId)
+    return group.copy(memberIds = reordered)
 }
 
 /**

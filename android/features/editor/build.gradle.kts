@@ -23,7 +23,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.drosh.editor"
+    namespace = "dev.drosh.feature.editor"
 
     defaultConfig {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

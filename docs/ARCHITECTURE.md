@@ -21,10 +21,11 @@ unchanged by that split: `android/data/` is still `project(":data")`.
 ```
 :app  ──► everything (composition root only: Activity, NavHost, Hilt wiring)
 
- ├── :ui --------------► :domain, :theme
+ ├── :ui --------------► :domain, :theme, :core
+ ├── :features:terminal ─► :ui, :theme, :terminal, :linux, :domain
  ├── :terminal --------► :linux, :domain
- ├── :features:agent --► :terminal, :domain
- ├── :features:ssh ----► :domain, :terminal  (implements TransportPort)
+ ├── :features:agent --► :ui, :theme, :terminal, :linux, :domain
+ ├── :features:ssh ----► :ui, :theme, :domain, :terminal  (implements TransportPort)
  ├── :linux -----------► :domain
  ├── :data ------------► :domain
  ├── :features:editor -► :domain, :theme
@@ -36,10 +37,11 @@ unchanged by that split: `android/data/` is still `project(":data")`.
 | `:domain` | Entities, ports, use cases | Android, any Drosh module |
 | `:terminal` | the engine's Kotlin side (JNI, the sessions, the surface's layout and input) and the sessions that drive it (sessions, panes, tabs, blocks, shell launch) | Compose, `:ui`, `:app`; the engine half does not know the session half |
 | `:linux` | rootfs, bootstrap, archive, chroot exec | terminal sessions, UI |
-| `:features:ssh` | SSH transport implementing the domain port | `:terminal` |
+| `:features:ssh` | SSH transport and the SSH host screens | `:terminal` |
 | `:data` | Room, DataStore, TOML, vault | `:terminal`, Compose |
-| `:features:agent` | LLM providers, tools, chat | Compose (screen lives in `:ui`) |
-| `:ui` | Screens and chrome over domain | `:terminal` |
+| `:features:agent` | LLM providers, tools, chat, and the agent screens | `:app` |
+| `:features:terminal` | Terminal screen, chrome, find/zoom/selection and its ViewModel | `:data`, `:app` |
+| `:ui` | Shared screens and chrome over domain | `:terminal`, `:features:*`, `:app` |
 | `:theme` | Tokens, typography | any feature module |
 
 `:app` is the only module allowed to know everything; it wires ports to
@@ -103,9 +105,10 @@ or panic may cross the boundary; the panic hook is installed at load.
 2. `:terminal` imports nothing above it (`:terminal`, `:linux`, `:data`, `:agent`, `:ssh`, `:ui`).
 3. `:linux` imports no UI, no `:terminal`, no `:terminal`.
 4. `:terminal` imports no Compose, no `:ui`, no `:app`.
-5. `:ui` imports neither `:terminal` nor `:terminal`.
-6. Only `android/terminal/engine/.../native/` (today `android/terminal/engine/.../core/`) declares `external fun`.
-7. The only VT core is `libghostty-vt`, driven from `native/`.
+5. `:ui` imports neither `:terminal` nor `:features:terminal`.
+6. `:features:terminal` may import `:terminal`, `:linux` and `:ui`; it never imports `:data` or `:app`.
+7. Only `android/terminal/engine/.../native/` (today `android/terminal/engine/.../core/`) declares `external fun`.
+8. The only VT core is `libghostty-vt`, driven from `native/`.
 
 Run `./gradlew checkModuleBoundaries` (it is also part of every `check`).
 
@@ -146,6 +149,8 @@ failure. A rule nobody can check is a comment, not a rule.
 |---|---|
 | File name = the single public type | `SessionCoordinator.kt` |
 | Package = `dev.drosh.<module>.<area>` | `dev.drosh.terminal.session` |
+| Feature package = `dev.drosh.feature.<feature>.<area>` | `dev.drosh.feature.agent.chat` |
+| Test file = the subject + `Test` | `SelectionTextTest.kt` |
 | Port (contract) ends in `*Port` | `TransportPort` |
 | Persistence ends in `*Store` | `SnippetStore` |
 | Lifecycle owner ends in `*Coordinator` | `SessionCoordinator` |
@@ -154,9 +159,14 @@ failure. A rule nobody can check is a comment, not a rule.
 | Android View `*View`, Compose `*Overlay`, GL `*Renderer` | |
 | **Banned suffixes** | `*Manager`, `*Impl`, `*Helper`, `*Util`, `*Wire`, `*Handler` |
 
-The banned list is not taste. Each of those names currently marks a class whose
-responsibility is unclear: `TerminalManager` (1808 lines), `BlockEngineWire`,
-`MouseInputHandler`, `TerminalViewClientImpl`, `TerminalSessionClientImpl`.
+The banned list is not taste. Each of those names marked a class whose
+responsibility was unclear. The current tree has removed the suffixes: the
+session coordinator is `TerminalSessionCoordinator`, the block bridge is
+`BlockEventBridge`, and the data implementations name their storage
+(`RoomSessionRepository`, `TomlSettingsRepository`, `FileThemeRepository`).
+
+`tools/check-kotlin-layout.py` enforces package paths, banned file suffixes and
+duplicate file names; it runs in the unit-test workflow before Gradle.
 
 ### 4.2 Rust
 
@@ -183,8 +193,12 @@ rather than a comment. `ffi/*.rs` stays boring by keeping the behaviour in
 | `ffi/*.rs` | ≤ 120 lines | boundary files should be boring |
 | Public types per file | 1 | keeps the file name honest |
 
-Current overruns, all scheduled: `TerminalScreen.kt` 2238 (P6), `TerminalManager.kt` 1808 (P3),
-`RootfsArchiveWriter.kt` 860 (P4), `RootfsArchiveReader.kt` 614 (P4).
+Current overruns, all scheduled: `TerminalSessionCoordinator.kt` 2763 (P3),
+`TerminalScreen.kt` 2203 (P6), `AgentChatScreen.kt` 2133 (P6),
+`TerminalSurface.kt` 1867 (P3), `FrameRenderer.kt` 1714 (P3),
+`AppDataBackup.kt` 1213 (P4), `AgentChatViewModel.kt` 1148 (P6),
+`SettingsCategories.kt` 1122 (P6), `SplitPaneHost.kt` 1018 (P6),
+`GhosttyTerminalHost.kt` 755 (P6), `MainActivity.kt` 951 (P6).
 
 ---
 

@@ -16,14 +16,17 @@
 // can be read without the production around it.
 pub mod cell;
 // The rest reads the engine's render state, so it only exists with the engine.
-// The cell rules are the part the tests build, and they stay engine-free.
+// The cell rules and the preview rasterizer are the parts the tests build, and
+// they stay engine-free.
 #[cfg(feature = "engine")]
 pub mod frame;
 #[cfg(feature = "engine")]
 pub mod image;
 #[cfg(feature = "engine")]
 pub mod row;
-#[cfg(feature = "engine")]
+// The snapshot takes the frame's flat buffer and gives back pixels, so it needs
+// neither the engine nor Android: that is what lets its rules be tested.
+pub mod snapshot;
 pub mod wire;
 
 #[cfg(feature = "engine")]

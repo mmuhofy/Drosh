@@ -46,11 +46,12 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Layer rules from docs/ARCHITECTURE.md §3. `test` does not pull this in
-      # (it is wired into `check`, which CI never runs wholesale), so the gate
-      # is invoked explicitly — an unenforced rule is a comment, not a rule.
-      - name: Check module boundaries
-        run: ./gradlew checkModuleBoundaries --no-daemon --stacktrace
+      # Package paths and file names are part of the architecture, but the
+      # compiler does not care where a file lives. Catch a moved file whose
+      # package did not follow before the Gradle round trip.
+      - name: Check Kotlin layout
+        working-directory: .
+        run: python3 tools/check-kotlin-layout.py
 
       # An import that names a module the file's own module does not depend
       # on cannot compile. The Kotlin compiler says so, in a stack trace, after
@@ -67,21 +68,24 @@ jobs:
       - name: Check that every JNI symbol lines up with its Kotlin declaration
         run: python3 ../tools/check-jni-symbols.py
 
-      - name: Run :domain tests
-        run: ./gradlew :domain:test --no-daemon --stacktrace
-
-      # The agent module's tests are pure: SSE framing, tool-call reassembly,
-      # request encoding and provider error classification, all driven from
-      # literal wire text with no network and no Android.
-      - name: Run :agent tests
-        run: ./gradlew :features:agent:test --no-daemon --stacktrace
-
-      # :terminal and :editor were never listed here, which is how a failing
-      # AnsiStripperTest sat on main for months: nothing ran it. Run every
-      # module that has tests, rather than appending one name at a time — the
-      # next module with tests would otherwise be missed the same way.
-      - name: Run remaining module tests
-        run: ./gradlew test -x :domain:test -x :features:agent:test --no-daemon --stacktrace
+      - name: Run the tests
+        run: |
+          set -euo pipefail
+          # One Gradle invocation, not four — and `checkModuleBoundaries` is
+          # named first because `test` does not pull it in (it is wired into
+          # `check`, which CI never runs wholesale): the layer rules from
+          # docs/ARCHITECTURE.md §3 are a gate only when something asks for
+          # them.
+          #
+          # The boundary check, :domain, :features:agent and everything else
+          # used to be four separate `./gradlew` calls. Each one starts a JVM,
+          # configures the whole build and then stops — the configuration alone
+          # is most of a minute — and the four together took longer than the
+          # compilation they were guarding. Gradle runs the same tasks in one
+          # build, in parallel, and a failure names its module in the log just
+          # as clearly.
+          ./gradlew checkModuleBoundaries test \
+            --parallel --max-workers=4 --no-daemon --stacktrace
 
       # The native half's own rules — the renderer's colour rules, the ones
       # ported from Ghostty's renderer — are Rust, and they are tested by

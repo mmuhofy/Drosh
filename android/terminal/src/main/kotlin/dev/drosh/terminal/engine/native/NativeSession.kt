@@ -150,6 +150,18 @@ object NativeSession {
     }
 
     /**
+     * How many lines of history the terminal keeps.
+     *
+     * Zero turns scrollback off and erases what is there. Lowering the limit
+     * prunes at once, which is why the setting can be changed on a live session
+     * rather than only at the start of one.
+     */
+    fun setScrollback(handle: Long, lines: Int): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeSetScrollback(handle, lines.toLong()) != 0.toByte()
+    }
+
+    /**
      * The default cursor's shape and whether it blinks.
      *
      * A program can still change its cursor with DECSCUSR; this is what the
@@ -231,6 +243,28 @@ object NativeSession {
     fun title(handle: Long): String? {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
         return nativeTitle(handle)?.takeIf { it.isNotBlank() }
+    }
+
+    /** The icon name the program asked for with OSC 1, or null. */
+    fun iconName(handle: Long): String? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeIconName(handle)?.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * The session's last screenful as a PNG, for a card on the session grid.
+     *
+     * Drawn from the renderer's own cells, so a session that is in the
+     * background — with no Surface and no pane — still has a truthful
+     * preview. The native side caches the encoding against the frame, so a
+     * still session costs a hash rather than a rasterization.
+     *
+     * Blocking: a frame iteration plus, when the screen changed, a
+     * rasterization and a PNG encode. Call it off the main thread.
+     */
+    fun snapshot(handle: Long, maxWidth: Int): ByteArray? {
+        if (handle == 0L || maxWidth <= 0 || !NativeLibraries.ensureLoaded()) return null
+        return nativeSnapshot(handle, maxWidth)
     }
 
     fun scrollbar(handle: Long): Scrollbar? {
@@ -348,7 +382,12 @@ object NativeSession {
         background: Int,
         palette: IntArray,
     ): Byte
+    private external fun nativeSetScrollback(handle: Long, lines: Long): Byte
     private external fun nativeTitle(handle: Long): String?
+
+    private external fun nativeIconName(handle: Long): String?
+
+    private external fun nativeSnapshot(handle: Long, maxWidth: Int): ByteArray?
     private external fun nativeImages(handle: Long): ByteArray?
     private external fun nativeSetCursor(handle: Long, style: Int, blink: Int): Byte
     private external fun nativeSetHighlight(

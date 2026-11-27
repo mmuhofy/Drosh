@@ -2,4 +2,7 @@
   <string name="paste_text">Paste</string>
   <string name="copy_text">Copy</string>
   <string name="text_selection_more">More…</string>
+  <string name="terminal_bell_title">Terminal bell</string>
+  <string name="terminal_bell_channel_name">Terminal bell</string>
+  <string name="terminal_notification_channel_name">Program notifications</string>
 </resources>

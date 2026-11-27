@@ -143,6 +143,25 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     }
 }
 
+/// How many lines of history the terminal keeps.
+///
+/// Zero turns scrollback off and erases what is already there; lowering the
+/// limit prunes immediately, so this is safe to call on a live session rather
+/// than only at start.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeSetScrollback(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    lines: jlong,
+) -> jboolean {
+    let Some(mut session) = session_lock(handle) else {
+        return 0;
+    };
+    session.set_scrollback_lines(lines.max(0) as u64);
+    1
+}
+
 /// Set the theme's colours: the two defaults and the 256-colour palette.
 ///
 /// `fg` and `bg` are packed 0xRRGGBB. The palette array is 256 entries in the
@@ -368,6 +387,46 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
         return std::ptr::null_mut();
     }
     new_byte_array(&mut env, &images)
+}
+
+/// The icon name the program asked for (OSC 1), or null.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeIconName(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jstring {
+    let Some(session) = session_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    match session.icon_name() {
+        Some(name) => new_string(&mut env, name),
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// The session's last screenful as a PNG, for a card on the session grid.
+///
+/// The picture is drawn from the renderer's own cells, so it works for a
+/// session that is in the background and has no Surface. Null when the session
+/// has no frame yet.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeSnapshot(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    max_width: jint,
+) -> jbyteArray {
+    if !(1..=4096).contains(&max_width) {
+        return std::ptr::null_mut();
+    }
+    let Some(session) = session_handle(handle) else {
+        return std::ptr::null_mut();
+    };
+    match session.snapshot_png(max_width as u32) {
+        Some(png) => new_byte_array(&mut env, &png),
+        None => std::ptr::null_mut(),
+    }
 }
 
 /// The window title the program asked for (OSC 0/2), or the process name.

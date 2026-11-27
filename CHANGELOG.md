@@ -225,6 +225,14 @@ release when it ships.
 
 ### Changed
 
+- The screen's background is drawn once, as one triangle before the grid,
+  instead of a quad per cell. The per-cell pass still runs for the cells that
+  carry their own colour, so a themed or transparent background costs one
+  full-screen draw rather than a thousand small ones
+- The render loop presents at a fixed 120 Hz budget instead of drawing as fast
+  as the thread wakes: commands, cursor blinks and the bell flash each take
+  their own frame, and the loop sleeps until the next one is due. A quiet
+  terminal stops burning the battery on frames nobody asked for
 - The engine draws in the app's theme. It kept its own palette, so the
   terminal was drawn in the prototype's colours whatever the user chose — and
   the chrome, which samples the terminal's colours, had nothing to sample but
@@ -239,10 +247,12 @@ release when it ships.
   learns a ligature exists. The terminal's font ships with the ligature
   tables this time — the setting decides, and the shaper switches them off
   when it says so
-  - _Status 2026-11-18:_ the Rust shaper is still in the tree with its tests,
-    but the renderer now builds its atlas through Android `Paint` and nothing
-    calls the shaper. Ligatures are therefore **not drawn** today; see
-    `docs/STATUS.md`
+  - _Status 2026-11-24:_ the renderer now shapes them itself. A run of cells
+    that share a style and carry an operator (`= <> ! | & + - * / % ^ ~ . : ?`)
+    is rasterised as one mask through Android `Paint`, and the cells it covers
+    are drawn by that one sprite; prose, paths and other plain words keep the
+    per-cell path. The font has to ship the ligature tables — the setting
+    decides. Not yet looked at on a device; the masks are covered by tests
 - The terminal can use a font of your own: pick a font file in the settings
   and the terminal is drawn in it, measured from it
 - The engine finds the URLs on the screen, with the same rules the app's own
@@ -343,8 +353,8 @@ release when it ships.
 - Agent chats run in the guest home directory; per-chat terminals are not
   wired yet
 - Command DNA (history search), ghost-text autocomplete and semantic output
-  classification are not built; ligatures are not drawn (the Rust shaper is
-  not on the renderer's path)
+  classification are not built. Ligatures are drawn by the renderer through
+  Android `Paint`; the Rust shaper in `native/src/font` is still unused
 - Translations are incomplete in every locale but Turkish; there is no
   coverage tooling after the old tools were removed
 - `targetSdk` is deliberately 28 on a compileSdk 36 project, and release

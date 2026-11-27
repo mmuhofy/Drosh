@@ -1,0 +1,17 @@
+<resources>
+    <string name="topbar_more_actions">更多操作</string>
+    <string name="topbar_refresh">刷新终端</string>
+    <string name="topbar_find">在输出中查找</string>
+    <string name="terminal_delete_last_session_title">删除最后一个 session？</string>
+    <string name="terminal_delete_last_session_ended_body">它以退出代码 %1$d 结束。删除它将关闭应用；新的 session 将从头开始。</string>
+    <string name="terminal_delete_last_session_body">删除它将关闭应用；新的 session 将从头开始。</string>
+    <string name="terminal_preparing">正在准备…</string>
+    <string name="terminal_extracting_rootfs">正在解压 Ubuntu rootfs…</string>
+    <string name="terminal_configuring">正在配置系统…</string>
+    <string name="terminal_cleaning">正在清理…</string>
+    <string name="terminal_ready">已就绪</string>
+    <string name="terminal_setting_up">正在设置终端</string>
+    <string name="terminal_setup_failed">终端设置失败</string>
+    <string name="motd_dismiss">关闭 MOTD</string>
+    <string name="topbar_open_sessions">打开 session</string>
+</resources>

@@ -1,0 +1,310 @@
+package dev.drosh.feature.agent.ui
+
+import dev.drosh.ui.components.glassRow
+import dev.drosh.ui.components.FlatButton
+import dev.drosh.ui.components.TOUCH_TARGET
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.drosh.theme.DroshBackground
+import dev.drosh.theme.DroshError
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurface
+import dev.drosh.theme.DroshSurfaceLow
+import dev.drosh.theme.DroshSurfaceVariant
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.LocalFontSet
+import dev.drosh.domain.agent.AgentChat
+import dev.drosh.ui.R
+
+/**
+ * Rename a chat.
+ *
+ * A dialog rather than an inline field: the row shows a preview and a status, and
+ * turning the name into an editable field in place means the preview and the status
+ * have to disappear while editing and come back correctly after.
+ */
+@Composable
+fun RenameChatDialog(
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    val nameHintCd = stringResource(R.string.agent_chat_name_hint)
+    var name by remember { mutableStateOf(initial) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DroshSurface,
+        titleContentColor = DroshText,
+        textContentColor = DroshTextSecondary,
+        title = { Text(stringResource(R.string.agent_chat_name_hint), fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column {
+                Text(
+                    text = stringResource(R.string.agent_chat_name_help),
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    color = DroshTextSecondary,
+                )
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = TOUCH_TARGET)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DroshSurfaceVariant)
+                        .padding(horizontal = 12.dp, vertical = 14.dp),
+                ) {
+                    if (name.isEmpty()) {
+                        Text(
+                            text = initial,
+                            fontSize = 14.sp,
+                            color = DroshTextMuted,
+                        )
+                    }
+                    BasicTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        singleLine = true,
+                        textStyle = TextStyle(fontSize = 14.sp, color = DroshText),
+                        cursorBrush = SolidColor(DroshPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics { contentDescription = nameHintCd },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(name) },
+                // Renaming to nothing would read as a delete, which is not what the
+                // button says.
+                enabled = name.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.action_save), color = if (name.isNotBlank()) DroshPrimary else DroshTextMuted)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel), color = DroshTextSecondary)
+            }
+        },
+    )
+}
+
+/**
+ * Confirm deleting a chat.
+ *
+ * Names the chat and says what goes with it. A delete whose consequence is not
+ * stated reads as a button that might be something else, and the transcript is
+ * not recoverable.
+ */
+@Composable
+fun DeleteChatDialog(
+    name: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DroshSurface,
+        titleContentColor = DroshText,
+        textContentColor = DroshTextSecondary,
+        title = {
+            Text(
+                text = stringResource(R.string.agent_chat_delete_confirm),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        },
+        text = {
+            Text(
+                text = "\"$name\" ve tüm konuşma geçmişi kalıcı olarak silinecek. Bu geri alınamaz.",
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.agent_chat_delete), color = DroshError)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel), color = DroshTextSecondary)
+            }
+        },
+    )
+}
+
+/**
+ * The menu a long press opens, pinned under the row.
+ *
+ * Rendered in the screen's own layer rather than as a popup so it cannot be
+ * dismissed by a tap that lands outside it, which on a list this dense would
+ * swallow the tap the user aimed at the row behind it.
+ */
+@Composable
+fun RowContextMenu(
+    chat: AgentChat,
+    onDismiss: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(DroshBackground.copy(alpha = 0.72f))
+            .clickable(onClick = onDismiss),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 32.dp)
+                .padding(top = 120.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(DroshSurface)
+                .padding(4.dp),
+        ) {
+            Text(
+                text = chat.name,
+                fontSize = 12.sp,
+                fontFamily = LocalFontSet.current.mono,
+                color = DroshTextMuted,
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+            MenuRow(label = stringResource(R.string.agent_rename), tint = DroshText, onClick = onRename)
+            MenuRow(label = "Sil", tint = DroshError, onClick = onDelete)
+        }
+    }
+}
+
+@Composable
+private fun MenuRow(label: String, tint: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = TOUCH_TARGET)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            color = tint,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+    }
+}
+
+/**
+ * The working directory new chats start in.
+ *
+ * Editable in place rather than behind a settings screen, because it is per-task
+ * and almost always the same value — a trip to Settings to change it each time
+ * would be the difference between a one-tap task and a four-tap one.
+ */
+@Composable
+fun DirectoryChip(
+    directory: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val workDirCd2 = stringResource(R.string.agent_working_directory_cd, directory)
+    val workDirCd = stringResource(R.string.agent_working_directory)
+    var editing by remember { mutableStateOf(false) }
+    var draft by remember(directory) { mutableStateOf(directory) }
+
+    if (editing) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = modifier,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(180.dp)
+                    .heightIn(min = 36.dp)
+                    .glassRow(shape = RoundedCornerShape(10.dp), raised = true)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            ) {
+                BasicTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        fontSize = 11.sp,
+                        fontFamily = LocalFontSet.current.mono,
+                        color = DroshText,
+                    ),
+                    cursorBrush = SolidColor(DroshPrimary),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = workDirCd },
+                )
+            }
+            Spacer(Modifier.width(6.dp))
+            FlatButton(
+                text = stringResource(R.string.action_save),
+                onClick = {
+                    onChange(draft)
+                    editing = false
+                },
+                modifier = Modifier.width(72.dp),
+            )
+        }
+        return
+    }
+
+    Box(
+        modifier = modifier
+            .glassRow(shape = RoundedCornerShape(999.dp))
+            .clickable { editing = true }
+            .semantics { contentDescription = workDirCd2 }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = directory,
+            fontSize = 10.sp,
+            fontFamily = LocalFontSet.current.mono,
+            color = DroshTextMuted,
+            maxLines = 1,
+        )
+    }
+}

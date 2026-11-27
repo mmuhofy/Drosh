@@ -76,8 +76,14 @@ private val SLIM_MENU_SHAPE = RoundedCornerShape(16.dp)
  */
 private val MENU_ITEM_SHAPE = RoundedCornerShape(14.dp)
 
-/** An entry's press shape in the slim card: a pill, the full height of its row. */
-private val SLIM_MENU_ITEM_SHAPE = RoundedCornerShape(percent = 50)
+/**
+ * An entry's press shape in the slim card.
+ *
+ * A rounded rectangle, not a pill: the card is a rectangle with corners, and a
+ * capsule inside it read as a second shape trying to live in the first. The
+ * card's corners are [SLIM_MENU_SHAPE] and this steps in from them.
+ */
+private val SLIM_MENU_ITEM_SHAPE = RoundedCornerShape(11.dp)
 
 data class DroshMenuItem(
     val label: String,
@@ -123,13 +129,13 @@ fun DroshDropdownMenu(
 ) {
     val slim = density == DroshMenuDensity.Slim
     // The slim card's own numbers; the compact menu keeps the padding it had.
-    val horizontalPadding = 14.dp
-    val verticalPadding = if (slim) 9.dp else 11.dp
+    val horizontalPadding = if (slim) 13.dp else 14.dp
+    val verticalPadding = if (slim) 10.dp else 11.dp
     val iconSize = 17.dp
-    val iconGap = if (slim) 11.dp else 12.dp
+    val iconGap = if (slim) 10.dp else 12.dp
     val labelStyle = MaterialTheme.typography.bodyMedium
     val itemShape = if (slim) SLIM_MENU_ITEM_SHAPE else MENU_ITEM_SHAPE
-    val itemMargin = if (slim) 5.dp else 0.dp
+    val itemMargin = if (slim) 4.dp else 0.dp
 
     DropdownMenu(
         expanded         = expanded,

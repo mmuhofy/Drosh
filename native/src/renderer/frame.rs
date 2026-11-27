@@ -793,21 +793,21 @@ impl FrameSource {
             },
         );
 
-        // A selected cell is drawn in the terminal's own two colours, swapped:
-        // the selection is a region of the terminal's foreground on its
-        // background, which is what a selection has to look like wherever the
-        // text under it happens to be.
+        // A selected cell is drawn in *its own* two colours, swapped: the ink
+        // becomes the ground and the ground becomes the ink.
+        //
+        // The highlight therefore carries the colour the letters had. A line of
+        // red errors selects as red, a green prompt selects as green, and a
+        // block of output keeps its shape instead of turning into one flat
+        // band of the theme's foreground — which is what the old rule did: it
+        // painted every selected cell in the terminal's default two colours,
+        // so the selection erased the colour of the text it was selecting.
+        //
+        // Swapping per cell is also what keeps a coloured background cell — a
+        // status bar, a `diff` highlight — selectable: it inverts to its own
+        // colours rather than to the theme's.
         if selected || app_selected {
-            colors.foreground = crate::renderer::cell::Rgb::new(
-                self.default_bg.r,
-                self.default_bg.g,
-                self.default_bg.b,
-            );
-            colors.background = crate::renderer::cell::Rgb::new(
-                self.default_fg.r,
-                self.default_fg.g,
-                self.default_fg.b,
-            );
+            std::mem::swap(&mut colors.foreground, &mut colors.background);
         }
         let fg = crate::renderer::cell::Rgb {
             r: colors.foreground.r,

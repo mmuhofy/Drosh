@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
  * Persisted rather than held in a ViewModel because a rotation is not a
  * session boundary: a user who has arranged two panes wants them back after
  * the screen turns, and a ViewModel would drop the arrangement while
- * [TerminalManager][dev.drosh.domain.session.SessionRepository] kept the two
+ * [TerminalSessionCoordinator][dev.drosh.domain.session.SessionRepository] kept the two
  * shells running.
  *
  * The secondary session id is written here but *validated* by the caller

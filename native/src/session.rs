@@ -30,6 +30,14 @@ const PALETTE_LEN: usize = 256;
 /// a program's image and throws it away. A phone's budget for pictures behind
 /// a terminal is a few screenshots, not a gigabyte.
 const KITTY_STORAGE_BYTES: u64 = 128 * 1024 * 1024;
+
+/// How many lines of history a terminal keeps until the settings say otherwise.
+///
+/// Ghostty's own default is expressed in bytes — ten thousand of them — which
+/// a busy prompt fills in one `ls`. Ten thousand *lines* is a day of output on
+/// a phone and a few megabytes of pages; the settings can lower it to nothing
+/// for someone who would rather have the memory.
+const DEFAULT_SCROLLBACK_LINES: u64 = 10_000;
 /// The mouse encoder's output buffer. An SGR 1006 sequence is under twenty
 /// bytes; sixty-four covers every format the engine can produce with room to
 /// spare, and a short answer is refused by the caller rather than truncated.
@@ -123,6 +131,143 @@ pub struct SelectionGeometry {
     pub screen_height: u32,
 }
 
+/// Where a program's icon name comes from: `OSC 1 ; name ST`.
+///
+/// The engine's own title (OSC 0/2) is read back through the terminal's data
+/// API, but the icon name is not part of that API — the terminal keeps the two
+/// apart, and only the title is exported. So the sequence is read here, from
+/// the same bytes the parser gets, and kept next to the terminal.
+///
+/// The scan has to survive a sequence split across two reads, which is why it
+/// carries its state instead of searching each chunk on its own.
+pub struct IconScanner {
+    state: IconState,
+    /// The bytes between the command number and its `;`.
+    code: Vec<u8>,
+    /// The name itself, while it is arriving.
+    payload: Vec<u8>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum IconState {
+    /// Ordinary output.
+    Ground,
+    /// An ESC, waiting to see whether it opens an OSC.
+    Escape,
+    /// An OSC's parameter bytes, up to the `;`.
+    Osc,
+    /// `OSC 1`: the icon name, until BEL or ST.
+    Icon,
+    /// An ESC inside the icon name: `\\` closes it, anything else is text.
+    IconEscape,
+    /// A sequence that is not the icon name: skip to its terminator.
+    Skip,
+    /// An ESC inside a skipped sequence.
+    SkipEscape,
+}
+
+impl Default for IconScanner {
+    fn default() -> Self {
+        Self {
+            state: IconState::Ground,
+            code: Vec::new(),
+            payload: Vec::new(),
+        }
+    }
+}
+
+impl IconScanner {
+    /// A name this long is not an icon name; stop collecting it.
+    const MAX: usize = 8 * 1024;
+
+    /// Feed one read's bytes; the completed name, when this read finished one.
+    pub fn push(&mut self, bytes: &[u8]) -> Option<String> {
+        let mut found = None;
+        for &byte in bytes {
+            match self.state {
+                IconState::Ground => {
+                    if byte == 0x1b {
+                        self.state = IconState::Escape;
+                    }
+                }
+                IconState::Escape => {
+                    if byte == b']' {
+                        self.code.clear();
+                        self.state = IconState::Osc;
+                    } else if byte != 0x1b {
+                        self.state = IconState::Ground;
+                    }
+                }
+                IconState::Osc => {
+                    if byte == b';' {
+                        // OSC 1 is the icon name. OSC 0 and 2 are the title,
+                        // which the terminal answers on its own.
+                        self.state = if self.code == b"1" {
+                            self.payload.clear();
+                            IconState::Icon
+                        } else {
+                            IconState::Skip
+                        };
+                    } else if byte.is_ascii_digit() {
+                        // Long enough to be nonsense, short enough to bound.
+                        if self.code.len() < 8 {
+                            self.code.push(byte);
+                        }
+                    } else if byte == 0x1b {
+                        self.state = IconState::Escape;
+                    } else {
+                        self.state = IconState::Skip;
+                    }
+                }
+                IconState::Icon => {
+                    if byte == 0x07 {
+                        found = self.finish();
+                    } else if byte == 0x1b {
+                        self.state = IconState::IconEscape;
+                    } else if self.payload.len() < Self::MAX {
+                        self.payload.push(byte);
+                    }
+                }
+                IconState::IconEscape => {
+                    if byte == b'\\' {
+                        found = self.finish();
+                    } else {
+                        // A lone ESC in the middle of a name is text: keep it
+                        // and the byte after it, and carry on.
+                        if self.payload.len() < Self::MAX {
+                            self.payload.push(0x1b);
+                            self.payload.push(byte);
+                        }
+                        self.state = IconState::Icon;
+                    }
+                }
+                IconState::Skip => {
+                    if byte == 0x07 {
+                        self.state = IconState::Ground;
+                    } else if byte == 0x1b {
+                        self.state = IconState::SkipEscape;
+                    }
+                }
+                IconState::SkipEscape => {
+                    self.state = if byte == b'\\' {
+                        IconState::Ground
+                    } else {
+                        IconState::Skip
+                    };
+                }
+            }
+        }
+        found
+    }
+
+    fn finish(&mut self) -> Option<String> {
+        self.state = IconState::Ground;
+        let name = String::from_utf8_lossy(&self.payload).trim().to_owned();
+        self.payload.clear();
+        (!name.is_empty()).then_some(name)
+    }
+}
+
 pub struct Session {
     terminal: ghostty::GhosttyTerminal,
     /// The selection gesture, while one is running.
@@ -145,7 +290,36 @@ pub struct Session {
     /// for one, and closing the bar frees it again. The engine keeps the
     /// search in sync with the terminal across feeds.
     search: Option<ghostty::GhosttySearch>,
+    /// The icon name the program set with `OSC 1`, if it set one.
+    icon_name: Option<String>,
+    icon: IconScanner,
 }
+
+/// One rendered preview, keyed by the frame it was drawn from.
+struct PreviewCache {
+    /// The hash of the frame bytes and the width they were drawn at.
+    key: u64,
+    png: Vec<u8>,
+}
+
+/// A cheap hash of a frame and the width it would be drawn at.
+///
+/// FNV-1a over the frame's bytes: a terminal frame is tens of kilobytes and
+/// this is a few microseconds, which is the price of not re-rasterizing and
+/// re-encoding a screen that has not changed.
+fn preview_key(frame: &[u8], max_width: u32) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in frame {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    // The face is part of the picture: the same frame drawn with a newly
+    // installed font is a different image, and a key that ignored it would keep
+    // serving the old one.
+    hash ^ (u64::from(max_width) << 32)
+        ^ crate::font::generation().wrapping_mul(0x9e37_79b9_7f4a_7c15)
+}
+
 
 impl Session {
     pub fn new(columns: u16, rows: u16) -> Result<Self, SessionError> {
@@ -224,6 +398,23 @@ impl Session {
             );
         };
 
+        // The history the terminal keeps.
+        //
+        // The library's default is ten thousand bytes — not lines — which is
+        // a handful of screens: a `cat` of a log file scrolls the thing the
+        // user wanted to read straight out of existence. The app sets the
+        // limit in *lines*, which is the unit a person thinks in, and asks for
+        // this default until the settings say otherwise. `set_scrollback_lines`
+        // is what the Kotlin side calls when the setting changes.
+        let scrollback_lines: u64 = DEFAULT_SCROLLBACK_LINES;
+        let _ = unsafe {
+            ghostty::ghostty_terminal_set(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_LINES,
+                &scrollback_lines as *const u64 as *const c_void,
+            )
+        };
+
         Ok(Self {
             terminal,
             gesture: None,
@@ -232,6 +423,8 @@ impl Session {
             shell: Scanner::new(),
             block: BlockRecorder::new(),
             search: None,
+            icon_name: None,
+            icon: IconScanner::default(),
         })
     }
 
@@ -256,6 +449,9 @@ impl Session {
     /// terminal whether a TUI took the alternate screen in this very read.
     pub fn write(&mut self, bytes: &[u8]) {
         let _ = self.shell.scan(bytes);
+        if let Some(name) = self.icon.push(bytes) {
+            self.icon_name = Some(name);
+        }
         unsafe { ghostty::ghostty_terminal_vt_write(self.terminal, bytes.as_ptr(), bytes.len()) };
         let alternate = self.active_screen() == ghostty::GHOSTTY_TERMINAL_SCREEN_ALTERNATE;
         let cwd = self.shell.directory();
@@ -623,6 +819,22 @@ impl Session {
     /// white foreground — so a light theme drew white text on the library's
     /// black no matter what the app's palette said, and SGR 7 in a light theme
     /// produced white-on-white.
+    ///
+    /// The history the terminal keeps, in lines; zero turns scrollback off
+    /// and erases what is already there.
+    ///
+    /// Lowering the limit prunes immediately, which is why this is safe to call
+    /// whenever the setting changes rather than only at session start.
+    pub fn set_scrollback_lines(&mut self, lines: u64) {
+        unsafe {
+            let _ = ghostty::ghostty_terminal_set(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_LINES,
+                &lines as *const u64 as *const c_void,
+            );
+        }
+    }
+
     pub fn set_colors(
         &mut self,
         foreground: ghostty::GhosttyColorRgb,
@@ -668,6 +880,16 @@ impl Session {
                 &blink as *const _ as *const c_void,
             );
         }
+    }
+
+    /// The icon name the program asked for with `OSC 1`.
+    ///
+    /// Kept apart from the title on purpose: the title is what the program
+    /// wants a person to read, and this is the hint it leaves for a window
+    /// manager to choose a picture with. A session card uses it to pick its
+    /// glyph, and falls back to the title when a program sets none.
+    pub fn icon_name(&self) -> Option<&str> {
+        self.icon_name.as_deref()
     }
 
     /// The window title the program asked for with OSC 0 or OSC 2.
@@ -1058,7 +1280,14 @@ impl Session {
                 &mut needed,
             )
         };
-        if !ghostty::ok(result) || needed == 0 {
+        // The measuring call is *not* a success: the header documents a null
+        // buffer as GHOSTTY_OUT_OF_SPACE with the required size in `needed`.
+        // Rejecting that answer rejected every copy before the text was ever
+        // written, which is why Kopyala appeared to do nothing.
+        if result != ghostty::OUT_OF_SPACE && !ghostty::ok(result) {
+            return None;
+        }
+        if needed == 0 {
             return None;
         }
 
@@ -1492,6 +1721,11 @@ pub struct SessionHandle {
     /// order they are declared, and this is the one place that order matters.
     frames: Mutex<FrameSource>,
     session: Mutex<Session>,
+    /// The last preview rendered for the session grid, and the frame it came
+    /// from. A session that is not changing must not be re-rasterized and
+    /// re-encoded on every poll: the grid asks every second or so, and a still
+    /// screen would pay for a new PNG each time.
+    preview: Mutex<Option<PreviewCache>>,
 }
 
 impl SessionHandle {
@@ -1500,6 +1734,7 @@ impl SessionHandle {
         Box::into_raw(Box::new(Self {
             session: Mutex::new(session),
             frames: Mutex::new(frames),
+            preview: Mutex::new(None),
         }))
     }
 
@@ -1546,6 +1781,47 @@ impl SessionHandle {
     /// memory, and the terminal is free to be written to while they run.
     pub fn render_frame(&self) -> Option<Vec<u8>> {
         self.with_frame(|bytes| bytes.to_vec())
+    }
+
+    /// The last screenful as a PNG, for the session grid's card.
+    ///
+    /// The picture is the renderer's own cells, drawn at a size a card can
+    /// show, so a session in the background — with no Surface, no pane and no
+    /// frame being drawn — still has a truthful preview. Nothing here needs the
+    /// session to be on screen, which is what the old PixelCopy path did and
+    /// why every background card was a stale screenshot.
+    ///
+    /// The encoding is cached against the frame it was drawn from, so a still
+    /// session costs a hash and a clone rather than a rasterization.
+    ///
+    /// Blocking: this is a frame iteration plus, when the screen changed, a
+    /// rasterization. Callers off the main thread only.
+    pub fn snapshot_png(&self, max_width: u32) -> Option<Vec<u8>> {
+        self.with_frame(|frame| {
+            let key = preview_key(frame, max_width);
+            {
+                let cache = self
+                    .preview
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                if let Some(cached) = cache.as_ref() {
+                    if cached.key == key && !cached.png.is_empty() {
+                        return Some(cached.png.clone());
+                    }
+                }
+            }
+            let snapshot = crate::renderer::snapshot::render(frame, max_width)?;
+            let png = crate::png::encode_rgba(snapshot.width, snapshot.height, &snapshot.rgba)?;
+            let mut cache = self
+                .preview
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *cache = Some(PreviewCache {
+                key,
+                png: png.clone(),
+            });
+            Some(png)
+        })?
     }
 
     /// Produce the next frame and hand it to [f].

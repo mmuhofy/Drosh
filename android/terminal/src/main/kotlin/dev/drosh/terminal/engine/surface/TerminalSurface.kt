@@ -178,7 +178,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // The picture's shift is measured in the old cell's pixels, and
                 // the cell is what changed: it starts again from a row.
                 scrollMachine.reset()
-                renderThread.post(RenderThread.Command.ScrollOffset(0f))
+                postScrollOffset(0f)
             }
             val pty = ptyHandle
             if (pty != 0L) {
@@ -268,13 +268,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     fun setBellColour(argb: Int) {
         renderThread.post(RenderThread.Command.BellColour(argb))
     }
-
-    /** The selection's rectangle, published after the frame that drew it. */
-    var onSelectionBounds: ((android.graphics.Rect?) -> Unit)?
-        get() = renderThread.onSelectionBounds
-        set(value) {
-            renderThread.onSelectionBounds = value
-        }
 
     fun bell() {
         renderThread.post(RenderThread.Command.Bell)
@@ -371,6 +364,18 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     }
 
     /**
+     * Enable or disable programming ligatures.
+     *
+     * The renderer shapes an operator run as one mask when this is on. It is a
+     * settings change, not a cell change: the grid stays the same and only the
+     * glyphs that cover more than one cell are rebuilt.
+     */
+    fun setLigatures(enabled: Boolean) {
+        renderThread.post(RenderThread.Command.Ligatures(enabled))
+        renderThread.invalidateFull()
+    }
+
+    /**
      * Ask the render loop to draw the session's next frame.
      *
      * Not [invalidate]: this view draws on its own EGL surface from a thread,
@@ -391,9 +396,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // An in-flight drag belonged to the old session: its press was never
         // released, and a release sent to the next one would be a click the
         // new program never asked for.
-        mouseDragging = false
-        mouseDragCellX = -1
-        mouseDragCellY = -1
+        mouse.forgetDrag()
         longPressSelecting = false
         selectionGestureActive = false
         stopSelectionAutoScroll()
@@ -429,9 +432,19 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (selectionSnapshot != null) refreshSelectionFromEngine(chromeSelection)
     }
 
-    /** The sub-line scroll remainder, in pixels — drawing only. */
+    /**
+     * The sub-line scroll remainder, in pixels — drawing only.
+     *
+     * The chrome rides with it: the selection's box and its two endpoints are
+     * in the pane's pixels, and the grid they describe has just moved by
+     * [pixels]. Republished here, so the menu and the grips stay on the cells
+     * they belong to while the output scrolls under them instead of sliding off
+     * by a row for every row of travel.
+     */
     private fun postScrollOffset(pixels: Float) {
         renderThread.post(RenderThread.Command.ScrollOffset(pixels))
+        val snapshot = selectionSnapshot ?: return
+        _selectionBounds.value = snapshot.bounds(cellWidth, cellHeight, pixels)
     }
 
     // --- keyboard ----------------------------------------------------------
@@ -449,240 +462,35 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     // --- gestures ------------------------------------------------------------
 
     /**
-     * The user's master switch for mouse reporting, pushed in by the host.
-     *
-     * Off, gestures always drive the local scrollback and the keyboard,
-     * whatever the running program asked for. On, gestures are reported to
-     * programs that turned a tracking mode on, and stay local otherwise.
+     * The mouse's gestures: taps, drags and wheels for a program that asked
+     * for them. See [TerminalMouse].
      */
-    @Volatile
-    var mouseReportingEnabled: Boolean = true
+    private val mouse = TerminalMouse(
+        object : TerminalMouse.Host {
+            override val session: Long get() = sessionHandle
+            override val pty: Long get() = ptyHandle
+            override val gridWidth: Int get() = width
+            override val gridHeight: Int get() = height
+            override val cellWidth: Float get() = this@TerminalSurface.cellWidth
+            override val cellHeight: Float get() = this@TerminalSurface.cellHeight
 
-    /** The wheel drag's axis lock: 0 none, 1 vertical, 2 horizontal. */
-    private var mouseAxis: Int = AXIS_NONE
+            override fun haptic() {
+                performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            }
+        },
+    )
 
-    /** The wheel's sub-cell remainder along the locked axis, in cells. */
-    private var mouseWheelRemainder: Float = 0f
+    /** The host's master switch for mouse reporting. See [TerminalMouse.enabled]. */
+    var mouseReportingEnabled: Boolean
+        get() = mouse.enabled
+        set(value) {
+            mouse.enabled = value
+        }
 
-    /**
-     * True while a long-press has the left button held for a drag.
-     *
-     * The whole touch stream is consumed while it runs: its moves are motion
-     * reports and must never reach the detectors, or a wheel scroll would fire
-     * underneath the drag the program is trying to read.
-     */
-    private var mouseDragging: Boolean = false
-
-    /** The last cell a motion report was sent for — the protocol is cell-grained. */
-    private var mouseDragCellX: Int = -1
-    private var mouseDragCellY: Int = -1
-
-    /** The mouse encoder's output, reused. SGR sequences are short. */
-
-
-    /** Encode one mouse event and write it to the child; true when bytes went out. */
-    private fun mouseReporting(): Boolean {
-        if (!mouseReportingEnabled) return false
-        val session = sessionHandle
-        if (session == 0L) return false
-        return NativeSession.modes(session) and MODE_MOUSE_TRACKING != 0
-    }
-
-    /** The state [mouseReporting] reads, as the host's link tap also asks it. */
+    /** True while a program's tracking mode is on, as the host's link tap asks. */
     val mouseReportingActive: Boolean
-        get() = mouseReporting()
+        get() = mouse.active
 
-    /**
-     * A left-button click: press, then release, at the finger's position.
-     *
-     * Both travel even though the encoder may answer only one — a tracking
-     * mode that reports releases itself (SGR 1006 does) wants the pair.
-     */
-    private fun sendMouseClick(x: Float, y: Float) {
-        sendMouse(
-            NativeInput.MOUSE_ACTION_PRESS,
-            NativeInput.MOUSE_BUTTON_LEFT,
-            x,
-            y,
-            buttonPressed = false,
-        )
-        sendMouse(
-            NativeInput.MOUSE_ACTION_RELEASE,
-            NativeInput.MOUSE_BUTTON_LEFT,
-            x,
-            y,
-            buttonPressed = false,
-        )
-    }
-
-    private fun sendMouse(
-        action: Int,
-        button: Int,
-        x: Float,
-        y: Float,
-        buttonPressed: Boolean,
-    ): Boolean {
-        // One crossing: the sequence is encoded and written to the PTY
-        // together, so a tap or a drag does not build a byte array on the way.
-        val session = sessionHandle
-        val pty = ptyHandle
-        if (session == 0L || pty == 0L) return false
-        val started = System.nanoTime()
-        val written = NativeInput.encodeWriteMouse(
-            session = session,
-            pty = pty,
-            action = action,
-            button = button,
-            x = x,
-            y = y,
-            width = width.coerceAtLeast(1),
-            height = height.coerceAtLeast(1),
-            cellWidth = cellWidth.toInt().coerceAtLeast(1),
-            cellHeight = cellHeight.toInt().coerceAtLeast(1),
-            buttonPressed = buttonPressed,
-        )
-        dev.drosh.terminal.engine.input.InputStats.mouse(
-            action, written, System.nanoTime() - started,
-        )
-        return written > 0
-    }
-
-    private fun startMouseDrag(x: Float, y: Float) {
-        val session = sessionHandle
-        if (session == 0L) return
-        mouseDragging = true
-        mouseDragCellX = (x / cellWidth.coerceAtLeast(1f)).toInt()
-        mouseDragCellY = (y / cellHeight.coerceAtLeast(1f)).toInt()
-        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-        sendMouse(
-            NativeInput.MOUSE_ACTION_PRESS,
-            NativeInput.MOUSE_BUTTON_LEFT,
-            x,
-            y,
-            buttonPressed = true,
-        )
-    }
-
-    /**
-     * Carries an in-progress drag: each move emits one motion report with the
-     * left button held, and only when the finger has entered a *new* cell —
-     * the wire protocol is cell-grained, and re-reporting one cell would give
-     * the program the same answer over and over. The lift emits the release.
-     *
-     * Consumes the whole stream, so the detectors never see the gesture.
-     */
-    private fun mouseDragTouch(event: MotionEvent): Boolean {
-        if (sessionHandle == 0L) {
-            // The session went away under the finger; nothing to release to.
-            mouseDragging = false
-            mouseDragCellX = -1
-            mouseDragCellY = -1
-            return true
-        }
-        when (event.actionMasked) {
-            MotionEvent.ACTION_MOVE -> {
-                val cellW = cellWidth.coerceAtLeast(1f)
-                val cellH = cellHeight.coerceAtLeast(1f)
-                val column = (event.x / cellW).toInt()
-                val row = (event.y / cellH).toInt()
-                if (column == mouseDragCellX && row == mouseDragCellY) return true
-                mouseDragCellX = column
-                mouseDragCellY = row
-                sendMouse(
-                    NativeInput.MOUSE_ACTION_MOTION,
-                    NativeInput.MOUSE_BUTTON_LEFT,
-                    event.x,
-                    event.y,
-                    buttonPressed = true,
-                )
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                releaseMouseDrag(event.x, event.y)
-            }
-        }
-        return true
-    }
-
-    /** Releases a held drag and clears the drag state. */
-    private fun releaseMouseDrag(x: Float, y: Float) {
-        sendMouse(
-            NativeInput.MOUSE_ACTION_RELEASE,
-            NativeInput.MOUSE_BUTTON_LEFT,
-            x,
-            y,
-            buttonPressed = false,
-        )
-        mouseDragging = false
-        mouseDragCellX = -1
-        mouseDragCellY = -1
-    }
-
-    /**
-     * Encodes a swipe as wheel scroll along the gesture's dominant axis,
-     * locked on the first move so a slightly diagonal drag does not emit both
-     * vertical and horizontal wheel reports.
-     *
-     * The detector's `distanceY` is already the right sign for the wire:
-     * dragging the finger *up* gives a positive value, and up is the swipe
-     * that reveals lower content — wheel down. Whole cells crossed emit one
-     * wheel press each, the remainder carried over to the next move.
-     */
-    private fun handleMouseWheel(distanceX: Float, distanceY: Float, event: MotionEvent) {
-        if (mouseAxis == AXIS_NONE) {
-            mouseAxis = if (kotlin.math.abs(distanceY) >= kotlin.math.abs(distanceX)) {
-                AXIS_VERTICAL
-            } else {
-                AXIS_HORIZONTAL
-            }
-            mouseWheelRemainder = 0f
-        }
-        if (mouseAxis == AXIS_VERTICAL) {
-            mouseWheelRemainder += distanceY / cellHeight.coerceAtLeast(1f)
-            val steps = mouseWheelRemainder.toInt()
-            if (steps == 0) return
-            mouseWheelRemainder -= steps
-            val button =
-                if (steps > 0) NativeInput.MOUSE_BUTTON_WHEEL_DOWN
-                else NativeInput.MOUSE_BUTTON_WHEEL_UP
-            emitWheel(button, kotlin.math.abs(steps), event.x, event.y)
-        } else {
-            mouseWheelRemainder += distanceX / cellWidth.coerceAtLeast(1f)
-            val steps = mouseWheelRemainder.toInt()
-            if (steps == 0) return
-            mouseWheelRemainder -= steps
-            val button =
-                if (steps > 0) NativeInput.MOUSE_BUTTON_WHEEL_RIGHT
-                else NativeInput.MOUSE_BUTTON_WHEEL_LEFT
-            emitWheel(button, kotlin.math.abs(steps), event.x, event.y)
-        }
-    }
-
-    /** Sends `count` wheel presses — encoded once, written once per step. */
-    private fun emitWheel(button: Int, count: Int, x: Float, y: Float) {
-        // The engine may answer nothing — the program left mouse mode between
-        // two moves — and an empty write is not a report.
-        repeat(count) {
-            if (!sendMouse(
-                    NativeInput.MOUSE_ACTION_PRESS,
-                    button,
-                    x,
-                    y,
-                    buttonPressed = false,
-                )
-            ) {
-                return
-            }
-        }
-    }
-
-    /**
-     * Encode one mouse event through the engine, and return the bytes.
-     *
-     * Empty when the engine answered nothing — an action the program's
-     * tracking mode does not report — or the session is gone. The engine
-     * decides the wire format (SGR 1006, X10, ...) from its own state; nothing
-     * here does.
-     */
     /** The pinch's arithmetic: dead zone, step clamp, measured from the origin. */
     private val pinchMachine = PinchMachine(
         minSp = TerminalZoom.MIN_SP,
@@ -733,6 +541,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                // A pinch is two fingers, and this detector is fed every
+                // event. Engagement is still refused outside two: a third
+                // finger landing mid-gesture makes the span jump, and a jump
+                // is a zoom nobody asked for.
+                if (gesturePointers != 2) return false
                 pinchMachine.begin(textSizeSp)
                 return true
             }
@@ -750,15 +563,29 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             }
 
             override fun onScaleEnd(detector: ScaleGestureDetector) {
+                val zoomed = pinchMachine.isZooming
                 val settled = pinchMachine.end()
                 if (settled != null) {
                     zoomCommitListener(pinchMachine.quantise(settled, TerminalZoom.STEP_SP))
                 }
                 zoomSizeSp = 0f
-                zoomEndListener()
+                // The chrome only follows a real zoom. A two-finger press whose
+                // span never crossed the dead zone is not one, and flashing the
+                // size chip for it is the bug that made every two-finger touch
+                // look like a zoom.
+                if (zoomed) zoomEndListener()
+                // The fingers that remain after the second one lifts belong to
+                // a gesture that was a zoom: they must not start scrolling.
+                pinchLocked = true
             }
         },
-    )
+    ).apply {
+        // Android's "quick scale" is a double tap followed by a drag, and it
+        // reports itself through this same detector — so a double tap on a
+        // terminal would drag the font size around. A terminal needs the double
+        // tap for a word selection, and the zoom for two fingers only.
+        isQuickScaleEnabled = false
+    }
 
     // The gesture detector's own double-tap detection is switched off: with it
     // on, the second tap of a pair is routed to the double-tap callback and
@@ -771,8 +598,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             override fun onDown(event: MotionEvent): Boolean {
                 // The wheel's axis lock belongs to one gesture; the next
                 // gesture re-decides it.
-                mouseAxis = AXIS_NONE
-                mouseWheelRemainder = 0f
+                mouse.resetWheel()
                 return true
             }
 
@@ -781,10 +607,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // click, and neither raises the keyboard nor drives selection
                 // — so it stays outside the tap counter: a "double click"
                 // there is just two clicks, which is what such programs expect.
-                if (mouseReporting()) {
+                if (mouse.active) {
                     tapCount = 0
                     if (!hasFocus()) requestFocus()
-                    sendMouseClick(event.x, event.y)
+                    mouse.click(event.x, event.y)
                     return true
                 }
                 handleTap(event)
@@ -796,8 +622,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // button so the following drag is reported to the program —
                 // a region select, a slider, a divider — instead of starting
                 // the local selection.
-                if (mouseReporting()) {
-                    startMouseDrag(event.x, event.y)
+                if (mouse.active) {
+                    mouse.startDrag(event.x, event.y)
                     return
                 }
 
@@ -844,8 +670,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // only for one finger. Two fingers are the user's own scroll
                 // and zoom: they fall through to the local path below, which
                 // already gives a tracking program whole wheel rows.
-                if (mouseReporting() && current.pointerCount == 1) {
-                    handleMouseWheel(distanceX, distanceY, current)
+                if (mouse.active && current.pointerCount == 1) {
+                    mouse.wheel(distanceX, distanceY, current.x, current.y)
                     return true
                 }
                 // A drag that started as a long press is the selection
@@ -892,7 +718,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // Mouse reporting already emitted discrete wheel reports during
                 // the drag; coasting the local viewport on top of them would
                 // scroll the program twice for one flick.
-                if (mouseReporting()) return false
+                if (mouse.active) return false
                 flingStarted = true
                 startFling(velocityY)
                 return true
@@ -916,6 +742,50 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     /** The tap run: one tap, two taps, three taps. */
     private var tapCount: Int = 0
+
+    /**
+     * Where the keyboard band starts, as a fraction of the pane's height.
+     *
+     * The bottom fifth: on a phone that is the prompt area of a full-screen
+     * session and the last row or two of a tall one, which is where a finger
+     * goes when the user wants to type.
+     */
+    private val bottomEdgeFraction: Float = 0.8f
+
+    /** The top fifth: where the [KeyboardActivation.TopEdgeTap] mode answers. */
+    private val topEdgeFraction: Float = 0.2f
+
+    /**
+     * How many fingers this gesture has had down at its peak.
+     *
+     * A two-finger tap is two fingers that arrive and leave without moving;
+     * the count is kept across the whole gesture because the lift that ends it
+     * reports one pointer remaining, not two.
+     */
+    private var gesturePointers: Int = 1
+
+    /**
+     * How long a two-finger tap may take.
+     *
+     * A tap is a press and a release, not a hold: half a second is a deliberate
+     * gesture, and anything longer is a two-finger press, which is a gesture the
+     * terminal already has (it is what starts a paste or a selection on some
+     * platforms) and one this setting must not steal.
+     */
+    private val twoFingerTapMs: Long = 500L
+
+    /** Whether the scale detector claimed any of this gesture. A pinch is not a tap. */
+    private var pinchSeen: Boolean = false
+
+    /**
+     * True from the end of a zoom until every finger is up.
+     *
+     * A pinch ends when a finger lifts, not when the last one does: the events
+     * after that are a single finger still on the glass, and they are the tail
+     * of a gesture that has already been decided — one that must not become a
+     * scroll or a selection because it is now alone.
+     */
+    private var pinchLocked: Boolean = false
     private var lastTapAt: Long = 0L
     private var lastTapX: Float = 0f
     private var lastTapY: Float = 0f
@@ -954,14 +824,14 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // button over a gesture that is no longer about it. The release goes
         // out at the *first* finger's position — on a pointer-down event, the
         // event's own x/y are the newest pointer's.
-        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN && mouseDragging) {
-            releaseMouseDrag(event.getX(0), event.getY(0))
+        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN && mouse.dragging) {
+            mouse.releaseDrag(event.getX(0), event.getY(0))
         }
 
         // A drag in flight owns the whole gesture: its moves are motion
         // reports and must never reach the detectors, which would read the
         // same finger as a wheel scroll underneath the drag.
-        if (mouseDragging && mouseDragTouch(event)) return true
+        if (mouse.dragging && mouse.dragTouch(event)) return true
 
         // The end of a selection gesture.
         //
@@ -1001,10 +871,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // screen has already carried the view. Reconciling mid-gesture is what
         // made the scroll stutter — the engine is always one event behind.
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            // A new gesture starts from a row boundary: the picture is where
-            // the last gesture left it, and that is a fraction of a row the
-            // finger is about to move anyway.
-            scrollMachine.reset()
+            gesturePointers = 1
+            pinchSeen = false
+            pinchLocked = false
+            // The picture stays where the last gesture left it.
+            //
+            // Clearing the sub-row shift here was a spring: the picture sat a
+            // fraction of a row below the engine's window, the next finger put
+            // it back on the boundary, and the output jumped up by as much as
+            // a whole row the instant a drag began — every time, at the ends of
+            // the history most of all, because that is where a drag starts
+            // again and again. The position the machine holds is the position
+            // the picture is drawn at, so leaving it alone is what makes a
+            // gesture continue the last one instead of undoing it.
+            //
             // The flick of the last gesture is over: this one gets its own.
             flingStarted = false
         }
@@ -1014,9 +894,32 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         //
         // The detectors come first: the lift is what tells them the gesture is
         // over, and a flick is only known once they have seen it.
+        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+            gesturePointers = maxOf(gesturePointers, event.pointerCount)
+        }
         scaleDetector.onTouchEvent(event)
-        if (!scaleDetector.isInProgress) {
+        if (scaleDetector.isInProgress) pinchSeen = true
+        // One finger only, and none of a gesture that was a zoom. Two fingers
+        // are the pinching pair; feeding them to the tap detector as well is
+        // how a pinch used to end in a selection.
+        if (!scaleDetector.isInProgress && event.pointerCount == 1 && !pinchLocked) {
             gestureDetector.onTouchEvent(event)
+        }
+
+        // A two-finger tap, for the mode that asks for one.
+        //
+        // Read from the gesture, not from the detector: a pinch is claimed by
+        // the scale detector the moment the fingers move, so "two fingers that
+        // never moved and lifted quickly" cannot be a zoom, and a one-finger
+        // tap still belongs to the mode that turns it into typing.
+        if (event.actionMasked == MotionEvent.ACTION_UP &&
+            keyboardActivation == dev.drosh.domain.settings.KeyboardActivation.TwoFingerTap &&
+            gesturePointers == 2 &&
+            !pinchSeen &&
+            event.eventTime - event.downTime <= twoFingerTapMs
+        ) {
+            if (!hasFocus()) requestFocus()
+            requestKeyboard()
         }
 
         // The finger is off the screen: the picture goes back onto a row
@@ -1034,10 +937,17 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             (event.actionMasked == MotionEvent.ACTION_UP ||
                 event.actionMasked == MotionEvent.ACTION_CANCEL)
         ) {
-            // The old Drosh view did not snap here, and it was right: the
-            // picture is where the finger left it, and rounding to a row at
-            // the lift is a visible jump at the end of every drag.
-            finishScroll()
+            // The finger is gone, so the sub-row remainder is no longer anyone's
+            // promise: it is settled onto the row the picture is nearest, which
+            // is at most half a row and is the difference between a line of
+            // output cut in half at the bottom of the screen and a whole one.
+            //
+            // This is safe to do *here* because the shift is no longer cleared
+            // at the next touch: a settle that moved the picture would
+            // otherwise be undone by the next drag's own reset, and the pair of
+            // them is the bounce the user saw.
+            settleScroll()
+            lastScrollPinned = false
         }
         return true
     }
@@ -1069,10 +979,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // leaving two grips and a menu on the screen would keep an
                 // old selection alive under the next command.
                 if (selectionSnapshot != null) clearSelection()
-                if (!hasFocus()) {
-                    requestFocus()
-                    requestKeyboard()
-                }
+                if (!hasFocus()) requestFocus()
+                if (tapRaisesKeyboard(event.y)) requestKeyboard()
             }
             // The gesture is the engine's, and it is told what this click
             // means: a double tap is a word, a triple tap is the line. The
@@ -1147,7 +1055,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      */
     fun resetScrollOffset() {
         scrollMachine.reset()
-        renderThread.post(RenderThread.Command.ScrollOffset(0f))
+        postScrollOffset(0f)
         renderThread.invalidate()
     }
 
@@ -1195,18 +1103,13 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             maxRow = maxRow,
         )
 
-        // At the live edge the picture is clamped by the machine already:
-        // forcing SCROLL_BOTTOM and resetting the machine here is what made
-        // the picture spring back ("yay gibi firlama"). Keep the machine in
-        // sync with the engine instead, so the picture stays where the finger
-        // left it.
-        if (target.pinned && distancePx < 0f) {
-            scrollMachine.snapToEngine()
-            renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
-            renderThread.invalidate()
-            lastScrollPinned = true
-            return
-        }
+        // At an edge the machine's own clamp already put the picture exactly
+        // on the edge row, with no remainder to carry: the first line flush at
+        // the top, the newest flush at the bottom. So a drag that runs past the
+        // end needs no special path here — the delta comes back zero, the
+        // picture does not move, and the finger's extra travel is dropped. The
+        // branch that used to stand here forced the machine back to the engine
+        // and that reset is what made the picture spring back from the edge.
 
         // The engine moves by a delta, never to an absolute row: a delta
         // cannot be refused half-way, and the engine's answer is the truth
@@ -1216,17 +1119,27 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             // The engine may have refused the move — it clamps at the ends of
             // its scrollable area. The picture goes where the engine is, so
             // the two keep describing the same thing.
+            //
+            // Compared for *equality*, in both directions: the old test only
+            // caught a refusal on the way into the history, so a drag past the
+            // live edge kept a sub-row shift the engine had not moved for — the
+            // grid drew half a row below the newest line and stayed there.
             val after = NativeSession.scrollbar(session)
-            if (after != null && after.offset < bar.offset + target.delta) {
+            if (after != null && after.offset != bar.offset + target.delta) {
                 scrollMachine.snapToEngine()
             }
         }
 
         // The picture's shift goes to the render thread, which draws the grid
         // moved down by it — the row above the viewport filling the gap.
-        renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
+        postScrollOffset(scrollMachine.shift())
         syncSelectionAfterViewportChange()
-        renderThread.invalidate()
+        // A sub-row shift moves *every* row by the same fraction, and the
+        // engine reports no cell as changed for it: its grid did not move. So
+        // every step of a scroll is a full frame — the shift is a projection
+        // change, not a row change, and a partial redraw leaves the rows it did
+        // not name drawn at the old offset: the picture moves in strips.
+        renderThread.invalidateFull()
         lastScrollPinned = target.pinned
     }
 
@@ -1237,13 +1150,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * lifts — or the coast ends — the picture is left a fraction of a row off,
      * and the last line of the output is cut in half. This is the moment to
      * settle: the picture goes onto the row it is nearest.
+     *
+     * At most half a row, and none at all at the ends of the history — the
+     * edges are whole rows, which is why a drag that ran into one moved
+     * nothing and this then moves nothing back.
      */
-    /** End a gesture without moving the picture: publish the shift as it is. */
-    private fun finishScroll() {
-        renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
-        renderThread.invalidate()
-    }
-
     private fun settleScroll() {
         val session = sessionHandle
         if (session == 0L) return
@@ -1260,9 +1171,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 scrollMachine.snapToEngine()
             }
         }
-        renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
+        postScrollOffset(scrollMachine.shift())
         syncSelectionAfterViewportChange()
-        renderThread.invalidate()
+        renderThread.invalidateFull()
     }
 
     /** Momentum after a flick, through the same pixel path as a drag. */
@@ -1295,10 +1206,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         val step = object : Runnable {
             override fun run() {
                 if (scroller.isFinished) {
-                    // No snap: the coast ends where the friction says it ends.
-                    // The engine keeps the sub-line remainder, so the picture
-                    // does not jump a row at the end of a flick.
-                    finishScroll()
+                    // The coast ends where the friction says it ends, and the
+                    // picture is put on the row it is nearest — the same
+                    // settle a drag gets when the finger lifts, so a flick and
+                    // a drag end the same way.
+                    settleScroll()
                     return
                 }
                 scroller.computeScrollOffset()
@@ -1306,15 +1218,48 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 dragByPixels((y - lastY).toFloat())
                 lastY = y
                 // The coast ends at the edge: the engine refuses the move and
-                // the picture cannot be pulled further.
+                // the picture cannot be pulled further. 
                 if (lastScrollPinned) {
-                    finishScroll()
+                    settleScroll()
                     return
                 }
                 postOnAnimation(this)
             }
         }
         postOnAnimation(step)
+    }
+
+    /**
+     * Which touch raises the keyboard.
+     *
+     * Set from the settings by the host, like the ligatures. A plain field
+     * rather than a Compose state: this is read from a touch handler, not from
+     * a composition, and a touch does not need recomposition to be told.
+     */
+    private var keyboardActivation = dev.drosh.domain.settings.KeyboardActivation.Tap
+
+    fun setKeyboardActivation(mode: dev.drosh.domain.settings.KeyboardActivation) {
+        keyboardActivation = mode
+    }
+
+    /**
+     * Whether a tap at this point is allowed to raise the keyboard.
+     *
+     * The edge modes count from the pane's own height, so they mean the same
+     * thing in a split as on a full screen: the lowest fifth is where the
+     * prompt is, and the highest fifth is the strip a thumb can reach without
+     * covering a line of output. The two-finger mode says no to every one-finger
+     * tap, and its own gesture is handled in [onTouchEvent]. [Never] says no to
+     * all of them.
+     */
+    private fun tapRaisesKeyboard(y: Float): Boolean = when (keyboardActivation) {
+        dev.drosh.domain.settings.KeyboardActivation.Tap -> true
+        dev.drosh.domain.settings.KeyboardActivation.TwoFingerTap -> false
+        dev.drosh.domain.settings.KeyboardActivation.BottomEdgeTap ->
+            y >= height * bottomEdgeFraction
+        dev.drosh.domain.settings.KeyboardActivation.TopEdgeTap ->
+            y <= height * topEdgeFraction
+        dev.drosh.domain.settings.KeyboardActivation.Never -> false
     }
 
     /** Ask the IME to show, for a view that already has the focus. */
@@ -1432,7 +1377,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (session != 0L && !atLiveEdge()) {
             NativeSession.scroll(session, NativeSession.SCROLL_BOTTOM, 0)
             scrollMachine.reset()
-            renderThread.post(RenderThread.Command.ScrollOffset(0f))
+            postScrollOffset(0f)
             syncSelectionAfterViewportChange()
         }
 
@@ -1517,15 +1462,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private var selectionAutoScrollEdge: Int = 0
     private var selectionAutoScrollRunning: Boolean = false
 
-    /**
-     * Told that the selection changed.
-     *
-     * The chrome's selection menu hangs off this: without it the menu never
-     * comes up, and a selection that cannot be copied is a selection that does
-     * not exist.
-     */
-    var onSelectionChanged: ((Boolean) -> Unit)? = null
-
     /** The selected text, or "". */
     fun selectedText(): String {
         // The selection lives in the engine, and the engine is the only one
@@ -1536,13 +1472,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (session == 0L) return ""
         return SelectionText.normalize(NativeSelection.text(session))
     }
-
-    /** True when something is selected. */
-    fun hasSelection(): Boolean = selectedText().isNotEmpty()
-
-    /** The selection's bounds in pixels, or null. */
-    fun selectionBounds(): android.graphics.Rect? =
-        _selectionBounds.value ?: renderThread.selectionBounds
 
     /**
      * The cell the toolbar's word and line actions should grow from.
@@ -1599,8 +1528,38 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         selectionGestureActive = false
         stopSelectionAutoScroll()
         chromeSelection = false
-        onSelectionChanged?.invoke(false)
         renderThread.invalidateFull()
+    }
+
+    /**
+     * Type the selection into the session and press return.
+     *
+     * The text is written as one paste, not as a stream of keystrokes: a
+     * command is a command whether it was typed or chosen, and a shell in
+     * bracketed-paste mode is told that the block is a paste. The newline is a
+     * separate write, because it is the *submission* — the text is the command.
+     *
+     * The selection is a way to pick text the user already has on screen; the
+     * surface never asks whether it looks like a command. A user who selects a
+     * file name and runs it means exactly that.
+     */
+    fun runSelection(): Boolean = runCommand(selectedText().trimEnd())
+
+    /**
+     * Type [command] into the session and press return.
+     *
+     * The command is one write and the return is another: a shell in
+     * bracketed-paste mode is told that the block is a paste, and the return
+     * that submits it is the same byte a keyboard's return key sends (a
+     * carriage return, which the line discipline turns into a submit).
+     */
+    fun runCommand(command: String): Boolean {
+        val text = command.trimEnd()
+        if (text.isEmpty()) return false
+        if (ptyHandle == 0L) return false
+        write(text.toByteArray(Charsets.UTF_8))
+        write(byteArrayOf('\r'.code.toByte()))
+        return true
     }
 
     /** Copy the selection to the clipboard; true when there was something. */
@@ -1648,10 +1607,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         )
         if (chrome) {
             chromeSelection = true
-            onSelectionChanged?.invoke(true)
         } else if (chromeSelection) {
             chromeSelection = false
-            onSelectionChanged?.invoke(false)
         }
         return true
     }
@@ -1750,7 +1707,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (after.offset == before.offset) return false
 
         scrollMachine.reset()
-        renderThread.post(RenderThread.Command.ScrollOffset(0f))
+        postScrollOffset(0f)
         renderThread.invalidate()
         return true
     }
@@ -1800,7 +1757,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // brings it back publishes it again with its grips and menu.
         selectionSnapshot = null
         _selectionBounds.value = null
-        onSelectionChanged?.invoke(false)
     }
 
     /**
@@ -1857,11 +1813,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         /** Bit 0 of the engine's mode bits is mouse tracking. */
         const val MODE_MOUSE_TRACKING = 1
-
-        /** The wheel drag's axis lock: unlocked, then the two axes. */
-        const val AXIS_NONE = 0
-        const val AXIS_VERTICAL = 1
-        const val AXIS_HORIZONTAL = 2
 
         /**
          * The step the live size moves in while the fingers are moving.

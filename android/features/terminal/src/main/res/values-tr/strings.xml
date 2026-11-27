@@ -1,0 +1,28 @@
+<resources>
+    <string name="topbar_more_actions">Daha fazla</string>
+    <string name="topbar_refresh">Terminali yenile</string>
+    <string name="topbar_find">Çıktıda ara</string>
+    <string name="topbar_previous_prompt">Önceki komut</string>
+    <string name="topbar_next_prompt">Sonraki komut</string>
+    <string name="terminal_delete_last_session_title">Son oturum silinsin mi?</string>
+    <string name="terminal_guest_runtime_missing_title">Terminal başlatılamadı</string>
+    <string name="terminal_guest_runtime_missing_dismiss">Tamam</string>
+    <string name="terminal_guest_runtime_missing">%1$s bu derlemede yok, bu yüzden hiçbir terminal başlatılamadı. Çalışma zamanını içeren bir derlemeyi kurun ya da kenar çubuğundan kurulumu çalıştırın.</string>
+    <string name="terminal_delete_last_session_ended_body">%1$d çıkış koduyla sonlandı. Silmek uygulamayı kapatır; yeni oturum sıfırdan başlar.</string>
+    <string name="terminal_delete_last_session_body">Silmek uygulamayı kapatır; yeni oturum sıfırdan başlar.</string>
+    <string name="terminal_extracting_rootfs">Ubuntu rootfs çıkarılıyor…</string>
+    <string name="terminal_configuring">Sistem yapılandırılıyor…</string>
+    <string name="terminal_cleaning">Temizleniyor…</string>
+    <string name="terminal_setting_up">Terminal kuruluyor</string>
+    <string name="terminal_setup_failed">Terminal kurulumu başarısız</string>
+    <string name="terminal_find_hint">Çıktıda ara</string>
+    <string name="terminal_find_previous">Önceki eşleşme</string>
+    <string name="terminal_find_next">Sonraki eşleşme</string>
+    <string name="terminal_find_close">Aramayı kapat</string>
+    <string name="terminal_find_counter">%2$d eşleşmeden %1$d.</string>
+    <string name="terminal_find_no_matches">Eşleşme yok</string>
+    <string name="terminal_preparing">Hazırlanıyor…</string>
+    <string name="terminal_ready">Hazır</string>
+    <string name="topbar_open_sessions">Oturumları aç</string>
+    <string name="motd_dismiss">MOTD\'u kapat</string>
+</resources>

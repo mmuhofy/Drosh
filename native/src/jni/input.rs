@@ -20,7 +20,6 @@ use super::{jboolean, jint, jlong};
 use super::{read_string, session_lock};
 use crate::ghostty;
 use crate::session::MOUSE_BUFFER_LEN;
-use crate::pty::Pty;
 
 /// The largest escape sequence one key event can produce, as the stack buffer
 /// every encode here is sized against. The engine answers `OUT_OF_SPACE` with
@@ -257,12 +256,10 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
     }
 
     if pty_handle > 0 {
-        // The same raw-pointer borrow the PTY entry points use: a `jlong`
-        // handle is a `Pty` behind a box, and the write is a short syscall
-        // away from the lock that was just dropped.
-        let pty = unsafe { &mut *(pty_handle as usize as *mut Pty) };
-        if let Err(error) = pty.write(&scratch[..written]) {
-            log::debug!("drosh-native: the pty write failed: {error}");
+        // Through the PTY's own lock: the handle is a `Mutex<Pty>`, so the
+        // write has to be the one the PTY entry points take, not a cast of
+        // the handle to `*mut Pty`.
+        if !super::pty::write_locked(pty_handle, &scratch[..written]) {
             return -3;
         }
     }
@@ -392,9 +389,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
     }
 
     if pty_handle > 0 {
-        let pty = unsafe { &mut *(pty_handle as usize as *mut Pty) };
-        if let Err(error) = pty.write(&scratch[..written]) {
-            log::debug!("drosh-native: the pty write failed: {error}");
+        if !super::pty::write_locked(pty_handle, &scratch[..written]) {
             return -1;
         }
     }

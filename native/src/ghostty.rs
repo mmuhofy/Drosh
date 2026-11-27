@@ -34,6 +34,13 @@ pub const SUCCESS: GhosttyResult = 0;
 /// to return.
 pub const NO_VALUE: GhosttyResult = -4;
 
+/// The engine's "buffer too small" answer.
+///
+/// A buffer API documents this as the measuring call's result: pass a null
+/// buffer and the engine reports the size it needs here. It is not a failure,
+/// and treating it as one is how a copy ends up with no text.
+pub const OUT_OF_SPACE: GhosttyResult = -3;
+
 /// True when a call succeeded.
 pub fn ok(result: GhosttyResult) -> bool {
     result == SUCCESS
@@ -239,6 +246,16 @@ pub const GHOSTTY_TERMINAL_OPT_SEMANTIC_PROMPT: GhosttyTerminalOption =
 /// placement. Any limit above zero turns it on.
 pub const GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT: GhosttyTerminalOption =
     GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT;
+
+/// How much history the terminal keeps, in lines and in bytes.
+///
+/// Two limits over the same pages: the line limit is what a person sets, the
+/// byte limit is the ceiling on what the pages may take. The app sets the line
+/// one and leaves the byte limit at the library's default.
+pub const GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_LINES: GhosttyTerminalOption =
+    GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_LINES;
+pub const GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_BYTES: GhosttyTerminalOption =
+    GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_BYTES;
 /// The kitty graphics storage limit, for reading back.
 ///
 /// Zero means the protocol is off — which is the library's default, and what

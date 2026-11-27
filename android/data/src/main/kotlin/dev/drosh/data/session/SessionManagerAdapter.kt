@@ -11,11 +11,13 @@ import dev.drosh.domain.session.SessionProcessInfo
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.domain.session.SessionTelemetry
+import dev.drosh.domain.session.isGeneratedSessionName
+import dev.drosh.domain.session.isRuntimeProcessName
 import dev.drosh.terminal.engine.bench.RenderBench
 import dev.drosh.terminal.engine.diagnostics.EngineDiagnostics
 import dev.drosh.terminal.session.GhosttySession
 import dev.drosh.terminal.session.SessionLifecycleCallbacks
-import dev.drosh.terminal.session.TerminalManager
+import dev.drosh.terminal.session.TerminalSessionCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,7 +36,7 @@ import javax.inject.Singleton
 
 /**
  * Bridges the persistent session graph (Room) and the runtime PTY session
- * manager ([TerminalManager]). Implements [SessionLifecycleCallbacks] so
+ * manager ([TerminalSessionCoordinator]). Implements [SessionLifecycleCallbacks] so
  * that when a PTY process exits, Room state is updated — closing the loop
  * that was missing in the prior implementation.
  *
@@ -51,8 +53,8 @@ import javax.inject.Singleton
 @Singleton
 class SessionManagerAdapter @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val sessionRepository: SessionRepositoryImpl,
-    private val terminalManager: TerminalManager,
+    private val sessionRepository: RoomSessionRepository,
+    private val terminalManager: TerminalSessionCoordinator,
     @dev.drosh.data.di.ApplicationScope private val appScope: CoroutineScope,
 ) : SessionLifecycleCallbacks, SessionTelemetry {
 
@@ -99,7 +101,7 @@ class SessionManagerAdapter @Inject constructor(
         appScope.launch { sessionRepository.setShouldExit(false) }
 
         terminalManager.lifecycleCallbacks = this
-        // TerminalManager owns which session is active; persist whatever it
+        // TerminalSessionCoordinator owns which session is active; persist whatever it
         // says. Nothing writes the active id back into the manager, so the
         // stored value cannot drift from the live one — which is what made the
         // sidebar highlight a different session than the one on screen.
@@ -132,7 +134,7 @@ class SessionManagerAdapter @Inject constructor(
                 if (id != null) {
                     // The Write from a card tap arrives here. Logged so a tap
                     // that never reaches the terminal can be told from one that
-                    // reaches it but fails (TerminalManager logs that case).
+                    // reaches it but fails (TerminalSessionCoordinator logs that case).
                     Log.d("SessionManagerAdapter", "active id=$id -> switchSessionById")
                     withContext(Dispatchers.Main.immediate) {
                         terminalManager.switchSessionById(id)
@@ -172,7 +174,7 @@ class SessionManagerAdapter @Inject constructor(
      *
      * ## Why the tail, and why a tick
      *
-     * [TerminalManager.transcriptTail] is a JNI read, so it runs here, off the
+     * [TerminalSessionCoordinator.transcriptTail] is a JNI read, so it runs here, off the
      * main thread, once per [SNAPSHOT_TICK_MS]. Reading the whole transcript for
      * every session on every frame would be a second copy of every session's
      * output; the thumbnail only ever draws a screenful at a fraction of the
@@ -223,8 +225,13 @@ class SessionManagerAdapter @Inject constructor(
                 sessionId = ref.id,
                 name = resolvedName,
                 pid = session.processId.takeIf { it > 0 },
-                // The engine has no job list; see SessionProcessInfo. No invented jobs.
-                jobs = emptyList(),
+                // The terminal's foreground process group is the one job the
+                // kernel reports. At a prompt it is the shell itself, which is
+                // not a job, so it is named only when it differs.
+                jobs = session.foregroundProcessName()
+                    ?.takeIf { it.isNotBlank() && it != resolvedName }
+                    ?.let { listOf(it) }
+                    .orEmpty(),
             )
         }
 
@@ -336,7 +343,7 @@ class SessionManagerAdapter @Inject constructor(
 
         val snapshots = sessionRepository.observeAll().first()
 
-        // Everything below touches TerminalManager's session list, its
+        // Everything below touches TerminalSessionCoordinator's session list, its
         // id-to-index map and these flags. All of that now happens on the main
         // thread only, which is the invariant the manager relies on and never
         // states in its types. The scope this runs in is a thread pool.
@@ -415,7 +422,7 @@ class SessionManagerAdapter @Inject constructor(
     /**
      * Reconciles the persistent Room state with the live terminal sessions.
      *
-     * Compares Room's session list against [TerminalManager.liveSessionIds] —
+     * Compares Room's session list against [TerminalSessionCoordinator.liveSessionIds] —
      * the actual set of sessions currently in the PTY layer.
      *  - Sessions restored from Closed → Idle get spawned.
      *  - Sessions that exited (Closed in Room, removed from PTY) are not re-spawned.
@@ -476,7 +483,7 @@ class SessionManagerAdapter @Inject constructor(
     }
 
     /**
-     * Called by [TerminalManager] when a PTY process exits — either naturally
+     * Called by [TerminalSessionCoordinator] when a PTY process exits — either naturally
      * or after a kill signal. Updates Room state to Closed so the session
      * system stays consistent and [reconcile] won't try to re-spawn it.
      */
@@ -500,10 +507,14 @@ class SessionManagerAdapter @Inject constructor(
      */
     override fun onSessionDefaultName(persistentId: String?, name: String) {
         if (persistentId.isNullOrEmpty() || name.isBlank()) return
+        // A probe that read the guest runtime before the shell exec'd has no name
+        // to offer: persisting `libchroot-ng.so` is what titled a session after
+        // a file. Wait for the shell's own name instead.
+        if (isRuntimeProcessName(name)) return
         appScope.launch {
             val stored = sessionRepository.observeAll().first()
                 .firstOrNull { it.id == persistentId } ?: return@launch
-            if (stored.name.isBlank() || stored.name == DEFAULT_SESSION_NAME) {
+            if (isGeneratedSessionName(stored.name)) {
                 sessionRepository.rename(persistentId, name)
             }
         }

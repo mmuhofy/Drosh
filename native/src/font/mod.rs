@@ -32,6 +32,7 @@
 //! renderer decides where the glyphs land on the grid.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use ab_glyph::{Font as _, FontRef, GlyphId, PxScale, ScaleFont};
@@ -118,6 +119,29 @@ impl FontBook {
     /// The face's design size, in font units.
     pub fn units_per_em(&self) -> u16 {
         self.font.units_per_em()
+    }
+
+    /// The face's glyph id for one character, or `None` for a character it has
+    /// no outline for.
+    ///
+    /// Glyph 0 is the face's "missing glyph" and is not an answer: a preview
+    /// that drew every unknown character as a box would look broken rather
+    /// than blank, so the caller falls through to drawing nothing.
+    pub fn glyph_id(&self, character: char) -> Option<u32> {
+        let id = self.outlines.glyph_id(character);
+        if id.0 == 0 {
+            None
+        } else {
+            Some(u32::from(id.0))
+        }
+    }
+
+    /// How far above the baseline the face reaches at [size_px].
+    ///
+    /// A coverage mask is positioned from the pen on the baseline; without the
+    /// ascent there is nothing to turn a cell's top edge into a baseline.
+    pub fn ascent(&self, size_px: f32) -> f32 {
+        self.outlines.as_scaled(PxScale::from(size_px.round())).ascent()
     }
 
     /// Shape one run of text at [size_px].
@@ -233,6 +257,18 @@ pub enum FontError {
 /// A Drosh session always draws with the same face, so one book is enough.
 static FONT: OnceLock<Mutex<Option<FontBook>>> = OnceLock::new();
 
+/// How many times the face has been replaced.
+///
+/// A preview caches its picture keyed by the frame; a new face changes what the
+/// same frame looks like, so the counter is part of that key. Without it a font
+/// the user installed would not appear until the screen changed.
+static FONT_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// The current face's generation. See [`FONT_GENERATION`].
+pub fn generation() -> u64 {
+    FONT_GENERATION.load(Ordering::Relaxed)
+}
+
 fn book() -> &'static Mutex<Option<FontBook>> {
     FONT.get_or_init(|| Mutex::new(None))
 }
@@ -253,6 +289,7 @@ pub fn set_font(bytes: &[u8]) -> bool {
     let mut guard = book().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     *guard = loaded;
     // A new face is a new set of glyph ids; the old answers are wrong now.
+    FONT_GENERATION.fetch_add(1, Ordering::Relaxed);
     clear_cache();
     true
 }
@@ -279,6 +316,12 @@ pub fn shape(text: &str, size_px: f32) -> Vec<ShapedGlyph> {
 /// Rasterize a glyph with the installed font.
 pub fn rasterize(glyph_id: u32, size_px: f32) -> Option<GlyphMask> {
     book().lock().ok()?.as_ref()?.rasterize(glyph_id, size_px)
+}
+
+/// The installed font's glyph id for one character, or `None` when no font is
+/// installed or the face has no outline for it.
+pub fn glyph_id(character: char) -> Option<u32> {
+    book().lock().ok()?.as_ref()?.glyph_id(character)
 }
 
 /// A guard against a font whose outline would need an unreasonable mask.

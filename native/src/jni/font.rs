@@ -32,6 +32,7 @@
 //! array, which the caller treats as "nothing to draw" rather than as an
 //! error.
 
+use jni::objects::JByteArray;
 use jni::JNIEnv;
 
 use super::{jbyteArray, new_byte_array, read_string};
@@ -48,7 +49,13 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeFont_nativeLo
     _class: jni::sys::jclass,
     data: jni::sys::jbyteArray,
 ) -> jni::sys::jlong {
-    let bytes = match env.convert_byte_array(&data) {
+    if data.is_null() {
+        return 0;
+    }
+    // The cast is the JNI's own: a `jbyteArray` is a `jobject`, and the crate's
+    // typed wrapper is constructed from it. Same rule as `read_string`.
+    let array = unsafe { JByteArray::from_raw(data) };
+    let bytes = match env.convert_byte_array(&array) {
         Ok(bytes) => bytes,
         Err(_) => return 0,
     };
@@ -69,13 +76,10 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeFont_nativeSh
     text: jni::sys::jstring,
     size_px: jni::sys::jfloat,
 ) -> jbyteArray {
-    let text = match read_string(&mut env, &text.into()) {
-        s if !s.is_empty() => s,
-        _ => String::new(),
-    };
+    let text = read_string(&mut env, &text);
     let shaped = fontmod::shape(&text, size_px);
     if shaped.is_empty() {
-        return env.new_byte_array(0).unwrap_or(std::ptr::null_mut());
+        return new_byte_array(&mut env, &[]);
     }
 
     let mut out = Vec::with_capacity(4 + shaped.len() * 16);
@@ -109,7 +113,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeFont_nativeRa
             out.extend_from_slice(&mask.coverage);
             new_byte_array(&mut env, &out)
         }
-        None => env.new_byte_array(0).unwrap_or(std::ptr::null_mut()),
+        None => new_byte_array(&mut env, &[]),
     }
 }
 

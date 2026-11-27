@@ -22,10 +22,21 @@
     <string name="session_screen_empty_body">Open a new shell and its card appears here.</string>
     <string name="session_screen_empty_groups_title">No groups yet</string>
     <string name="session_screen_empty_groups_body">Drag one session card onto another to make a group.</string>
+    <string name="session_screen_empty_filtered_title">Every session is in a group</string>
+    <string name="session_screen_empty_filtered_body">Switch to Groups to see them.</string>
     <string name="session_screen_empty_search_title">No matches</string>
     <string name="session_screen_empty_search_body">No session matches this search.</string>
 
+    <string name="session_screen_group_count">%1$d groups</string>
+    <string name="session_screen_show_sessions">Show sessions</string>
+    <string name="session_screen_close_screen">Close sessions</string>
+
     <string name="session_screen_group_title">Group · %1$d sessions</string>
+    <string name="session_screen_group_members">%1$d sessions</string>
+    <string name="session_screen_group_rename">Rename group</string>
+    <string name="session_screen_group_rename_save">Save name</string>
+    <string name="session_screen_group_move_up">Move up</string>
+    <string name="session_screen_group_move_down">Move down</string>
     <string name="session_screen_group_open">Tap to open group</string>
     <string name="session_screen_group_empty">This group has no live sessions.</string>
     <!-- Extra members beyond the small tiles drawn inside a fixed-height card. -->
@@ -36,6 +47,9 @@
 
     <string name="session_screen_split_title">Split with…</string>
     <string name="session_screen_split_subtitle">Choose the session to split with.</string>
+    <string name="session_screen_split_mode_title">Choose a session to split with</string>
+    <string name="session_screen_split_mode_body">The next card joins %1$s in a split.</string>
+    <string name="session_screen_split_confirm">Split</string>
     <string name="session_screen_split_empty">There is no other session to split with.</string>
     <string name="session_screen_split_cancel">Cancel</string>
 
@@ -48,6 +62,15 @@
     <string name="session_screen_menu_rename">Rename</string>
     <string name="session_screen_menu_close">Close</string>
     <string name="session_screen_menu_close_all">Close all sessions</string>
+
+    <!-- The close question. The destructive action is never fired by the tap
+         that asks for it, so both cases name what will be lost. -->
+    <string name="session_screen_close_one_title">Close session?</string>
+    <string name="session_screen_close_one_message">%1$s will be closed. Its output cannot be recovered.</string>
+    <string name="session_screen_close_all_title">Close all sessions?</string>
+    <string name="session_screen_close_all_message">%1$d open sessions will be closed.</string>
+    <string name="session_screen_close_confirm">Close</string>
+    <string name="session_screen_close_cancel">Cancel</string>
 
     <string name="session_screen_chip_pin">PIN</string>
     <string name="session_screen_chip_persistent">PERSISTENT</string>

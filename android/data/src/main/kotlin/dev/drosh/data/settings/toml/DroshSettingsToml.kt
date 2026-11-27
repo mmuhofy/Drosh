@@ -12,6 +12,7 @@ import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.domain.settings.GuestIsolation
 import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.InputSettings
+import dev.drosh.domain.settings.KeyboardActivation
 import dev.drosh.domain.settings.MetaSettings
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SecuritySettings
@@ -42,19 +43,20 @@ internal object DroshSettingsToml {
         with(settings.appearance) {
             putString("appearance", "theme_mode", themeMode.tomlName())
             putString("appearance", "font_pack", fontPack.tomlName())
+            putString("appearance", "terminal_font", terminalFontId)
             putString("appearance", "language", language)
-            putBoolean("appearance", "session_surface", sessionSurface)
         }
         with(settings.terminal) {
             putString("terminal", "mode", mode.tomlName())
             putString("terminal", "guest_isolation", guestIsolation.name)
-            putBoolean("terminal", "ghostty_engine", ghosttyEngine)
             putFloat("terminal", "default_font_size_sp", defaultFontSizeSp)
             putString("terminal", "cursor_style", cursorStyle.tomlName())
             putInt("terminal", "cursor_blink_ms", cursorBlinkMs)
             putBoolean("terminal", "keep_awake", keepAwake)
             putBoolean("terminal", "bold_brightens", boldBrightens)
             putBoolean("terminal", "ligatures", ligatures)
+            putFloat("terminal", "line_height", lineHeight)
+            putInt("terminal", "scrollback_lines", scrollbackLines)
             putBoolean("terminal", "dim_inactive_panes", dimInactivePanes)
             putBoolean("terminal", "immersive", immersive)
             putString("terminal", "theme_id", themeId)
@@ -95,6 +97,8 @@ internal object DroshSettingsToml {
             putBoolean("input", "mouse_reporting", mouseReporting)
             putBoolean("input", "bell_enabled", bellEnabled)
             putBoolean("input", "allow_clipboard_writes", allowClipboardWrites)
+            putString("input", "keyboard_activation", keyboardActivation.tomlName)
+            putBoolean("input", "command_prediction", commandPrediction)
         }
         with(settings.shell) {
             putString("shell", "motd_mode", motdMode.tomlName())
@@ -148,19 +152,16 @@ internal object DroshSettingsToml {
             appearance = base.appearance.copy(
                 themeMode = ThemeMode.fromName(document.getStringOrNull("appearance", "theme_mode")),
                 fontPack = FontPack.fromName(document.getStringOrNull("appearance", "font_pack")),
-                language = document.getString("appearance", "language", base.appearance.language),
-                sessionSurface = document.getBoolean(
-                    "appearance", "session_surface", base.appearance.sessionSurface,
+                terminalFontId = document.getString(
+                    "appearance", "terminal_font", base.appearance.terminalFontId,
                 ),
+                language = document.getString("appearance", "language", base.appearance.language),
             ),
             terminal = base.terminal.copy(
                 mode = TerminalMode.fromToml(document.getStringOrNull("terminal", "mode")),
                 guestIsolation = GuestIsolation.fromName(
                     document.getStringOrNull("terminal", "guest_isolation"),
                 ) ?: base.terminal.guestIsolation,
-                ghosttyEngine = document.getBoolean(
-                    "terminal", "ghostty_engine", base.terminal.ghosttyEngine,
-                ),
                 defaultFontSizeSp = document.getFloat(
                     "terminal", "default_font_size_sp", base.terminal.defaultFontSizeSp,
                 ),
@@ -169,6 +170,14 @@ internal object DroshSettingsToml {
                 keepAwake = document.getBoolean("terminal", "keep_awake", base.terminal.keepAwake),
                 boldBrightens = document.getBoolean("terminal", "bold_brightens", base.terminal.boldBrightens),
                 ligatures = document.getBoolean("terminal", "ligatures", base.terminal.ligatures),
+                lineHeight = document.getFloat("terminal", "line_height", base.terminal.lineHeight)
+                    .coerceIn(
+                        TerminalSettings.MIN_LINE_HEIGHT,
+                        TerminalSettings.MAX_LINE_HEIGHT,
+                    ),
+                scrollbackLines = document.getInt(
+                    "terminal", "scrollback_lines", base.terminal.scrollbackLines,
+                ).coerceIn(0, TerminalSettings.MAX_SCROLLBACK_LINES),
                 dimInactivePanes = document.getBoolean("terminal", "dim_inactive_panes", base.terminal.dimInactivePanes),
                 immersive = document.getBoolean("terminal", "immersive", base.terminal.immersive),
                 themeId = document.getString("terminal", "theme_id", base.terminal.themeId),
@@ -191,6 +200,12 @@ internal object DroshSettingsToml {
                 ),
                 allowClipboardWrites = document.getBoolean(
                     "input", "allow_clipboard_writes", base.input.allowClipboardWrites,
+                ),
+                keyboardActivation = document.getStringOrNull("input", "keyboard_activation")
+                    ?.let { KeyboardActivation.fromName(it) }
+                    ?: base.input.keyboardActivation,
+                commandPrediction = document.getBoolean(
+                    "input", "command_prediction", base.input.commandPrediction,
                 ),
             ),
             shell = base.shell.copy(
@@ -276,9 +291,6 @@ private fun MotdMode.tomlName(): String = name.lowercase()
 private fun AutoLockTimeout.tomlName(): String = name.lowercase()
 private fun PanePresentation.tomlName(): String = name.lowercase()
 private fun TerminalMode.tomlName(): String = name.lowercase()
-
-private fun TerminalMode.Companion.fromToml(value: String?): TerminalMode =
-    TerminalMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: TerminalMode.Stream
 
 private fun panePresentationFrom(value: String?): PanePresentation =
     PanePresentation.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: PanePresentation.DOCKED

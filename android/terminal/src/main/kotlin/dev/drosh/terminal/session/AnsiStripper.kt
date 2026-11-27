@@ -8,7 +8,7 @@ package dev.drosh.terminal.session
  *   - OSC sequences:   `ESC ] … BEL` or ST    (title, hyperlink)
  *   - Single-char ESC: `ESC c`, `ESC =`, etc.
  *
- * Used by [BlockEngineWire] before sending output text to the
+ * Used by [BlockEventBridge] before sending output text to the
  * `BlockRepository` — block UI renders plain text only.
  *
  *

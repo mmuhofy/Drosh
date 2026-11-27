@@ -68,8 +68,8 @@ import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
-import dev.drosh.ui.agent.AgentLogAttach
-import dev.drosh.ui.agent.components.rememberAgentClipboard
+import dev.drosh.ui.session.AgentLogAttach
+import dev.drosh.ui.components.rememberAgentClipboard
 import kotlin.math.roundToInt
 
 /**
@@ -632,87 +632,3 @@ private fun SheetScaffold(
         }
     }
 }
-
-@Composable
-private fun RoundIconButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(DroshSurfaceVariant.copy(alpha = 0.75f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = DroshTextSecondary,
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
-
-/** A flat action. The primary one is a fill, the rest are the surface. */
-@Composable
-private fun PillButton(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    primary: Boolean = false,
-) {
-    Box(
-        modifier = modifier
-            .height(42.dp)
-            .clip(RoundedCornerShape(21.dp))
-            .background(if (primary) DroshPrimary else DroshSurfaceVariant)
-            // Dimmed rather than absent: a control the user has not earned yet
-            // still has to be visible, or the row of three looks broken.
-            .alpha(if (enabled) 1f else 0.4f)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                enabled = enabled,
-                onClick = onClick,
-            )
-            .padding(horizontal = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = if (primary) DroshOnPrimary else DroshText,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun EmptyNote(text: String, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(28.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            color = DroshTextMuted,
-            fontSize = 14.sp,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
-/** A run of digits, to measure a monospace advance width from. */
-private const val SAMPLE_RUN = "0123456789012345678901234567890123456789"

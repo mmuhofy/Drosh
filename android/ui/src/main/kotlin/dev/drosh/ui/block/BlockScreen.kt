@@ -114,10 +114,24 @@ fun BlockScreen(
     onBackToClassic: () -> Unit,
     /** A submitted command line; the caller routes it to the shell or program. */
     onSubmitCommand: (String) -> Unit,
+    /**
+     * Whether the input offers earlier commands as it is typed.
+     *
+     * The history is these very blocks, so the offer is what this session ran —
+     * no second store, and no name invented. See [predictCommands].
+     */
+    commandPrediction: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+
+    // The prediction's source: the commands this session ran, newest first.
+    // The block list is oldest-first, so it is reversed here rather than in the
+    // predictor — "most recent" is a property of this list, not of the match.
+    val commandHistory = remember(blocks) {
+        blocks.asReversed().mapNotNull { it.command.takeIf(String::isNotBlank) }
+    }
 
     // The running block streams partial output and live counters. Swap the stale
     // copy in [blocks] for the fresh one so only that keyed card recomposes.
@@ -248,6 +262,8 @@ fun BlockScreen(
                     )
                     BlockInputField(
                         onSubmit = onSubmitCommand,
+                        history = commandHistory,
+                        predictionEnabled = commandPrediction,
                         modifier = Modifier.semantics {
                             contentDescription = inputDescription
                         },

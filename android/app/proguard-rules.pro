@@ -23,6 +23,11 @@
 -keep class dev.drosh.terminal.** { *; }
 -keep class dev.drosh.ssh.** { *; }
 -keep class dev.drosh.ui.** { *; }
+# Reached from Rust by FQN (native/src/clipboard.rs, native/src/bell.rs).
+# They live in :terminal but keep the original dev.drosh package so the JNI
+# signatures stay stable; R8 must not rename or strip them.
+-keep class dev.drosh.ClipboardSink { *; }
+-keep class dev.drosh.TerminalBell { *; }
 -keep class dev.drosh.design.system.** { *; }
 -keep class **Kt { *; }
 -dontwarn dev.drosh.**

@@ -11,94 +11,18 @@ concurrency:
   group: build-debug-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  CARGO_TERM_COLOR: always
-  # Pinned NDK (r28c): the Rust engine is linked with its clang.
-  NDK_VERSION: 28.2.13676358
-
 jobs:
   native-build:
-    # libdrosh.so — the Rust half that drives libghostty-vt. The APK needs it in
-    # jniLibs next to the engine, and it is built here rather than downloaded so
-    # the APK and the native library are always the same commit.
-    name: libdrosh.so (arm64-v8a)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: native
-
-      - name: Install libclang
-        run: |
-          set -euo pipefail
-          # bindgen parses the engine's headers with libclang.
-          #
-          # The apt packages for it are large — libclang-dev pulls hundreds of
-          # megabytes of LLVM — and the runner's Ubuntu mirror fails to resolve
-          # intermittently. apt then retries a mirror that is not coming, and
-          # the step turns into a ten-minute hang before the job times out.
-          #
-          # The PyPI wheel is one file, comes from a host that answers, and
-          # bindgen finds it through LIBCLANG_PATH. apt is the fallback, with
-          # retries, and only the library itself — not the whole toolchain.
-          found=""
-          if pip install --user --quiet libclang; then
-            clang_dir=$(python -c "import clang, os; print(os.path.join(os.path.dirname(clang.__file__), 'native'))")
-            if compgen -G "$clang_dir/libclang*.so" > /dev/null; then
-              echo "LIBCLANG_PATH=$clang_dir" >> "$GITHUB_ENV"
-              found="wheel"
-            fi
-          fi
-          if [ -z "$found" ]; then
-            sudo apt-get -o Acquire::Retries=5 update -qq
-            sudo apt-get -o Acquire::Retries=5 install -y -qq libclang-dev
-          fi
-
-      - name: Install pinned NDK
-        run: |
-          set -euo pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
-
-      # gh prefers the API asset endpoint over the browser download URL,
-      # which has been answering a deterministic 504. The token is what
-      # authenticates the API call; the bytes are checked against SHA256SUMS
-      # regardless of how they travel.
-      - name: Fetch and verify libghostty-vt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./tools/fetch-ghostty-vt.sh
-
-      - name: Build libdrosh.so
-        working-directory: native
-        env:
-          DROSH_ABI: arm64-v8a
-        run: |
-          set -euo pipefail
-          NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
-          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/aarch64-linux-android26-clang"
-          export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android26-clang"
-          export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
-          cargo build --release --target aarch64-linux-android
-
-      - name: Upload the library
-        uses: actions/upload-artifact@v4
-        with:
-          name: drosh-so
-          path: native/target/aarch64-linux-android/release/libdrosh.so
-          if-no-files-found: error
-          retention-days: 1
+    # libdrosh.so and libghostty-vt.so, in the layout jniLibs wants. They are
+    # built by native.yml — the same workflow the Native gate runs — so
+    # the APK and the standalone build are one recipe and one commit. This job
+    # restores the library from a cache keyed on the Rust sources, the engine
+    # script and the NDK, so a change that only touched Kotlin takes seconds.
+    name: native libraries (arm64-v8a)
+    uses: ./.github/workflows/native.yml
+    with:
+      abi: arm64-v8a
+      artifact_name: drosh-jni
 
   debug:
     name: Debug APK
@@ -117,26 +41,19 @@ jobs:
           # over a newer one and downgrade the database out from under Room.
           fetch-depth: 0
 
-      - name: Fetch libghostty-vt
-        env:
-          GHOSTTY_VT_ABIS: arm64-v8a
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./tools/fetch-ghostty-vt.sh
-
-      - name: Fetch our own native half
+      - name: Unpack the native libraries into jniLibs
         uses: actions/download-artifact@v4
         with:
-          name: drosh-so
+          name: drosh-jni
           path: android/terminal/src/main/jniLibs/arm64-v8a
 
-      - name: Stage libghostty-vt into jniLibs
+      - name: Check the native libraries are the ones the linker asks for
         run: |
           set -euo pipefail
           dest=android/terminal/src/main/jniLibs/arm64-v8a
-          mkdir -p "$dest"
-          cp native/ghostty/lib/arm64-v8a/libghostty-vt.so "$dest/"
-          # The engine must be there, and it must be the name the linker asks
-          # for: libdrosh.so names it in DT_NEEDED.
+          # Both halves must be there, under the names that matter: libdrosh.so
+          # names the engine in DT_NEEDED, so a missing or renamed engine is a
+          # session that cannot start.
           test -f "$dest/libghostty-vt.so"
           test -f "$dest/libdrosh.so"
           # The output goes to a file first. A pipe into `grep -q` is a race:
@@ -183,19 +100,10 @@ jobs:
 
       - name: Assemble debug
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace --max-workers=2
-
-      # The selection model and the clipboard normalizer are pure Kotlin, so
-      # their tests need no device and no emulator. They are named explicitly:
-      # the terminal module's other unit tests use Robolectric and native
-      # shadows, and a failure there is not a failure of this feature.
-      - name: Run selection unit tests
-        working-directory: android
-        run: |
-          ./gradlew :terminal:testDebugUnitTest \
-            --tests 'dev.drosh.terminal.engine.input.SelectionSnapshotTest' \
-            --tests 'dev.drosh.terminal.engine.input.SelectionTextTest' \
-            --no-daemon --stacktrace --max-workers=2
+        # --parallel and the full worker count: the runner has four cores, and
+        # Kotlin compilation of the feature modules is the long pole. Capping
+        # the workers at two was leaving two of them idle.
+        run: ./gradlew assembleDebug --no-daemon --stacktrace --parallel --max-workers=4
 
       # The identity hash in the migration is a hand-copied constant, and a stale
       # one is invisible here: the build passes and the app crashes on first

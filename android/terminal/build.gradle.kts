@@ -52,7 +52,10 @@ dependencies {
     implementation(project(":linux"))
     implementation(project(":core"))
 
-    // coroutines — dedicated TerminalManager CoroutineScope
+    // The bell's notification (androidx.core.app.NotificationCompat).
+    implementation(libs.androidx.core.ktx)
+
+    // coroutines — dedicated TerminalSessionCoordinator CoroutineScope
     implementation(libs.kotlinx.coroutines.android)
 
     // timber logging

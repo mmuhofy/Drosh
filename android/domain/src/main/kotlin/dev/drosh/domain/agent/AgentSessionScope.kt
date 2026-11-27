@@ -59,7 +59,7 @@ data class AgentSessionScope(
          * * The agent's file tools default to it when a call carries no directory.
          *
          * Duplicated rather than referenced across module boundaries: `:ui` reads
-         * `AgentChatRepositoryImpl.DEFAULT_DIRECTORY` with its own literal, and two
+         * `RoomAgentChatRepository.DEFAULT_DIRECTORY` with its own literal, and two
          * literals that describe the same directory are cheaper than a dependency
          * from the domain layer onto the data layer to describe it once.
          */
@@ -105,7 +105,7 @@ object ToolPermissions {
      *
      * Ordering matters for a sheet: the list is read as a list, and an order
      * that changes between runs makes the surface feel broken in a way nobody
-     * can report. Sorted by [Tool.name] for the same reason [dev.drosh.agent.tool.ToolRegistry]
+     * can report. Sorted by [Tool.name] for the same reason [dev.drosh.feature.agent.tool.ToolRegistry]
      * sorts by it — the declaration order of a multibinding set is Hilt's, not
      * anyone's, and it is not stable across launches.
      */

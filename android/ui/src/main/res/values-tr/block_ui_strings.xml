@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Komut bloğu arayüzü metinleri. -->
+<resources>
+    <string name="block_ui_alt_screen_placeholder">Tam ekran program — klasik terminal</string>
+    <string name="block_ui_collapsed_hint">Çıktı daraltıldı</string>
+    <string name="block_ui_empty_back">Klasik terminale dön</string>
+    <string name="block_ui_empty_hint">Bir komut çalıştırın — girdisi ve çıktısı burada görünecek.</string>
+    <string name="block_ui_empty_title">Henüz komut yok</string>
+    <string name="block_ui_exit_code">çıkış %1$d</string>
+    <string name="block_ui_input_cd">Komut girdisi</string>
+    <string name="block_ui_menu_cd">Blok eylemleri</string>
+    <string name="block_ui_menu_collapse">Çıktıyı daralt</string>
+    <string name="block_ui_menu_copy_both">İkisini kopyala</string>
+    <string name="block_ui_menu_copy_command">Komutu kopyala</string>
+    <string name="block_ui_menu_copy_output">Çıktıyı kopyala</string>
+    <string name="block_ui_menu_expand">Çıktıyı genişlet</string>
+    <string name="block_ui_network_delta">↓ %1$s  ↑ %2$s</string>
+    <string name="block_ui_sticky_cd">Komut başına atla</string>
+</resources>

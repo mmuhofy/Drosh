@@ -93,6 +93,105 @@ object NativePty {
         return nativePid(handle)
     }
 
+    /**
+     * The process group in the terminal's foreground, or -1 when there is none.
+     *
+     * This is what Ctrl+C would signal: for a shell it is the job that owns the
+     * terminal right now, and for an idle prompt it is the shell's own group.
+     * It is the one signal that says "a command is running here" without the
+     * shell having to report anything.
+     */
+    fun foregroundPid(handle: Long): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativeForegroundPid(handle)
+    }
+
+    /**
+     * The slave side's path, e.g. `/dev/pts/3`, or null when it cannot be read.
+     *
+     * A process the user asks about names this to say where it is attached.
+     */
+    fun ttyName(handle: Long): String? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeTtyName(handle)
+    }
+
+    /**
+     * The terminal's local modes, packed: bit 0 canonical, bit 1 echo, or -1.
+     *
+     * A password prompt clears echo; a full-screen program clears canonical
+     * mode. The UI reads the two to mirror what the program is asking for.
+     */
+    fun mode(handle: Long): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativeMode(handle)
+    }
+
+    /**
+     * The size the kernel currently has, `[rows, cols, xpixel, ypixel]`, or null.
+     *
+     * Not the size this side last set: the kernel is the record, and it is what
+     * the child's own `TIOCGWINSZ` would answer.
+     */
+    fun size(handle: Long): IntArray? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeSize(handle)
+    }
+
+    /**
+     * Waits up to [timeoutMs] for the child to write or close its side, or — when
+     * [writable] — for its input buffer to drain.
+     *
+     * A blocking wait on the kernel's own `poll`: the reader thread uses it
+     * instead of sleeping in a loop, and the child closing its side is one of
+     * the events it wakes on, so a hangup is seen at once instead of on the next
+     * tick. Returns 1 when the master is ready, 0 on timeout or a bare wake, and
+     * -1 on a bad handle or an error.
+     */
+    fun poll(handle: Long, timeoutMs: Int, writable: Boolean = false): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativePoll(handle, timeoutMs, writable)
+    }
+
+    /**
+     * Writes as much of [data] as the kernel takes without blocking.
+     *
+     * Returns the bytes written, 0 when the input buffer is full, or -1 on a bad
+     * handle or an error. The caller keeps the rest and retries when the PTY is
+     * writable again, so a full paste never stops the reader from draining the
+     * child's output — which is what frees the buffer.
+     */
+    fun writeSome(handle: Long, data: ByteArray, offset: Int, length: Int): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativeWriteSome(handle, data, offset, length)
+    }
+
+    /**
+     * Pokes the reader awake so it drains a queued write now rather than at the
+     * end of its wait. False when the PTY has no wake channel.
+     */
+    fun wake(handle: Long): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeWake(handle)
+    }
+
+    /**
+     * True when the PTY has a wake channel.
+     *
+     * Without one a queued write would wait out the reader's poll, so the
+     * caller writes straight through instead.
+     */
+    fun hasWake(handle: Long): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeHasWake(handle)
+    }
+
+    /** The canonical-mode bit of [mode]: the line discipline collects a line. */
+    const val MODE_CANONICAL = 1
+
+    /** The echo bit of [mode]: the terminal writes typed input back. */
+    const val MODE_ECHO = 2
+
     private external fun nativeSpawn(
         argv: String,
         environment: String,
@@ -115,4 +214,12 @@ object NativePty {
     ): Int
     private external fun nativeTryWait(handle: Long): Int
     private external fun nativePid(handle: Long): Int
+    private external fun nativeForegroundPid(handle: Long): Int
+    private external fun nativeTtyName(handle: Long): String?
+    private external fun nativeMode(handle: Long): Int
+    private external fun nativeSize(handle: Long): IntArray?
+    private external fun nativePoll(handle: Long, timeoutMs: Int, writable: Boolean): Int
+    private external fun nativeWriteSome(handle: Long, data: ByteArray, offset: Int, length: Int): Int
+    private external fun nativeWake(handle: Long): Boolean
+    private external fun nativeHasWake(handle: Long): Boolean
 }

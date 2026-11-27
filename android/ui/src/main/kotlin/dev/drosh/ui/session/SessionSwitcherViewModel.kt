@@ -8,8 +8,12 @@ import dev.drosh.domain.session.PersistentSessionStore
 import dev.drosh.domain.session.ResourceSnapshot
 import dev.drosh.domain.session.SessionProcessInfo
 import dev.drosh.domain.session.SessionRepository
+import dev.drosh.domain.session.SessionGridLayout
+import dev.drosh.domain.session.SessionGridLayoutStore
+import dev.drosh.domain.session.SessionGroupLayout
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionTelemetry
+import dev.drosh.domain.session.displayableSessionName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,6 +29,7 @@ class SessionSwitcherViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
     private val activeSession: ObserveActiveSessionUseCase,
     private val persistentSessionStore: PersistentSessionStore,
+    private val gridLayoutStore: SessionGridLayoutStore,
     sessionTelemetry: SessionTelemetry,
 ) : ViewModel() {
 
@@ -49,6 +54,62 @@ class SessionSwitcherViewModel @Inject constructor(
     /** Sessions pinned to survive a full app teardown. Empty means none. */
     val persistentIds: StateFlow<Set<String>> = persistentSessionStore.persistentIds
 
+    /**
+     * The grid's arrangement: pins, drag order and UI groups.
+     *
+     * Null until the store has been read. The screen must not write an empty
+     * arrangement back while it is waiting — that is how a saved one is lost.
+     */
+    val gridLayout: StateFlow<SessionGridLayout?> = gridLayoutStore.layout
+
+    private fun updateLayout(transform: (SessionGridLayout) -> SessionGridLayout) {
+        viewModelScope.launch {
+            val current = gridLayoutStore.layout.value ?: SessionGridLayout.EMPTY
+            gridLayoutStore.save(transform(current))
+        }
+    }
+
+    /** Pins a card to the top of its section, or unpins it. */
+    fun togglePin(sessionId: String) = updateLayout { layout ->
+        val pinned = if (sessionId in layout.pinnedIds) {
+            layout.pinnedIds - sessionId
+        } else {
+            layout.pinnedIds + sessionId
+        }
+        layout.copy(pinnedIds = pinned)
+    }
+
+    /** Stores a completed drag: [heldSlotId] now sits where [targetSlotId] was. */
+    fun reorder(heldSlotId: String, targetSlotId: String) = updateLayout { layout ->
+        layout.copy(orderedIds = moveSlot(layout.orderedIds, heldSlotId, targetSlotId))
+    }
+
+    /** Replaces the grid's groups. The screen owns the drop rules, not the store. */
+    internal fun setGroups(groups: List<SessionGroup>) = updateLayout { layout ->
+        layout.copy(
+            groups = groups.map { SessionGroupLayout(it.memberIds, it.name) },
+        )
+    }
+
+    /**
+     * Names a group the user already has.
+     *
+     * Matched by membership, not by slot: the group's first member can change
+     * when its members are reordered, and the name must follow the group rather
+     * than the first id.
+     */
+    fun renameGroup(memberIds: List<String>, name: String) {
+        val ids = memberIds.toSet()
+        val trimmed = name.trim().take(MAX_GROUP_NAME_LENGTH)
+        updateLayout { layout ->
+            layout.copy(
+                groups = layout.groups.map { group ->
+                    if (group.memberIds.toSet() == ids) group.copy(name = trimmed) else group
+                },
+            )
+        }
+    }
+
     fun setPersistent(sessionId: String, enabled: Boolean) {
         viewModelScope.launch { persistentSessionStore.setPersistent(sessionId, enabled) }
     }
@@ -68,7 +129,9 @@ class SessionSwitcherViewModel @Inject constructor(
     /** Display name of the currently-active session, or null. */
     val activeName: StateFlow<String?> =
         combine(allSessions, activeId) { list, id ->
-            list.firstOrNull { it.id == id }?.name
+            // The bar asks which terminal it is over; a stored runtime binary is
+            // not an answer, so an unusable name reads as the default.
+            list.firstOrNull { it.id == id }?.name?.let(::displayableSessionName)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun createNew(name: String) {
@@ -98,5 +161,9 @@ class SessionSwitcherViewModel @Inject constructor(
 
     fun activate(id: String) {
         viewModelScope.launch { activeSession.setActive(id) }
+    }
+
+    private companion object {
+        const val MAX_GROUP_NAME_LENGTH = 60
     }
 }

@@ -1,0 +1,17 @@
+<resources>
+    <string name="topbar_more_actions">その他の操作</string>
+    <string name="topbar_refresh">ターミナルを更新</string>
+    <string name="topbar_find">出力内を検索</string>
+    <string name="terminal_delete_last_session_title">最後の session を削除しますか？</string>
+    <string name="terminal_delete_last_session_ended_body">終了コード %1$d で終了しました。削除するとアプリが閉じ、新しい session が最初から始まります。</string>
+    <string name="terminal_delete_last_session_body">削除するとアプリが閉じ、新しい session が最初から始まります。</string>
+    <string name="terminal_preparing">準備中…</string>
+    <string name="terminal_extracting_rootfs">Ubuntu rootfs を展開中…</string>
+    <string name="terminal_configuring">システムを設定中…</string>
+    <string name="terminal_cleaning">クリーンアップ中…</string>
+    <string name="terminal_ready">準備完了</string>
+    <string name="terminal_setting_up">ターミナルをセットアップ中</string>
+    <string name="terminal_setup_failed">ターミナルのセットアップに失敗しました</string>
+    <string name="motd_dismiss">MOTD を閉じる</string>
+    <string name="topbar_open_sessions">session を開く</string>
+</resources>

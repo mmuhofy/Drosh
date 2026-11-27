@@ -40,12 +40,15 @@ data class TerminalConfig(
     /** Whether the font's ligatures are used. */
     val ligatures: Boolean = true,
     /**
-     * Which engine draws the terminal.
+     * How tall a cell is, as a multiple of the font's own line box.
      *
-     * Read by the pane host before the view is built: an engine is chosen once
-     * per pane, and a pane cannot swap one underneath itself.
+     * 1 is the font's own spacing. Above that the rows spread apart — the one
+     * typographic knob a terminal has that is not the size — and below it they
+     * close up, which is legible only for a font whose line box is generous.
      */
-    val ghosttyEngine: Boolean = false,
+    val lineHeight: Float = 1f,
+    /** Which touch raises the keyboard. */
+    val keyboardActivation: KeyboardActivation = KeyboardActivation.Tap,
     /** The size of the text, in sp. */
     val textSizeSp: Float = 14f,
     /** Which face the text is drawn in. */

@@ -51,25 +51,16 @@ data class AppearanceSettings(
     val themeMode: ThemeMode = ThemeMode.System,
     val fontPack: FontPack = FontPack.Geist,
     /**
-     * A font file of the user's own, for the terminal.
+     * The terminal's face, as the font store names it.
      *
-     * The URI of a font the user picked with the system picker; empty means
-     * the bundled face. The engine is handed the file's bytes and measures
-     * its cell from it, so the grid is laid out around the font the user
-     * chose.
+     * The id of a font downloaded from the store; empty means the bundled
+     * JetBrains Mono, which is what the app has always drawn with. The id is
+     * also the file's name on disk, so the renderer's marker and this setting
+     * cannot disagree about which face is the active one.
      */
-    val customFontUri: String = "",
+    val terminalFontId: String = "",
     /** BCP-47-ish tag; "" follows the system. */
     val language: String = "",
-    /**
-     * Whether the sidebar's session rows sit on a surface of their own.
-     *
-     * Off, they are lines on the drawer — the current look. On, each row is
-     * a tile with a gap between it and the next, which is what matches the
-     * settings screen and what a dragged session wants to look like when it
-     * lands. The accent mark and the press highlight stay either way.
-     */
-    val sessionSurface: Boolean = true,
 ) {
     companion object {
         val DEFAULT = AppearanceSettings()
@@ -88,42 +79,37 @@ data class TerminalSettings(
     val mode: TerminalMode = TerminalMode.Stream,
     /** Which isolation engine runs the Linux guest. */
     val guestIsolation: GuestIsolation = GuestIsolation.DEFAULT,
-    /**
-     * Which terminal implementation the app runs.
-     *
-     * Termux until the engine has been through a device: the vendored path is
-     * the one the app is known to work on, and the setting is what lets the
-     * engine be tried without a rebuild.
-     */
-    /**
-     * Which engine draws the terminal.
-     *
-     * On (the default) is the Ghostty engine. The Rust engine no longer ships
-     * in the APK, so off would leave a pane with no engine behind it — the
-     * switch stays only so a rollback build can force one path without a
-     * rebuild.
-     */
-    val ghosttyEngine: Boolean = true,
+    // The engine switch is gone. The old Rust engine's library is not in the
+    // APK any more, so its "off" was a choice between the one engine and a
+    // missing one. There is one engine, and nothing to switch.
     /** The size a session opens at. A pinch moves the session, not this. */
     val defaultFontSizeSp: Float = TerminalZoom.DEFAULT_SP,
     val cursorStyle: CursorStyle = CursorStyle.Block,
     /** Milliseconds; 0 is off. The view accepts 100..2000. */
     val cursorBlinkMs: Int = 500,
     val keepAwake: Boolean = false,
-    /**
-     * The terminal keeps its place while the user reads.
-     *
-     * New output pulls the viewport back to the live edge, which is right
-     * for output the shell produced on its own and wrong for the user who
-     * has scrolled up to read something. With this on, a terminal that is
-     * scrolled up stays where it is; scrolling to the bottom by hand is
-     * still what brings it back.
-     */
-    val keepPositionWhileReading: Boolean = false,
     /** Bold text in the first eight colours uses the bright half. */
     val boldBrightens: Boolean = true,
     /** Programming-ligature shaping, where the typeface carries them. */
     val ligatures: Boolean = true,
+    /**
+     * How tall a cell is, as a multiple of the font's own line box.
+     *
+     * The one typographic knob a terminal has that is not the size: a run of
+     * output is easier to read with the rows a little apart, and a phone in
+     * landscape prefers them close. Clamped by the screen, not by the file, so a
+     * hand-edited 4 does not leave three blank rows between two lines of text.
+     */
+    val lineHeight: Float = 1f,
+    /**
+     * How many lines of history the terminal keeps, above the screen.
+     *
+     * Zero turns scrollback off entirely — the viewport and nothing behind it,
+     * which is what someone who would rather have the memory asks for. The
+     * engine prunes in pages, so the number is close rather than exact, and the
+     * file is clamped to a range that a phone can hold.
+     */
+    val scrollbackLines: Int = 10_000,
     /** The unfocused pane of a split is drawn dimmer. */
     val dimInactivePanes: Boolean = true,
     /**
@@ -145,6 +131,22 @@ data class TerminalSettings(
 ) {
     companion object {
         val DEFAULT = TerminalSettings()
+
+        /**
+         * The line-height range the screen offers, and the file is clamped to.
+         *
+         * Below one the rows overlap the descenders of the line above; above
+         * 1.6 a phone shows fewer than twenty lines and the terminal stops
+         * being one.
+         */
+        const val MIN_LINE_HEIGHT = 0.85f
+        const val MAX_LINE_HEIGHT = 1.6f
+
+        /** The scrollback values the screen offers, in lines. */
+        val SCROLLBACK_CHOICES = listOf(0, 1_000, 5_000, 10_000, 50_000)
+
+        /** The ceiling for a hand-edited file, in lines. */
+        const val MAX_SCROLLBACK_LINES = 200_000
     }
 }
 
@@ -204,6 +206,23 @@ data class InputSettings(
      * So it is off unless the user asks for it.
      */
     val allowClipboardWrites: Boolean = false,
+    /**
+     * Which touch raises the keyboard.
+     *
+     * The terminal takes every other gesture: a drag scrolls, a pinch zooms,
+     * two fingers scroll. This is the one gesture with no natural answer, so it
+     * is asked for rather than assumed.
+     */
+    val keyboardActivation: KeyboardActivation = KeyboardActivation.Tap,
+    /**
+     * Whether the block input offers the commands it has seen before.
+     *
+     * A prediction is a whole line taken from this session's own history —
+     * nothing is invented and nothing leaves the device. Typing `git st` offers
+     * `git status`; tapping the chip fills the line in, it does not run it.
+     * Off, the strip is not drawn and no history is consulted.
+     */
+    val commandPrediction: Boolean = true,
 ) {
     companion object {
         val DEFAULT = InputSettings()
@@ -219,7 +238,16 @@ data class InputSettings(
  * theirs, not ours to duplicate.
  */
 data class ShellSettings(
-    val motdMode: MotdMode = MotdMode.PlainText,
+    /**
+     * The greeting, off unless the user asks for it.
+     *
+     * It used to be plain text by default, which put a card in front of the
+     * prompt on every new session for a message nobody had written: a terminal
+     * that opens with a speech from the app is a terminal someone has to dismiss
+     * before they can type. The setting is still here, and one tap turns the
+     * greeting back on for whoever wants it.
+     */
+    val motdMode: MotdMode = MotdMode.Disabled,
     val motdText: String = MotdDefaults.DEFAULT_MOTD_TEXT,
     /** Custom guest start command; "" is the default shell. */
     val startupCommand: String = "",
@@ -277,7 +305,7 @@ data class AgentToolSettings(
      * Reasoning effort, spelled the way the model names it.
      *
      * Empty means the model's own default, which is what a user who has never
-     * thought about it wants. See `dev.drosh.agent.provider.EffortMapper` for
+     * thought about it wants. See `dev.drosh.feature.agent.provider.EffortMapper` for
      * how each protocol spells the same value.
      */
     val effort: String = "",

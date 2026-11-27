@@ -1,0 +1,73 @@
+# Brand glyphs for the session grid's cards.
+#
+# Format: <program> = <simple-icons slug>
+#
+# The program names are what `/proc/<pid>/comm` reports, lowercased, with a
+# version suffix already stripped by the registry (`python3.12` arrives as
+# `python`). One program may point at a slug another program's icon already
+# covers: `cargo` is drawn with the Rust mark, `top` with htop's.
+#
+# `tools/icons/fetch_icons.py` reads this file, downloads each SVG from the
+# Simple Icons CDN and writes `android/ui/src/main/res/drawable/brand_<slug>.xml`.
+# Simple Icons is CC0-1.0; the marks themselves belong to their owners.
+#
+# Deliberately absent: `nano` — the Simple Icons slug of that name is the Nano
+# currency, not GNU nano, and a card that showed a coin for a text editor would
+# be worse than one that showed a terminal.
+
+python = python
+python3 = python
+pip = python
+pip3 = python
+ipython = python
+
+node = nodedotjs
+nodejs = nodedotjs
+npm = npm
+pnpm = pnpm
+yarn = yarn
+deno = deno
+bun = bun
+
+vim = vim
+nvim = neovim
+
+htop = htop
+btop = htop
+top = htop
+
+bash = gnubash
+zsh = zsh
+fish = gnubash
+sh = gnubash
+
+git = git
+gh = github
+tmux = tmux
+
+docker = docker
+podman = podman
+kubectl = kubernetes
+helm = helm
+
+cargo = rust
+rustc = rust
+rustup = rust
+go = go
+ruby = ruby
+irb = ruby
+php = php
+lua = lua
+perl = perl
+java = openjdk
+javac = openjdk
+
+claude = claude
+claudecode = claudecode
+gemini = googlegemini
+ollama = ollama
+
+debian = debian
+ubuntu = ubuntu
+arch = archlinux
+fedora = fedora

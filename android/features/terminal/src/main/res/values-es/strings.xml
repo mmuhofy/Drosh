@@ -1,0 +1,17 @@
+<resources>
+    <string name="topbar_more_actions">Más acciones</string>
+    <string name="topbar_refresh">Actualizar terminal</string>
+    <string name="topbar_find">Buscar en la salida</string>
+    <string name="terminal_delete_last_session_title">¿Eliminar la última session?</string>
+    <string name="terminal_delete_last_session_ended_body">Terminó con el código de salida %1$d. Eliminarla cierra la app; una nueva session empieza desde cero.</string>
+    <string name="terminal_delete_last_session_body">Eliminarla cierra la app; una nueva session empieza desde cero.</string>
+    <string name="terminal_preparing">Preparando…</string>
+    <string name="terminal_extracting_rootfs">Extrayendo rootfs de Ubuntu…</string>
+    <string name="terminal_configuring">Configurando el sistema…</string>
+    <string name="terminal_cleaning">Limpiando…</string>
+    <string name="terminal_ready">Listo</string>
+    <string name="terminal_setting_up">Configurando el terminal</string>
+    <string name="terminal_setup_failed">Error al configurar el terminal</string>
+    <string name="motd_dismiss">Descartar MOTD</string>
+    <string name="topbar_open_sessions">Abrir sesiones</string>
+</resources>

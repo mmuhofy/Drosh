@@ -17,7 +17,7 @@ package dev.drosh.domain.agent
  *                     discovers it needs consent only after doing work and
  *                     cannot usefully resume in the same call.
  *
- * Note: `terminal/TerminalManager.executeCommand` also returns this type, so
+ * Note: `terminal/TerminalSessionCoordinator.executeCommand` also returns this type, so
  * it lives in `:domain` rather than `:agent` — `:terminal` has no dependency on
  * the agent module.
  */

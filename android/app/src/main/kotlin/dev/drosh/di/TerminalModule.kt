@@ -1,0 +1,116 @@
+package dev.drosh.di
+
+import android.app.Application
+import android.content.Context
+import dev.drosh.domain.block.BlockEngineState
+import dev.drosh.domain.block.BlockRepository
+import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.settings.BackgroundImageStore
+import dev.drosh.domain.settings.SettingsStore
+import dev.drosh.terminal.session.BlockEventBridge
+import dev.drosh.linux.BootstrapStatePort
+import dev.drosh.domain.terminal.PaneSessionBinder
+import dev.drosh.domain.terminal.SystemOverlayController
+import dev.drosh.terminal.session.TerminalSessionCoordinator
+import dev.drosh.ui.overlay.ServiceSystemOverlayController
+// Termux view client removed — engine panes own their views.
+import dev.drosh.linux.UbuntuBootstrap
+import dev.drosh.domain.ssh.SshSessionFactory
+import dev.drosh.feature.ssh.SshjSessionFactory
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+/**
+ * Hilt module for the terminal layer.
+ *
+ * Provides the singleton graph that Phase 1 Terminal Core functionality relies on:
+ *  - `UbuntuBootstrap` (lifecycle for the guest runtime + Ubuntu rootfs)
+ *  - `TerminalSessionCoordinator` (PTY session lifecycle, tab state)
+ *
+ * Per AGENT.md §125-128 the terminal layer is isolated — only `:app` (and `:agent`
+ * later) interact with it. This module lives in `:app` because the inject graph
+ * depends on `Application`.
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+object TerminalModule {
+
+    @Provides
+    @Singleton
+    fun provideUbuntuBootstrap(
+        @ApplicationContext context: Context
+    ): UbuntuBootstrap = UbuntuBootstrap(context)
+
+    @Provides
+    @Singleton
+    fun provideTerminalSessionCoordinator(
+        application: Application,
+        ubuntuBootstrap: UbuntuBootstrap,
+        bootstrapStatePort: BootstrapStatePort,
+        blockEngineWire: BlockEventBridge,
+        settingsRepository: SettingsRepository,
+        settingsStore: SettingsStore,
+        backgroundImages: BackgroundImageStore,
+    ): TerminalSessionCoordinator = TerminalSessionCoordinator(
+        ubuntuBootstrap = ubuntuBootstrap,
+        bootstrapStatePort = bootstrapStatePort,
+        application = application,
+        blockEngineWire = blockEngineWire,
+        settingsRepository = settingsRepository,
+        settingsStore = settingsStore,
+        backgroundImages = backgroundImages,
+    )
+
+    /**
+     * The pane operations the split screen needs, as a domain port.
+     *
+     * The same singleton as [provideTerminalSessionCoordinator], bound to the interface
+     * rather than the class: the split ViewModel lives in `:ui`, which is
+     * forbidden from importing `:terminal` (AGENT.md §139), so it asks for this
+     * port instead. A second instance would be two sets of pane bindings over
+     * one set of sessions.
+     */
+    @Provides
+    @Singleton
+    fun providePaneSessionBinder(manager: TerminalSessionCoordinator): PaneSessionBinder = manager
+
+    /**
+     * The overlay controller lives in `:app` because it starts a service declared
+     * in this module's manifest. Bound here so the split screen can reach it
+     * through the domain port without importing anything from `:app`.
+     */
+    @Provides
+    @Singleton
+    fun provideSystemOverlayController(
+        controller: ServiceSystemOverlayController,
+    ): SystemOverlayController = controller
+
+    @Provides
+    @Singleton
+    fun provideBlockEventBridge(
+        blockRepository: BlockRepository,
+    ): BlockEventBridge = BlockEventBridge(blockRepository)
+
+    @Provides
+    @Singleton
+    fun provideBlockEngineState(
+        wire: BlockEventBridge,
+    ): BlockEngineState = wire
+
+    @Provides
+    @Singleton
+    fun provideSshSessionFactory(
+        impl: SshjSessionFactory,
+    ): SshSessionFactory = impl
+
+    @Provides
+    @Singleton
+    fun provideBootstrapStatePort(
+        ubuntuBootstrap: UbuntuBootstrap
+    ): BootstrapStatePort = BootstrapStatePort(ubuntuBootstrap)
+}
+

@@ -32,6 +32,36 @@ package dev.drosh.terminal.engine.render
 internal object Shaders {
 
     /**
+     * A full-screen triangle, with no vertex attributes.
+     *
+     * Ghostty's background pass uses the same trick: three vertices that cover
+     * the viewport, so the clear is a draw like any other and the colour comes
+     * from a uniform instead of `glClearColor`. A triangle rather than a quad
+     * because it is one primitive and the rasteriser clips the overflow for
+     * free.
+     */
+    val SCREEN_VERTEX = """
+        #version 300 es
+        void main() {
+            vec2 corner = vec2(
+                gl_VertexID == 1 ? 3.0 : -1.0,
+                gl_VertexID == 2 ? 3.0 : -1.0
+            );
+            gl_Position = vec4(corner, 0.0, 1.0);
+        }
+    """.trimIndent()
+
+    val SCREEN_FRAGMENT = """
+        #version 300 es
+        precision mediump float;
+        uniform vec4 uColor;
+        out vec4 fragColor;
+        void main() {
+            fragColor = uColor;
+        }
+    """.trimIndent()
+
+    /**
      * A cell's background.
      *
      * The grid row is signed: the frame's overscan rows sit above and below the
@@ -209,8 +239,17 @@ internal object Shaders {
 
             vec2 size = vec2(drawn.x * squeeze, drawn.y);
 
+            // A wide glyph (CJK, a Nerd Font icon) is one glyph in two cells,
+            // and its mask is narrower than the two cells it covers: the font
+            // gives it one advance, not two. Drawing it from the pen would put
+            // the ink hard against the left edge of the pair, so it is centred
+            // in the space it was given. Narrow cells are left alone — their
+            // left bearing is the font's, and moving it would shift every
+            // stroke in the grid.
+            float spare = (aSpan > 1u) ? max(0.0, targetWidth - size.x) * 0.5 : 0.0;
+
             gl_Position = vec4(
-                uProjection.xy + uProjection.zw * (cell + offset + corner * size),
+                uProjection.xy + uProjection.zw * (cell + offset + vec2(spare, 0.0) + corner * size),
                 0.0,
                 1.0
             );

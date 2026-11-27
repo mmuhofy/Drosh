@@ -43,6 +43,11 @@
         android:description="@string/permission_send_keyboard_mode_description" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- The wake-lock action holds a PARTIAL_WAKE_LOCK so a background shell
+         survives doze; the second one lets its system dialog exempt Drosh from
+         battery optimisation, without which the lock would be reclaimed anyway. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- The floating pane is a window above other apps, which needs the user's
@@ -86,15 +91,6 @@
             android:name=".SetupForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-
-        <service
-            android:name=".ui.overlay.FloatingPaneOverlayService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps a user-initiated terminal pane on screen while the user works in another app." />
-        </service>
 
         <provider
             android:name=".DroshDocumentsProvider"
