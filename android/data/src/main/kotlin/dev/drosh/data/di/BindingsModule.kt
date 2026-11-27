@@ -7,6 +7,7 @@ import dev.drosh.data.input.TerminalSubmitRawByteUseCase
 import dev.drosh.data.session.DefaultObserveActiveSessionUseCase
 import dev.drosh.data.session.DataStoreDeviceIdentityRepository
 import dev.drosh.data.session.DataStorePersistentSessionStore
+import dev.drosh.data.session.DataStoreSessionGridLayoutStore
 import dev.drosh.data.session.SessionManagerAdapter
 import dev.drosh.data.session.RoomSessionRepository
 import dev.drosh.data.agent.RoomAgentChatRepository
