@@ -1580,7 +1580,10 @@ internal fun ReadyScreen(
         // the terminal — and only when the last session happened to end. The
         // reason is a fact about the install, so it is a dialog, it is shown
         // whatever the session count, and it can be dismissed once read.
-        if (sessionEndEvent?.reason != null) {
+        // Captured once: `reason` is a property of a type from another module,
+        // so the compiler will not smart-cast it inside the dialog's lambdas.
+        val runtimeReason: String? = sessionEndEvent?.reason
+        if (runtimeReason != null) {
             val dismiss = { terminalManager.clearProcessExitEvent() }
             AlertDialog(
                 onDismissRequest = dismiss,
@@ -1608,7 +1611,7 @@ internal fun ReadyScreen(
                     Text(
                         text = stringResource(
                             R.string.terminal_guest_runtime_missing,
-                            sessionEndEvent.reason,
+                            runtimeReason,
                         ),
                         color = DroshTextSecondary,
                         fontFamily = LocalFontSet.current.sans,
