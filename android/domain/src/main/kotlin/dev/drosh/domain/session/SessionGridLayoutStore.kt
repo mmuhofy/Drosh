@@ -13,19 +13,28 @@ import kotlinx.coroutines.flow.StateFlow
  * silently undid itself. They are the user's arrangement of their own sessions,
  * so they belong beside the sessions, not inside one screen's lifetime.
  *
- * Groups are stored as membership lists, not as a type: the domain has no
- * opinion about how the grid paints a group, and a list of ids is the same
- * thing the grid keeps.
+ * Groups are stored as membership lists with an optional name: the domain has
+ * no opinion about how the grid paints a group, but the name is the user's
+ * word for it, so it has to survive the grid closing.
  */
 data class SessionGridLayout(
     val pinnedIds: Set<String> = emptySet(),
     val orderedIds: List<String> = emptyList(),
-    val groups: List<List<String>> = emptyList(),
+    val groups: List<SessionGroupLayout> = emptyList(),
 ) {
     companion object {
         val EMPTY = SessionGridLayout()
     }
 }
+
+/**
+ * One UI group: its members, in the order the user arranged them, and the
+ * name the user gave it (blank means "use the default title").
+ */
+data class SessionGroupLayout(
+    val memberIds: List<String> = emptyList(),
+    val name: String = "",
+)
 
 /**
  * Persisted grid arrangement.

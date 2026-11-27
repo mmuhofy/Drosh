@@ -10,6 +10,7 @@ import dev.drosh.domain.session.SessionProcessInfo
 import dev.drosh.domain.session.SessionRepository
 import dev.drosh.domain.session.SessionGridLayout
 import dev.drosh.domain.session.SessionGridLayoutStore
+import dev.drosh.domain.session.SessionGroupLayout
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionTelemetry
 import dev.drosh.domain.session.displayableSessionName
@@ -85,7 +86,28 @@ class SessionSwitcherViewModel @Inject constructor(
 
     /** Replaces the grid's groups. The screen owns the drop rules, not the store. */
     internal fun setGroups(groups: List<SessionGroup>) = updateLayout { layout ->
-        layout.copy(groups = groups.map { it.memberIds })
+        layout.copy(
+            groups = groups.map { SessionGroupLayout(it.memberIds, it.name) },
+        )
+    }
+
+    /**
+     * Names a group the user already has.
+     *
+     * Matched by membership, not by slot: the group's first member can change
+     * when its members are reordered, and the name must follow the group rather
+     * than the first id.
+     */
+    fun renameGroup(memberIds: List<String>, name: String) {
+        val ids = memberIds.toSet()
+        val trimmed = name.trim().take(MAX_GROUP_NAME_LENGTH)
+        updateLayout { layout ->
+            layout.copy(
+                groups = layout.groups.map { group ->
+                    if (group.memberIds.toSet() == ids) group.copy(name = trimmed) else group
+                },
+            )
+        }
     }
 
     fun setPersistent(sessionId: String, enabled: Boolean) {
@@ -139,5 +161,9 @@ class SessionSwitcherViewModel @Inject constructor(
 
     fun activate(id: String) {
         viewModelScope.launch { activeSession.setActive(id) }
+    }
+
+    private companion object {
+        const val MAX_GROUP_NAME_LENGTH = 60
     }
 }

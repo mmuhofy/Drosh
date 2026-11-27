@@ -98,6 +98,8 @@ internal fun SessionCard(
     isPersistent: Boolean,
     isDropTarget: Boolean,
     isHeld: Boolean,
+    /** Chosen as the second pane of a split while the selection mode is on. */
+    isSelected: Boolean = false,
     onBounds: (Rect) -> Unit,
     onTap: () -> Unit,
     onDragStart: (Offset) -> Unit,
@@ -115,12 +117,13 @@ internal fun SessionCard(
     val dragDelta = remember { mutableStateOf(Offset.Zero) }
 
     val borderWidth by animateFloatAsState(
-        targetValue = if (isActive || isDropTarget) 2f else 1f,
+        targetValue = if (isActive || isDropTarget || isSelected) 2f else 1f,
         animationSpec = tween(200),
         label = "cardBorder",
     )
     val borderColor = when {
         isDropTarget -> DroshPrimary
+        isSelected -> DroshPrimary
         isActive -> DroshPrimary.copy(alpha = 0.7f)
         else -> DroshBorderSubtle
     }
@@ -211,7 +214,7 @@ internal fun SessionCard(
                 end = CARD_SIDE_INSET,
                 bottom = CARD_BOTTOM_INSET,
             ),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -414,13 +417,13 @@ private fun lerpColor(from: Color, to: Color, fraction: Float): Color =
 private val CARD_HEIGHT = 336.dp
 
 /** The preview sits only 5dp inside the card on its sides and bottom. */
-private val CARD_SIDE_INSET = 5.dp
-private val CARD_BOTTOM_INSET = 5.dp
+private val CARD_SIDE_INSET = 8.dp
+private val CARD_BOTTOM_INSET = 8.dp
 
 /** A little more breathing room above the header inside the card. */
 private val CARD_TOP_INSET = 12.dp
 
-private val PREVIEW_CORNER = 9.dp
+private val PREVIEW_CORNER = 10.dp
 private val PREVIEW_PLACEHOLDER_ICON = 28.dp
 private val CHIP_ICON_SIZE = 9.dp
 

@@ -1,5 +1,6 @@
 package dev.drosh.data.session
 
+import dev.drosh.domain.session.SessionGroupLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,7 +21,10 @@ class SessionGridLayoutCodecTest {
 
     @Test
     fun `groups round-trip`() {
-        val groups = listOf(listOf("a", "b"), listOf("c", "d", "e"))
+        val groups = listOf(
+            SessionGroupLayout(listOf("a", "b"), "build"),
+            SessionGroupLayout(listOf("c", "d", "e")),
+        )
         assertEquals(
             groups,
             SessionGridLayoutCodec.decodeGroups(SessionGridLayoutCodec.encodeGroups(groups)),
@@ -29,8 +33,21 @@ class SessionGridLayoutCodecTest {
 
     @Test
     fun `a group of one is not a group`() {
-        val encoded = SessionGridLayoutCodec.encodeGroups(listOf(listOf("a"), listOf("b", "c")))
-        assertEquals(listOf(listOf("b", "c")), SessionGridLayoutCodec.decodeGroups(encoded))
+        val encoded = SessionGridLayoutCodec.encodeGroups(
+            listOf(
+                SessionGroupLayout(listOf("a")),
+                SessionGroupLayout(listOf("b", "c")),
+            ),
+        )
+        assertEquals(listOf(SessionGroupLayout(listOf("b", "c"))), SessionGridLayoutCodec.decodeGroups(encoded))
+    }
+
+    @Test
+    fun `a name containing a separator is flattened`() {
+        val encoded = SessionGridLayoutCodec.encodeGroups(
+            listOf(SessionGroupLayout(listOf("a", "b"), "x\u001dy")),
+        )
+        assertEquals(listOf("a", "b"), SessionGridLayoutCodec.decodeGroups(encoded).single().memberIds)
     }
 
     @Test

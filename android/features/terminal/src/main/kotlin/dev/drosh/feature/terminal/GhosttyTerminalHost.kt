@@ -264,8 +264,6 @@ fun GhosttyTerminalHost(
         )
     }
 
-    var status by remember { mutableStateOf<String?>("preparing") }
-
     // The selection's chrome. It is drawn here, next to the view that owns the
     // gesture, rather than in the screen that hosts this one: the rectangle the
     // renderer measures is in this pane's own pixels, and a menu placed by an
@@ -279,55 +277,9 @@ fun GhosttyTerminalHost(
     val hasSelection = selectionBounds != null
     var zoomSizeSp by remember { mutableStateOf(0f) }
 
-    // The diagnostics eye. The panel is off by default: a terminal's surface
-    // owns every gesture, and a full-size debug box on it would steal them.
-    // The eye itself is a couple of buttons in the corner.
-    //
     // The system bars used to be hidden here, which made this host fight the
     // terminal screen and the activity over the same window flags. They are now
     // owned once, globally, by MainActivity for every route in the app.
-
-    var diagnosticsOpen by remember { mutableStateOf(false) }
-    var diagnosticsText by remember { mutableStateOf("") }
-    var benchmarkRecording by remember { mutableStateOf(false) }
-    var benchmarkStatus by remember { mutableStateOf("") }
-
-    // Refresh only while open. The self tests run once; the moving numbers —
-    // frames, their distribution, keys, bytes — come from the live report.
-    LaunchedEffect(diagnosticsOpen) {
-        if (!diagnosticsOpen) return@LaunchedEffect
-        val statics = dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.staticReport()
-        var lastSampleAt = 0L
-        while (diagnosticsOpen) {
-            val session = pane.session
-            val live = buildString {
-                appendLine(statics)
-                appendLine(dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.liveReport())
-                appendLine("--- session ---")
-                appendLine("bytes read: ${session?.bytesRead ?: 0}")
-                appendLine("frames drawn: ${pane.view.framesDrawn}")
-                appendLine("last frame: ${pane.view.lastFrameShape}")
-                appendLine("renderer failure: ${pane.view.rendererFailure ?: "none"}")
-                appendLine("fling gear: ${pane.view.flingGear}")
-            }
-            diagnosticsText = live
-
-            // One complete line per second of a recording. The loop wakes
-            // twice as often so the panel itself stays fresh.
-            val now = System.currentTimeMillis()
-            if (dev.drosh.terminal.engine.bench.BenchmarkLog.isRecording() &&
-                now - lastSampleAt >= BENCHMARK_SAMPLE_MS
-            ) {
-                lastSampleAt = now
-                dev.drosh.terminal.engine.bench.BenchmarkLog.sample(
-                    dev.drosh.terminal.engine.bench.RenderBench.summary() +
-                        " | " + dev.drosh.terminal.engine.bench.RenderBench.detail(),
-                )
-            }
-            delay(DIAGNOSTICS_REFRESH_MS)
-        }
-    }
-    val clipboard = LocalClipboardManager.current
 
     // The tap that follows a hyperlink.
     //
@@ -400,8 +352,6 @@ fun GhosttyTerminalHost(
     // different session. Keyed on the pane alone, the effect never re-ran and
     // the screen kept drawing the old session.
     LaunchedEffect(pane, sessionId) {
-        status = "preparing"
-
         // The pane is registered with the manager before anything else. The
         // registration is what makes the manager know this pane is a session:
         // without it the pane is absent from the grid, cannot be restored,
@@ -427,7 +377,6 @@ fun GhosttyTerminalHost(
         val alive = terminalManager.liveSession(sessionId)
         if (alive != null) {
             pane.showSession(alive)
-            status = null
             return@LaunchedEffect
         }
 
@@ -440,11 +389,9 @@ fun GhosttyTerminalHost(
             // logs the same reason when it refuses.
             val reason = terminalManager.guestUnavailableReason() ?: "no guest command"
             Log.w(TAG, "session not started: $reason")
-            status = reason
             return@LaunchedEffect
         }
 
-        status = "starting"
         val started = withContext(Dispatchers.IO) {
             runCatching {
                 // The session is the manager's: it is created once, registered
@@ -470,7 +417,7 @@ fun GhosttyTerminalHost(
         }
 
         if (!started) {
-            status = "start failed: ${pane.lastError ?: "no reason"}"
+            Log.e(TAG, "session did not start: ${pane.lastError ?: "no reason"}")
             return@LaunchedEffect
         }
 
@@ -482,36 +429,6 @@ fun GhosttyTerminalHost(
             pane.view.runCommand(command)
         }
 
-        // The session runs; keep the counters up until frames are being drawn.
-        // Zero bytes is one bug, zero frames another, and a renderer that never
-        // came up is a third — and it is the only one whose cause is invisible.
-        // The numbers stay up for a while whatever happens: a screen that is
-        // drawing something invisible and a screen that is drawing nothing look
-        // the same, and only these say which.
-        var ticks = 0
-        while (ticks < STATUS_TICKS) {
-            val failure = pane.view.rendererFailure
-            val session = pane.session
-            status = if (failure != null) {
-                "renderer: $failure"
-            } else {
-                "${session?.bytesRead ?: 0} bytes\n" +
-                    "${pane.view.framesDrawn} frames\n" +
-                    "frame ${pane.view.lastFrameShape}"
-            }
-            kotlinx.coroutines.delay(500)
-            ticks += 1
-        }
-        status = null
-    }
-
-    // The engine's own report, for a build that has to be diagnosed on a phone.
-    //
-    // It goes to the log as well as the screen: `adb logcat -s GhosttyTerminalHost`
-    // is one command, and the screen is a picture of it.
-    LaunchedEffect(pane) {
-        val report = dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.report()
-        Log.i(TAG, report)
     }
 
     // The focus follows the pane the user is in — without this, the manager
@@ -523,8 +440,6 @@ fun GhosttyTerminalHost(
             terminalManager.focusPane(paneSlot)
         }
     }
-
-    pane.onSessionExited = { code -> status = "session ended ($code)" }
 
     // The host's own lifecycle is still the pane's: the terminal is told when
     // it is shown and hidden, which is what its cursor blink and its reader
@@ -701,68 +616,10 @@ fun GhosttyTerminalHost(
             )
         }
 
-        status?.let { message ->
-            Text(
-                text = message,
-                color = DroshTextSecondary,
-                fontFamily = LocalFontSet.current.sans,
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(12.dp),
-            )
-        }
-
-        TerminalDebugOverlay(
-            report = diagnosticsText,
-            expanded = diagnosticsOpen,
-            recording = benchmarkRecording,
-            status = benchmarkStatus,
-            onToggle = { diagnosticsOpen = !diagnosticsOpen },
-            onCopy = {
-                clipboard.setText(AnnotatedString(diagnosticsText))
-            },
-            onRecord = {
-                try {
-                    dev.drosh.terminal.engine.bench.BenchmarkLog.start(
-                        context,
-                        "session ${pane.session?.persistentId ?: "none"}",
-                    )
-                    dev.drosh.terminal.engine.bench.RenderBench.reset()
-                    dev.drosh.terminal.engine.input.InputStats.reset()
-                    benchmarkRecording = true
-                    benchmarkStatus =
-                        "recording to ${dev.drosh.terminal.engine.bench.BenchmarkLog.path(context)}"
-                } catch (error: java.io.IOException) {
-                    benchmarkStatus = "cannot start: ${error.message}"
-                }
-            },
-            onStop = {
-                dev.drosh.terminal.engine.bench.BenchmarkLog.stop()
-                benchmarkRecording = false
-                benchmarkStatus = "stopped"
-            },
-            onFinish = {
-                benchmarkStatus = dev.drosh.terminal.engine.bench.BenchmarkLog.finish()
-                benchmarkRecording = false
-            },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 64.dp, end = 4.dp),
-        )
     }
 }
 
 private const val TAG = "GhosttyTerminalHost"
-
-/** How often the open panel reads the moving numbers again. */
-private const val DIAGNOSTICS_REFRESH_MS = 500L
-
-/** One line in benchmark.log per second. */
-private const val BENCHMARK_SAMPLE_MS = 1_000L
-
-/** How many half-seconds the status line stays up before it gets out of the way. */
-private const val STATUS_TICKS = 40
 
 /** The cell a font measured, in pixels. */
 private data class CellMetrics(val width: Float, val height: Float, val fontPx: Float)

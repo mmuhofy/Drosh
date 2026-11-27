@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.ripple
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
@@ -188,6 +190,17 @@ fun rememberTerminalTopPadding(collapsed: Boolean, tuiActive: Boolean = false): 
 
 internal val BAR_ROW_HEIGHT = BAR_ROW_HEIGHT_DP.dp
 internal val PILL_WIDTH = PILL_WIDTH_DP.dp
+
+/**
+ * The session switcher's shape and width band.
+ *
+ * A soft-cornered rectangle rather than a capsule: the control holds a *name*,
+ * and a name is not a button glyph. The band keeps a short name from looking
+ * like a dot and a long one from taking the row from the overflow menu.
+ */
+private val SESSION_SWITCHER_SHAPE = RoundedCornerShape(14.dp)
+private val SESSION_SWITCHER_MIN_WIDTH = 96.dp
+private val SESSION_SWITCHER_MAX_WIDTH = 210.dp
 private val BAR_TOP_OFFSET = BAR_TOP_OFFSET_DP.dp
 private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
 
@@ -259,10 +272,15 @@ fun TerminalTopBar(
     modifier: Modifier = Modifier,
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
-    // How many sessions the app knows about. The button says so on itself, so
-    // the grid is one glance away and its size is known before it is opened.
+    val activeId by viewModel.activeId.collectAsStateWithLifecycle()
+    // The switcher's list: the sessions that are actually open, newest first.
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
-    val sessionCount = sessions.size
+    val openSessions = remember(sessions) {
+        sessions
+            .filter { it.state != dev.drosh.domain.session.SessionState.Closed }
+            .sortedByDescending { it.lastUsedAtMs }
+    }
+    var sessionMenuExpanded by remember { mutableStateOf(false) }
 
     val statusBarH = statusBarHeight()
 
@@ -371,6 +389,12 @@ fun TerminalTopBar(
             // list made the row read as three controls where two are enough.
             // The name still titles the overflow menu, so the row does say
             // which terminal is on screen.
+            // ── Left: the drawer, then the session switcher ────────────────
+            //
+            // The switcher is the active session's name with a chevron, not a
+            // count in a square: the row should say *which* terminal is on
+            // screen, and the list behind the name is the same list the square
+            // opened. A count that has to be decoded is not a name.
             Row(
                 modifier = Modifier.height(rowHeight),
                 verticalAlignment = Alignment.CenterVertically,
@@ -385,50 +409,94 @@ fun TerminalTopBar(
                     iconSize = pillIconSize,
                     onClick = onOpenSidebar,
                 )
+
+                Box {
+                    GlassSurface(
+                        backdrop = backdrop,
+                        terminalBounds = terminalBounds,
+                        shape = SESSION_SWITCHER_SHAPE,
+                        modifier = Modifier
+                            .height(rowHeight)
+                            .widthIn(min = SESSION_SWITCHER_MIN_WIDTH, max = SESSION_SWITCHER_MAX_WIDTH),
+                        onClick = { sessionMenuExpanded = true },
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 13.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = activeName ?: stringResource(R.string.topbar_sessions),
+                                color = PILL_CONTENT,
+                                fontFamily = LocalFontSet.current.sans,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            Icon(
+                                imageVector = DroshIcons.ChevronDown,
+                                contentDescription = null,
+                                tint = PILL_CONTENT.copy(alpha = 0.7f),
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
+
+                    DroshDropdownMenu(
+                        expanded = sessionMenuExpanded,
+                        onDismissRequest = { sessionMenuExpanded = false },
+                        title = activeName.orEmpty(),
+                        offset = DpOffset(0.dp, 14.dp),
+                        density = DroshMenuDensity.Slim,
+                        items = buildList {
+                            openSessions.forEach { session ->
+                                add(
+                                    DroshMenuItem(
+                                        id = "session:${session.id}",
+                                        label = if (session.id == activeId) {
+                                            "✓  ${session.name}"
+                                        } else {
+                                            session.name
+                                        },
+                                        icon = DroshIcons.SquareTerminal,
+                                    ),
+                                )
+                            }
+                            add(
+                                DroshMenuItem(
+                                    id = MENU_ALL_SESSIONS,
+                                    label = stringResource(R.string.topbar_all_sessions),
+                                    icon = DroshIcons.SessionGrid,
+                                    dividerBefore = openSessions.isNotEmpty(),
+                                ),
+                            )
+                        },
+                        onItemClick = { item ->
+                            sessionMenuExpanded = false
+                            when {
+                                item.id == MENU_ALL_SESSIONS -> onOpenSessions()
+                                item.id.startsWith("session:") ->
+                                    viewModel.activate(item.id.removePrefix("session:"))
+                            }
+                        },
+                    )
+                }
             }
 
             Spacer(Modifier.weight(1f))
 
-
-            // ── Right: the sessions square and the overflow circle ───────────
-            // Same Row as the left group rather than a sibling Box aligned by
-            // hand: two parents let the clusters settle on different baselines
-            // whenever their content differed in height.
-            //
-            // The sessions button carries its OWN surface now. It used to sit
-            // inside a capsule body with a second, smaller square drawn over it;
-            // the outer silhouette stayed a circle, which is not the soft-cornered
-            // square the control is meant to be. Giving the button the rounded
-            // square shape and letting it draw its own fill and edge removes the
-            // duplicate inner square and makes the silhouette the shape itself.
+            // ── Right: the overflow circle only ────────────────────────────
+            // The session square that used to sit here is gone: two doors to
+            // one list, side by side, was the row repeating itself.
             Row(
                 modifier = Modifier.height(rowHeight),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                GlassPillButton(
-                    backdrop = backdrop,
-                    terminalBounds = terminalBounds,
-                    contentDescription = stringResource(R.string.topbar_sessions),
-                    width = rowHeight,
-                    height = rowHeight,
-                    iconSize = pillIconSize,
-                    shape = SESSION_BUTTON_SHAPE,
-                    content = {
-                        // Hollow interior: the count sits on the button's own
-                        // translucent surface, with no second square behind it.
-                        Text(
-                            text = if (sessionCount > 0) sessionCount.toString() else "-",
-                            color = PILL_CONTENT,
-                            fontFamily = LocalFontSet.current.sans,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                        )
-                    },
-                    onClick = onOpenSessions,
-                )
-
                 GlassPillButton(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,
@@ -564,3 +632,4 @@ private const val MENU_FIND = "find"
 private const val MENU_PREVIOUS_PROMPT = "prev_prompt"
 private const val MENU_NEXT_PROMPT = "next_prompt"
 private const val MENU_SHRINK = "shrink"
+private const val MENU_ALL_SESSIONS = "all_sessions"

@@ -43,7 +43,7 @@ import androidx.compose.ui.geometry.Rect
  * whatever the app's own text colour is: what is behind the row is the
  * terminal, and the terminal's foreground is what belongs on it.
  */
-internal val PILL_CONTENT = Color(0xFFF2F2F2)
+internal val PILL_CONTENT = Color(0xFFD6D7DC)
 
 /**
  * The pill's opaque ground.

@@ -27,7 +27,16 @@
     <string name="session_screen_empty_search_title">No matches</string>
     <string name="session_screen_empty_search_body">No session matches this search.</string>
 
+    <string name="session_screen_group_count">%1$d groups</string>
+    <string name="session_screen_show_sessions">Show sessions</string>
+    <string name="session_screen_close_screen">Close sessions</string>
+
     <string name="session_screen_group_title">Group · %1$d sessions</string>
+    <string name="session_screen_group_members">%1$d sessions</string>
+    <string name="session_screen_group_rename">Rename group</string>
+    <string name="session_screen_group_rename_save">Save name</string>
+    <string name="session_screen_group_move_up">Move up</string>
+    <string name="session_screen_group_move_down">Move down</string>
     <string name="session_screen_group_open">Tap to open group</string>
     <string name="session_screen_group_empty">This group has no live sessions.</string>
     <!-- Extra members beyond the small tiles drawn inside a fixed-height card. -->
@@ -38,6 +47,9 @@
 
     <string name="session_screen_split_title">Split with…</string>
     <string name="session_screen_split_subtitle">Choose the session to split with.</string>
+    <string name="session_screen_split_mode_title">Choose a session to split with</string>
+    <string name="session_screen_split_mode_body">The next card joins %1$s in a split.</string>
+    <string name="session_screen_split_confirm">Split</string>
     <string name="session_screen_split_empty">There is no other session to split with.</string>
     <string name="session_screen_split_cancel">Cancel</string>
 

@@ -1418,6 +1418,15 @@ internal fun ReadyScreen(
                     sessionSwitcherViewModel.createNew("shell")
                     sessionsGridOpen = false
                 },
+                onDismiss = {
+                    // Leaving the grid with no sessions would put a black pane
+                    // behind it, so the way out starts one. With sessions live,
+                    // the way out is just the way out.
+                    if (sessions.none { it.state != SessionState.Closed }) {
+                        sessionSwitcherViewModel.createNew("shell")
+                    }
+                    sessionsGridOpen = false
+                },
                 onCloseAll = {
                     // Every live session closed at once. The exit dialog owns
                     // what happens when the last one goes, so this only has to
@@ -1566,7 +1575,55 @@ internal fun ReadyScreen(
         // to return to, swiping it away left a terminal that was not there and
         // no way forward.
         val sessionEndEvent = processExitEvent
-        if (noSessionsLeft) {
+
+        // A build that cannot start a guest used to say so as a line of text on
+        // the terminal — and only when the last session happened to end. The
+        // reason is a fact about the install, so it is a dialog, it is shown
+        // whatever the session count, and it can be dismissed once read.
+        if (sessionEndEvent?.reason != null) {
+            val dismiss = { terminalManager.clearProcessExitEvent() }
+            AlertDialog(
+                onDismissRequest = dismiss,
+                confirmButton = {
+                    TextButton(onClick = dismiss) {
+                        Text(
+                            text = stringResource(R.string.terminal_guest_runtime_missing_dismiss),
+                            color = DroshPrimary,
+                            fontFamily = LocalFontSet.current.sans,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp,
+                        )
+                    }
+                },
+                title = {
+                    Text(
+                        text = stringResource(R.string.terminal_guest_runtime_missing_title),
+                        color = DroshText,
+                        fontFamily = LocalFontSet.current.sans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp,
+                    )
+                },
+                text = {
+                    Text(
+                        text = stringResource(
+                            R.string.terminal_guest_runtime_missing,
+                            sessionEndEvent.reason,
+                        ),
+                        color = DroshTextSecondary,
+                        fontFamily = LocalFontSet.current.sans,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
+                    )
+                },
+                shape = RoundedCornerShape(16.dp),
+                containerColor = DroshSurface,
+            )
+        }
+
+        // While the grid is open its own empty state owns the deleted-last-card
+        // moment: a second dialog asking to delete it again was the bug.
+        if (noSessionsLeft && !sessionsGridOpen) {
             val quit: () -> Unit = {
                 // Every shell is killed before the activity finishes, so none is
                 // left running behind a closed app.
@@ -1612,7 +1669,13 @@ internal fun ReadyScreen(
                 },
                 title = {
                     Text(
-                        text = stringResource(R.string.terminal_delete_last_session_title),
+                        text = stringResource(
+                            if (sessionEndEvent?.reason != null) {
+                                R.string.terminal_guest_runtime_missing_title
+                            } else {
+                                R.string.terminal_delete_last_session_title
+                            },
+                        ),
                         color = DroshText,
                         fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.SemiBold,

@@ -10,6 +10,7 @@ import dev.drosh.data.di.ApplicationScope
 import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.domain.session.SessionGridLayout
 import dev.drosh.domain.session.SessionGridLayoutStore
+import dev.drosh.domain.session.SessionGroupLayout
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -90,6 +91,14 @@ internal object SessionGridLayoutCodec {
     private const val ID_SEPARATOR = "\u001f"
     private const val GROUP_SEPARATOR = "\u001e"
 
+    /**
+     * Separates a group's member list from its name.
+     *
+     * A group written by an older build has no name and no separator, so the
+     * decoder treats a missing field as "unnamed" rather than as a member.
+     */
+    private const val NAME_SEPARATOR = "\u001d"
+
     /** Ids joined in their kept order; blank ids and duplicates are dropped. */
     fun encodeOrder(ids: List<String>): String =
         ids.filter { it.isNotBlank() }.distinct().joinToString(ID_SEPARATOR)
@@ -104,14 +113,36 @@ internal object SessionGridLayoutCodec {
      * a group, and is dropped here rather than restored as a card that can never
      * be opened.
      */
-    fun encodeGroups(groups: List<List<String>>): String =
+    fun encodeGroups(groups: List<SessionGroupLayout>): String =
         groups
-            .map { group -> group.filter { it.isNotBlank() }.distinct() }
-            .filter { it.size >= 2 }
-            .joinToString(GROUP_SEPARATOR) { it.joinToString(ID_SEPARATOR) }
+            .map { group -> group.copy(memberIds = group.memberIds.filter { it.isNotBlank() }.distinct()) }
+            .filter { it.memberIds.size >= 2 }
+            .joinToString(GROUP_SEPARATOR) { group ->
+                val members = group.memberIds.joinToString(ID_SEPARATOR)
+                val name = sanitizeName(group.name)
+                if (name.isEmpty()) members else members + NAME_SEPARATOR + name
+            }
 
-    fun decodeGroups(encoded: String): List<List<String>> =
+    fun decodeGroups(encoded: String): List<SessionGroupLayout> =
         encoded.split(GROUP_SEPARATOR)
-            .map { member -> member.split(ID_SEPARATOR).filter { it.isNotBlank() }.distinct() }
-            .filter { it.size >= 2 }
+            .mapNotNull { entry ->
+                if (entry.isBlank()) return@mapNotNull null
+                val nameAt = entry.indexOf(NAME_SEPARATOR)
+                val memberPart = if (nameAt >= 0) entry.substring(0, nameAt) else entry
+                val name = if (nameAt >= 0) entry.substring(nameAt + 1, entry.length) else ""
+                val members = memberPart.split(ID_SEPARATOR)
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                if (members.size < 2) null else SessionGroupLayout(members, name)
+            }
+
+    /** A name cannot carry a separator, or it would split its own record. */
+    private fun sanitizeName(name: String): String =
+        name.replace(ID_SEPARATOR, " ")
+            .replace(GROUP_SEPARATOR, " ")
+            .replace(NAME_SEPARATOR, " ")
+            .trim()
+            .take(MAX_GROUP_NAME_LENGTH)
+
+    private const val MAX_GROUP_NAME_LENGTH = 60
 }

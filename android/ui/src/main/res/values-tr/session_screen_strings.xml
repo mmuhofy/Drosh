@@ -27,7 +27,16 @@
     <string name="session_screen_empty_search_title">Eşleşme yok</string>
     <string name="session_screen_empty_search_body">Bu aramayla eşleşen oturum yok.</string>
 
+    <string name="session_screen_group_count">%1$d grup</string>
+    <string name="session_screen_show_sessions">Oturumları göster</string>
+    <string name="session_screen_close_screen">Oturumları kapat</string>
+
     <string name="session_screen_group_title">Grup · %1$d oturum</string>
+    <string name="session_screen_group_members">%1$d oturum</string>
+    <string name="session_screen_group_rename">Grubu yeniden adlandır</string>
+    <string name="session_screen_group_rename_save">Adı kaydet</string>
+    <string name="session_screen_group_move_up">Yukarı taşı</string>
+    <string name="session_screen_group_move_down">Aşağı taşı</string>
     <string name="session_screen_group_open">Grubu açmak için dokunun</string>
     <string name="session_screen_group_empty">Bu grupta açık oturum yok.</string>
     <!-- Sabit yükseklikli kartın içine sığmayan üye sayısı. -->
@@ -38,6 +47,9 @@
 
     <string name="session_screen_split_title">Bölme seç…</string>
     <string name="session_screen_split_subtitle">Birlikte bölünecek oturumu seçin.</string>
+    <string name="session_screen_split_mode_title">Bölünecek oturumu seçin</string>
+    <string name="session_screen_split_mode_body">Sıradaki kart %1$s ile bölünmüş görünümde açılır.</string>
+    <string name="session_screen_split_confirm">Böl</string>
     <string name="session_screen_split_empty">Bölünecek başka oturum yok.</string>
     <string name="session_screen_split_cancel">İptal</string>
 
