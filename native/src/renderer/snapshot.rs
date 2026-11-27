@@ -23,7 +23,8 @@
 use std::collections::HashMap;
 
 use super::wire::{
-    ATTR_STRIKETHROUGH, ATTR_UNDERLINE_SHIFT, CELL_BYTES, CURSOR_VISIBLE, HEADER_BYTES, MAGIC,
+    ATTR_INVISIBLE, ATTR_STRIKETHROUGH, ATTR_UNDERLINE_SHIFT, CELL_BYTES, CURSOR_VISIBLE,
+    HEADER_BYTES, MAGIC,
 };
 
 /// The widest picture a preview can be. A card is a few hundred dp; more than
@@ -91,11 +92,15 @@ pub fn render(frame: &[u8], width_budget: u32) -> Option<Snapshot> {
     let font_size = (cell_height as f32 * 0.82).round();
 
     for row in 0..u32::from(header.rows) {
-        // The buffer carries overscan rows above the viewport. A card shows
-        // the viewport, so the first drawn row is the one just after them.
-        let captured = header.overscan_above.max(0) as u32 + row;
+        // The buffer carries overscan rows above the viewport. A card shows the
+        // viewport, so a row is found by its own place in it: the header says
+        // which viewport row the first captured row is (`-1` when there is an
+        // overscan row above, `0` at the very top of the scrollback where there
+        // is none). Deriving it from the overscan count instead put the picture
+        // one row low in the second case.
+        let captured = (row as i32 - i32::from(header.first_row_y)).max(0) as u32;
         if captured >= u32::from(header.row_count) {
-            break;
+            continue;
         }
         for column in 0..u32::from(header.columns) {
             let at = match header.cell_at(captured, column, frame) {
@@ -109,7 +114,7 @@ pub fn render(frame: &[u8], width_budget: u32) -> Option<Snapshot> {
             let y = row * cell_height;
             fill_rect(&mut rgba, width, x, y, cell_width, cell_height, cell.background);
 
-            if cell.width == 0 || cell.codepoint == 0 {
+            if cell.width == 0 || cell.codepoint == 0 || cell.attributes & ATTR_INVISIBLE != 0 {
                 continue;
             }
             let span = if cell.width >= 2 { cell_width * 2 } else { cell_width };
@@ -192,7 +197,8 @@ struct Header {
     columns: u16,
     rows: u16,
     row_count: u16,
-    overscan_above: i16,
+    /// The viewport row the first captured row belongs to, `-1` for overscan.
+    first_row_y: i16,
     cursor_x: u16,
     cursor_y: u16,
     cursor_flags: u16,
@@ -213,7 +219,7 @@ impl Header {
             columns: u16_at(frame, 12)?,
             rows: u16_at(frame, 14)?,
             row_count: u16_at(frame, 16)?,
-            overscan_above: i16_at(frame, 18)?,
+            first_row_y: i16_at(frame, 46)?,
             cursor_x: u16_at(frame, 22)?,
             cursor_y: u16_at(frame, 24)?,
             cursor_flags: u16_at(frame, 28)?,
@@ -404,6 +410,32 @@ mod tests {
         assert!(render(&[0u8; 200], 480).is_none());
         // A header whose grid is empty has nothing to show.
         assert!(render(&frame(0, 0, 0), 480).is_none());
+    }
+
+    #[test]
+    fn installing_the_font_puts_glyphs_in_the_picture() {
+        // The card's picture is only useful if the text is in it. A frame of
+        // solid cells would pass every other test here without ever drawing a
+        // letter, which is exactly how a preview came out as a coloured
+        // rectangle.
+        const FONT_BYTES: &[u8] =
+            include_bytes!("../../../android/terminal/src/main/res/font/jetbrains_mono_nerd.ttf");
+        assert!(crate::font::set_font(FONT_BYTES));
+
+        let mut frame = frame(4, 1, 0xff00_0000);
+        let at = HEADER_BYTES;
+        frame[at..at + 4].copy_from_slice(&u32::from(b'A').to_le_bytes());
+        frame[at + 4..at + 8].copy_from_slice(&0xffff_ffffu32.to_le_bytes());
+        let snapshot = render(&frame, 480).expect("the frame renders");
+
+        // Every pixel that is not the background is ink: an A covers some of
+        // its cell.
+        let ink = snapshot
+            .rgba
+            .chunks_exact(4)
+            .filter(|pixel| pixel[0..3] != [0x00, 0x00, 0x00])
+            .count();
+        assert!(ink > 0, "the glyph was not drawn into the picture");
     }
 
     #[test]

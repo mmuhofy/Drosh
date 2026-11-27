@@ -32,6 +32,7 @@
 //! renderer decides where the glyphs land on the grid.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use ab_glyph::{Font as _, FontRef, GlyphId, PxScale, ScaleFont};
@@ -256,6 +257,18 @@ pub enum FontError {
 /// A Drosh session always draws with the same face, so one book is enough.
 static FONT: OnceLock<Mutex<Option<FontBook>>> = OnceLock::new();
 
+/// How many times the face has been replaced.
+///
+/// A preview caches its picture keyed by the frame; a new face changes what the
+/// same frame looks like, so the counter is part of that key. Without it a font
+/// the user installed would not appear until the screen changed.
+static FONT_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// The current face's generation. See [`FONT_GENERATION`].
+pub fn generation() -> u64 {
+    FONT_GENERATION.load(Ordering::Relaxed)
+}
+
 fn book() -> &'static Mutex<Option<FontBook>> {
     FONT.get_or_init(|| Mutex::new(None))
 }
@@ -276,6 +289,7 @@ pub fn set_font(bytes: &[u8]) -> bool {
     let mut guard = book().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     *guard = loaded;
     // A new face is a new set of glyph ids; the old answers are wrong now.
+    FONT_GENERATION.fetch_add(1, Ordering::Relaxed);
     clear_cache();
     true
 }

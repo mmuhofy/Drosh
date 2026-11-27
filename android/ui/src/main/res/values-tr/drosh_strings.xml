@@ -94,6 +94,8 @@
     <string name="settings_input_bell_desc">Zil çalan programa yanıt ver: renk parlaması, titreşim ve ses</string>
     <string name="settings_input_clipboard_writes">Panoya yazma</string>
     <string name="settings_input_clipboard_writes_desc">Programlar panoya metin yazabilsin (OSC 52). Varsayılan olarak kapalı: ssh arkasındaki bir program yapıştıracağın metni değiştirebilir</string>
+    <string name="settings_input_prediction">Komut tahmini</string>
+    <string name="settings_input_prediction_desc">Yazarken bu oturumda çalıştırdığın satırları önerir. Geçmişin bu cihazdan çıkmaz</string>
     <string name="settings_input_hardware_keyboard">Donanım klavyesinde çubuğu gizle</string>
     <string name="settings_input_hardware_keyboard_desc">Fiziksel klavye kendi tuşlarını getirir</string>
     <string name="settings_input_drosh_ime">Drosh Klavyesinde çubuğu gizle</string>

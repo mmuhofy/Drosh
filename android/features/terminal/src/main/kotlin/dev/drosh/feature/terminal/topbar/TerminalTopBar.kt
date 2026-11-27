@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -57,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.drosh.domain.session.displayableSessionName
 import dev.drosh.ui.DroshIcons
 import dev.drosh.theme.DroshBackground
 import dev.drosh.ui.DroshDropdownMenu
@@ -263,7 +265,12 @@ fun TerminalTopBar(
     // How many sessions the app knows about. The button says so on itself, so
     // the grid is one glance away and its size is known before it is opened.
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
+    val activeSessionId by viewModel.activeId.collectAsStateWithLifecycle()
     val sessionCount = sessions.size
+    // The name is a session switcher, not a label. Switching used to mean
+    // opening the whole grid; the session you want is usually one tap away and
+    // the grid is for arranging, not for choosing.
+    var sessionMenuExpanded by remember { mutableStateOf(false) }
 
     val statusBarH = statusBarHeight()
 
@@ -381,22 +388,64 @@ fun TerminalTopBar(
                     onClick = onOpenSidebar,
                 )
 
-                // The same opaque surface and edge as the buttons.
-                GlassSurface(
-                    backdrop = backdrop,
-                    terminalBounds = terminalBounds,
-                    shape = PILL_SHAPE,
-                    modifier = Modifier.height(rowHeight),
-                ) {
-                    Text(
-                        text = activeName ?: "Drosh",
-                        color = PILL_CONTENT,
-                        fontFamily = LocalFontSet.current.sans,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                // The name, as a dropdown. It keeps the row light: no second
+                // glass surface, no border — a label with a chevron that opens
+                // the list of sessions.
+                Box(modifier = Modifier.height(rowHeight)) {
+                    Row(
+                        modifier = Modifier
+                            .height(rowHeight)
+                            .clip(PILL_SHAPE)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = ripple(
+                                    bounded = true,
+                                    color = PILL_CONTENT,
+                                ),
+                            ) { sessionMenuExpanded = true }
+                            .padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = activeName ?: "Drosh",
+                            color = PILL_CONTENT,
+                            fontFamily = LocalFontSet.current.sans,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 160.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            imageVector = DroshIcons.ChevronDown,
+                            contentDescription = null,
+                            tint = PILL_CONTENT.copy(alpha = 0.7f),
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                    DroshDropdownMenu(
+                        expanded = sessionMenuExpanded,
+                        onDismissRequest = { sessionMenuExpanded = false },
+                        title = activeName.orEmpty(),
+                        width = 216.dp,
+                        items = sessions.map { session ->
+                            DroshMenuItem(
+                                // The session's id, not its name: a rename must
+                                // not change which session a menu entry opens.
+                                id = session.id,
+                                label = displayableSessionName(session.name),
+                                icon = if (session.id == activeSessionId) {
+                                    DroshIcons.Check
+                                } else {
+                                    DroshIcons.Terminal
+                                },
+                            )
+                        },
+                        onItemClick = { item ->
+                            sessionMenuExpanded = false
+                            if (item.id != activeSessionId) viewModel.activate(item.id)
+                        },
                     )
                 }
             }

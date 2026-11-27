@@ -450,6 +450,7 @@ internal fun ReadyScreen(
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
+    val commandPrediction by terminalViewModel.commandPrediction.collectAsState()
     // Block mode's escape hatch. Immediate for this composition's panes, and
     // persisted so the next launch does not drop the user back into a blank
     // block view. The setting flow alone would wait for the write to land.
@@ -1119,6 +1120,7 @@ internal fun ReadyScreen(
                     inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
                     useBlockEngine = effectiveUseBlockEngine,
+                    commandPrediction = commandPrediction,
                     onBackToClassic = onBackToClassic,
                     // The pane the chrome actually floats over. The pill row
                     // and the status bar are both above it, so it is the one
@@ -1180,6 +1182,7 @@ internal fun ReadyScreen(
                     inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
                     useBlockEngine = effectiveUseBlockEngine,
+                    commandPrediction = commandPrediction,
                     onBackToClassic = onBackToClassic,
                     // The pane below the seam, and it clears nothing: what
                     // sits above it is the divider line, and the pane's grid

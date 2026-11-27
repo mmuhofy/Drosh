@@ -1,5 +1,6 @@
 package dev.drosh.terminal.session
 
+import dev.drosh.terminal.engine.native.NativeFont
 import dev.drosh.terminal.engine.native.NativeSession
 import android.app.Application
 import android.content.Context
@@ -2003,6 +2004,10 @@ class TerminalSessionCoordinator(
         val session = liveSessions[persistentId]
             ?: engineSessions.find { it.persistentId == persistentId }?.session
             ?: return null
+        // The renderer has one face and it is the app's: nothing else installs
+        // it, so a preview taken before the first session screen would be a grid
+        // of coloured cells with no glyphs in them.
+        NativeFont.ensureInstalled(appContext)
         return session.snapshotPreview(maxWidth)
     }
 

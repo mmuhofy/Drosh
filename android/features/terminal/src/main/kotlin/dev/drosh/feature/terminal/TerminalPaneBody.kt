@@ -196,6 +196,8 @@ internal fun TerminalPaneBody(
     inputBarViewModel: InputBarViewModel,
     extraKeyState: dev.drosh.terminal.session.ExtraKeyState?,
     useBlockEngine: Boolean,
+    /** Whether the block input offers earlier commands as it is typed. */
+    commandPrediction: Boolean = true,
     /** Leaves block mode for the classic terminal from the block empty state. */
     onBackToClassic: () -> Unit,
     /**
@@ -360,6 +362,7 @@ internal fun TerminalPaneBody(
                     onSubmitCommand = { command ->
                         blockEngineViewModel.onCommandSubmitted("", command)
                     },
+                    commandPrediction = commandPrediction,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {

@@ -11,6 +11,8 @@ import dev.drosh.domain.session.SessionProcessInfo
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.domain.session.SessionTelemetry
+import dev.drosh.domain.session.isGeneratedSessionName
+import dev.drosh.domain.session.isRuntimeProcessName
 import dev.drosh.terminal.engine.bench.RenderBench
 import dev.drosh.terminal.engine.diagnostics.EngineDiagnostics
 import dev.drosh.terminal.session.GhosttySession
@@ -505,10 +507,14 @@ class SessionManagerAdapter @Inject constructor(
      */
     override fun onSessionDefaultName(persistentId: String?, name: String) {
         if (persistentId.isNullOrEmpty() || name.isBlank()) return
+        // A probe that read the guest runtime before the shell exec'd has no name
+        // to offer: persisting `libchroot-ng.so` is what titled a session after
+        // a file. Wait for the shell's own name instead.
+        if (isRuntimeProcessName(name)) return
         appScope.launch {
             val stored = sessionRepository.observeAll().first()
                 .firstOrNull { it.id == persistentId } ?: return@launch
-            if (stored.name.isBlank() || stored.name == DEFAULT_SESSION_NAME) {
+            if (isGeneratedSessionName(stored.name)) {
                 sessionRepository.rename(persistentId, name)
             }
         }

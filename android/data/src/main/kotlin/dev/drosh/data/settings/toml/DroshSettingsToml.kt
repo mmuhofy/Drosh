@@ -98,6 +98,7 @@ internal object DroshSettingsToml {
             putBoolean("input", "bell_enabled", bellEnabled)
             putBoolean("input", "allow_clipboard_writes", allowClipboardWrites)
             putString("input", "keyboard_activation", keyboardActivation.tomlName)
+            putBoolean("input", "command_prediction", commandPrediction)
         }
         with(settings.shell) {
             putString("shell", "motd_mode", motdMode.tomlName())
@@ -203,6 +204,9 @@ internal object DroshSettingsToml {
                 keyboardActivation = document.getStringOrNull("input", "keyboard_activation")
                     ?.let { KeyboardActivation.fromName(it) }
                     ?: base.input.keyboardActivation,
+                commandPrediction = document.getBoolean(
+                    "input", "command_prediction", base.input.commandPrediction,
+                ),
             ),
             shell = base.shell.copy(
                 motdMode = MotdMode.fromString(document.getString("shell", "motd_mode", "")),

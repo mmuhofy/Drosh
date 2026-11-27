@@ -12,6 +12,8 @@ import dev.drosh.domain.session.SessionRepository
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
+import dev.drosh.domain.session.displayableSessionName
+import dev.drosh.domain.session.isRuntimeProcessName
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +25,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,6 +39,20 @@ class RoomSessionRepository @Inject constructor(
 
     private val dao: SessionDao = database.sessionDao()
     private val dataStore: DataStore<Preferences> = context.irisShellDataStore
+
+    init {
+        // Repair rows written by an older name probe. Those builds could persist
+        // the guest runtime (`libchroot-ng.so`) as a session's name before the
+        // shell had exec'd, and a name that is not a generated default was then
+        // never replaced — the card and the top bar stayed titled after a file.
+        // The runtime is never something the user typed, so the row goes back to
+        // the default and the next probe can fill in the shell's real name.
+        appScope.launch {
+            dao.observeAll().first()
+                .filter { isRuntimeProcessName(it.name) }
+                .forEach { dao.rename(it.id, DEFAULT_SESSION_NAME) }
+        }
+    }
 
     private val _livePreviews = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val livePreviews: StateFlow<Map<String, List<String>>> = _livePreviews.asStateFlow()
@@ -220,7 +237,9 @@ class RoomSessionRepository @Inject constructor(
     private fun SessionEntity.toSnapshot(live: List<String>): SessionSnapshot =
         SessionSnapshot(
             id = id,
-            name = name,
+            // Defence in depth for a row the repair above has not reached yet:
+            // no UI ever draws a runtime binary as a session's name.
+            name = displayableSessionName(name),
             state = runCatching { SessionState.valueOf(state) }.getOrDefault(SessionState.Idle),
             createdAtMs = createdAtMs,
             lastUsedAtMs = lastUsedAtMs,

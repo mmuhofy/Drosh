@@ -1,6 +1,10 @@
 package dev.drosh.ui.block
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -28,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshSurfaceVariant
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.DroshIcons
 
@@ -38,6 +46,17 @@ import dev.drosh.ui.DroshIcons
  * program owns the terminal the caller passes [programPrompt] instead, which
  * swaps in that program's marker and drops the command wording: the line goes
  * to the program, not to a shell.
+ *
+ * ## Prediction
+ *
+ * [history] is this session's commands, most recent first. As a line is typed,
+ * up to [PREDICTION_LIMIT] earlier commands that start with it are offered above
+ * the field; tapping one fills the line in — it never runs it. The suggestions
+ * are the user's own lines, so [predictionEnabled] decides only whether the
+ * strip is drawn and the history consulted.
+ *
+ * They are hidden while an interactive program owns the terminal: a program's
+ * input is not a shell line, and suggesting a command there would be wrong.
  */
 @Composable
 fun BlockInputField(
@@ -46,16 +65,82 @@ fun BlockInputField(
     promptLabel: String = "iris",
     promptSuffix: String = "$",
     programPrompt: String? = null,
+    history: List<String> = emptyList(),
+    predictionEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     var text by remember { mutableStateOf("") }
     var focused by remember { mutableStateOf(false) }
 
-    Box(
+    val predictions = remember(text, history, predictionEnabled, enabled, programPrompt) {
+        if (predictionEnabled && enabled && programPrompt == null) {
+            predictCommands(text, history)
+        } else {
+            emptyList()
+        }
+    }
+
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
+        if (predictions.isNotEmpty()) {
+            Row(
+                modifier = Modifier.padding(bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                predictions.forEach { suggestion ->
+                    Text(
+                        text = suggestion,
+                        color = DroshTextMuted,
+                        fontFamily = LocalFontSet.current.mono,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(DroshSurfaceVariant)
+                            .clickable(enabled = enabled) { text = suggestion }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    )
+                }
+            }
+        }
+        PredictionInputRow(
+            text = text,
+            onTextChange = { text = it },
+            enabled = enabled,
+            focused = focused,
+            onFocusedChange = { focused = it },
+            promptLabel = promptLabel,
+            promptSuffix = promptSuffix,
+            programPrompt = programPrompt,
+            onSubmit = {
+                if (text.isNotBlank()) {
+                    onSubmit(text)
+                    text = ""
+                }
+            },
+        )
+    }
+}
+
+/** The prompt, the field and the send button — the row that was here before. */
+@Composable
+private fun PredictionInputRow(
+    text: String,
+    onTextChange: (String) -> Unit,
+    enabled: Boolean,
+    focused: Boolean,
+    onFocusedChange: (Boolean) -> Unit,
+    promptLabel: String,
+    promptSuffix: String,
+    programPrompt: String?,
+    onSubmit: () -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -89,7 +174,7 @@ fun BlockInputField(
                 }
                 BasicTextField(
                     value = text,
-                    onValueChange = { if (enabled) text = it },
+                    onValueChange = { if (enabled) onTextChange(it) },
                     enabled = enabled,
                     textStyle = TextStyle(
                         color = DroshText,
@@ -100,26 +185,18 @@ fun BlockInputField(
                     cursorBrush = SolidColor(DroshPrimary),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onFocusChanged { focused = it.isFocused },
+                        .onFocusChanged { onFocusedChange(it.isFocused) },
                     minLines = 1,
                     maxLines = 6,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(
-                        onSend = {
-                            if (text.isNotBlank()) {
-                                onSubmit(text)
-                                text = ""
-                            }
-                        },
+                        onSend = { onSubmit() },
                     ),
                 )
             }
             if (text.isNotBlank() && enabled) {
                 IconButton(
-                    onClick = {
-                        onSubmit(text)
-                        text = ""
-                    },
+                    onClick = onSubmit,
                     modifier = Modifier.size(32.dp),
                 ) {
                     Icon(

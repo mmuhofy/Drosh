@@ -214,6 +214,15 @@ data class InputSettings(
      * is asked for rather than assumed.
      */
     val keyboardActivation: KeyboardActivation = KeyboardActivation.Tap,
+    /**
+     * Whether the block input offers the commands it has seen before.
+     *
+     * A prediction is a whole line taken from this session's own history —
+     * nothing is invented and nothing leaves the device. Typing `git st` offers
+     * `git status`; tapping the chip fills the line in, it does not run it.
+     * Off, the strip is not drawn and no history is consulted.
+     */
+    val commandPrediction: Boolean = true,
 ) {
     companion object {
         val DEFAULT = InputSettings()

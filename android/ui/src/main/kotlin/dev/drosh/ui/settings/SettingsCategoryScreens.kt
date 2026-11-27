@@ -206,7 +206,7 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_keyboard),
-            items = 4,
+            items = 5,
         ) { index, cap ->
             when (index) {
                 // Above the keys themselves: this is the row that decides how
@@ -264,7 +264,7 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     )
                 }
 
-                else -> SettingsTile(
+                2 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_input_clipboard_writes),
                     icon = DroshIcons.ClipboardPaste,
@@ -274,6 +274,22 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                         checked = settings.input.allowClipboardWrites,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(input = it.input.copy(allowClipboardWrites = on)) }
+                        },
+                    )
+                }
+
+                // Last because it is the one row that changes what the input
+                // field offers rather than what the keys send.
+                else -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_input_prediction),
+                    icon = DroshIcons.Brain,
+                    supporting = stringResource(R.string.settings_input_prediction_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.input.commandPrediction,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(input = it.input.copy(commandPrediction = on)) }
                         },
                     )
                 }

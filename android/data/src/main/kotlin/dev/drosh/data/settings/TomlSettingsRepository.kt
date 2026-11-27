@@ -83,6 +83,12 @@ class TomlSettingsRepository @Inject constructor(
         store.update { it.copy(input = it.input.copy(mouseReporting = enabled)) }
     }
 
+    override val commandPrediction: Flow<Boolean> = settings.map { it.input.commandPrediction }
+
+    override suspend fun setCommandPrediction(enabled: Boolean) {
+        store.update { it.copy(input = it.input.copy(commandPrediction = enabled)) }
+    }
+
     override val bellEnabled: Flow<Boolean> = settings.map { it.input.bellEnabled }
 
     override suspend fun setBellEnabled(enabled: Boolean) {

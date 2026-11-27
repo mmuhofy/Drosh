@@ -1,5 +1,7 @@
 package dev.drosh.terminal.engine.native
 
+import android.content.Context
+import dev.drosh.terminal.engine.font.TerminalFont
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -19,6 +21,34 @@ import java.nio.ByteOrder
  * advance — which is the bug the whole `TerminalFont` object exists to avoid.
  */
 object NativeFont {
+
+    /**
+     * Whether the engine already holds a face, so the (multi-megabyte) font
+     * bytes are read from the APK once per process rather than per preview.
+     */
+    @Volatile
+    private var installed = false
+
+    /**
+     * Make the terminal's font available to the engine, once.
+     *
+     * The preview renderer rasterises glyphs from the [dev.drosh.terminal.engine.font.TerminalFont]
+     * bytes — there is no second font in Rust — so without this call a session
+     * card is a correctly coloured rectangle with no text in it. The bytes come
+     * from the same file the on-screen surface draws with, so a preview cannot
+     * disagree with the terminal it pictures.
+     *
+     * Safe to call from any thread and any number of times.
+     */
+    fun ensureInstalled(context: Context): Boolean {
+        if (installed) return true
+        synchronized(this) {
+            if (installed) return true
+            val ok = load(TerminalFont.bytes(context.applicationContext))
+            installed = ok
+            return ok
+        }
+    }
 
     /** Load the font's bytes. Returns true on success. */
     fun load(bytes: ByteArray): Boolean {

@@ -47,6 +47,7 @@ import dev.drosh.domain.input.SubmitRawByteUseCase
 import dev.drosh.domain.session.ObserveActiveSessionUseCase
 import dev.drosh.domain.session.DeviceIdentityRepository
 import dev.drosh.domain.session.PersistentSessionStore
+import dev.drosh.domain.session.SessionGridLayoutStore
 import dev.drosh.domain.session.SessionRepository
 import dev.drosh.domain.session.SessionTelemetry
 import dev.drosh.domain.settings.BackgroundImageStore
@@ -208,6 +209,12 @@ abstract class BindingsModule {
     abstract fun bindPaneLayoutRepository(
         impl: DataStorePaneLayoutRepository,
     ): PaneLayoutRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSessionGridLayoutStore(
+        impl: DataStoreSessionGridLayoutStore,
+    ): SessionGridLayoutStore
 
     @Binds
     @Singleton

@@ -1,5 +1,6 @@
 package dev.drosh.terminal.session
 
+import dev.drosh.domain.session.isRuntimeProcessName
 import dev.drosh.linux.GuestCommand
 import dev.drosh.terminal.engine.native.NativePty
 import dev.drosh.terminal.engine.native.NativeSession
@@ -362,8 +363,14 @@ class GhosttySession(
         }.getOrNull()?.takeIf { it > 0 }
 
     /** Whether [name] is a launcher binary or a wrapper, never a display name. */
-    private fun isRuntimeName(name: String): Boolean =
-        name in RUNTIME_PROCESS_NAMES || name == WRAPPER_SHELL_NAME
+    /**
+     * Whether [name] is the guest runtime or its `sh -c` wrapper.
+     *
+     * The rule lives in the domain so the data layer, the grid and this probe
+     * agree: the runtime's real asset is `libchrootng.so`, which an earlier,
+     * narrower list here did not name.
+     */
+    private fun isRuntimeName(name: String): Boolean = isRuntimeProcessName(name)
 
     /**
      * Sends as much queued input and the latest resize as the kernel takes now.
@@ -799,25 +806,6 @@ class GhosttySession(
 
         /** How long a reader is given to notice it should stop. */
         const val READER_STOP_TIMEOUT_MS = 500L
-
-        /**
-         * Guest-runtime binaries. The PTY spawns one of these, and it goes on to
-         * fork the real shell. None of them may become a displayed session name.
-         */
-        val RUNTIME_PROCESS_NAMES = setOf(
-            "libchroot-ng.so",
-            "chroot-ng",
-            "chroot-ng.so",
-            "proot",
-            "fake-chroot-ng",
-        )
-
-        /**
-         * `sh` is a wrapper when it sits under a runtime — chroot-ng execs it to
-         * run a `-c` command before the real shell. Treated as a runtime while
-         * walking the process tree so it cannot become the display name either.
-         */
-        const val WRAPPER_SHELL_NAME = "sh"
 
         /** How many levels of runtime children the name probe walks. */
         const val PROCESS_CHILD_MAX_DEPTH = 3

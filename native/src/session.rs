@@ -313,7 +313,11 @@ fn preview_key(frame: &[u8], max_width: u32) -> u64 {
         hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
+    // The face is part of the picture: the same frame drawn with a newly
+    // installed font is a different image, and a key that ignored it would keep
+    // serving the old one.
     hash ^ (u64::from(max_width) << 32)
+        ^ crate::font::generation().wrapping_mul(0x9e37_79b9_7f4a_7c15)
 }
 
 

@@ -74,6 +74,10 @@ class TerminalViewModel @Inject constructor(
     val useBlockEngine: StateFlow<Boolean> = settingsRepository.useBlockEngine
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    /** Whether the block input offers earlier commands as it is typed. */
+    val commandPrediction: StateFlow<Boolean> = settingsRepository.commandPrediction
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     val guestStartCommand: StateFlow<String> = settingsRepository.guestStartCommand
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
