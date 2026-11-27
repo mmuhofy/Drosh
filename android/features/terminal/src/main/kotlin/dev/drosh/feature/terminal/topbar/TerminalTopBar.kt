@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -35,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.res.painterResource
 import dev.drosh.feature.terminal.R
@@ -50,7 +48,6 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.ripple
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.Dp
@@ -58,10 +55,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.drosh.domain.session.displayableSessionName
 import dev.drosh.ui.DroshIcons
 import dev.drosh.theme.DroshBackground
 import dev.drosh.ui.DroshDropdownMenu
+import dev.drosh.ui.DroshMenuDensity
 import dev.drosh.ui.DroshMenuItem
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.session.SessionSwitcherViewModel
@@ -265,12 +262,7 @@ fun TerminalTopBar(
     // How many sessions the app knows about. The button says so on itself, so
     // the grid is one glance away and its size is known before it is opened.
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
-    val activeSessionId by viewModel.activeId.collectAsStateWithLifecycle()
     val sessionCount = sessions.size
-    // The name is a session switcher, not a label. Switching used to mean
-    // opening the whole grid; the session you want is usually one tap away and
-    // the grid is for arranging, not for choosing.
-    var sessionMenuExpanded by remember { mutableStateOf(false) }
 
     val statusBarH = statusBarHeight()
 
@@ -368,11 +360,17 @@ fun TerminalTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start,
         ) {
-            // ── Left: sessions button + session name pill ───────────────────
+            // ── Left: sessions button ──────────────────────────────────────
             // Pinned to [rowHeight] so it cannot settle a different height from
             // the pair on the other side. Two clusters in one Row share a centre
             // only for as long as they are the same height; this makes it true by
             // construction rather than by what happens to be inside them.
+            //
+            // The name is gone from the row. It was a second switcher beside a
+            // button that already opens the grid, and two doors to the same
+            // list made the row read as three controls where two are enough.
+            // The name still titles the overflow menu, so the row does say
+            // which terminal is on screen.
             Row(
                 modifier = Modifier.height(rowHeight),
                 verticalAlignment = Alignment.CenterVertically,
@@ -387,67 +385,6 @@ fun TerminalTopBar(
                     iconSize = pillIconSize,
                     onClick = onOpenSidebar,
                 )
-
-                // The name, as a dropdown. It keeps the row light: no second
-                // glass surface, no border — a label with a chevron that opens
-                // the list of sessions.
-                Box(modifier = Modifier.height(rowHeight)) {
-                    Row(
-                        modifier = Modifier
-                            .height(rowHeight)
-                            .clip(PILL_SHAPE)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = ripple(
-                                    bounded = true,
-                                    color = PILL_CONTENT,
-                                ),
-                            ) { sessionMenuExpanded = true }
-                            .padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = activeName ?: "Drosh",
-                            color = PILL_CONTENT,
-                            fontFamily = LocalFontSet.current.sans,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 15.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 160.dp),
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            imageVector = DroshIcons.ChevronDown,
-                            contentDescription = null,
-                            tint = PILL_CONTENT.copy(alpha = 0.7f),
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                    DroshDropdownMenu(
-                        expanded = sessionMenuExpanded,
-                        onDismissRequest = { sessionMenuExpanded = false },
-                        title = activeName.orEmpty(),
-                        width = 216.dp,
-                        items = sessions.map { session ->
-                            DroshMenuItem(
-                                // The session's id, not its name: a rename must
-                                // not change which session a menu entry opens.
-                                id = session.id,
-                                label = displayableSessionName(session.name),
-                                icon = if (session.id == activeSessionId) {
-                                    DroshIcons.Check
-                                } else {
-                                    DroshIcons.Terminal
-                                },
-                            )
-                        },
-                        onItemClick = { item ->
-                            sessionMenuExpanded = false
-                            if (item.id != activeSessionId) viewModel.activate(item.id)
-                        },
-                    )
-                }
             }
 
             Spacer(Modifier.weight(1f))
@@ -575,22 +512,34 @@ private fun MoreActionsDropdown(
         // tooltip hanging off the icon, and it should clear the row entirely
         // rather than crowd the button that opened it.
         offset = DpOffset(0.dp, 14.dp),
+        // The slim card: the row's menu floats over output the user is reading,
+        // so it takes as little of it as it can while a finger still gets a
+        // full-height target. It is also the density the row's button was
+        // designed for — the compact card sat there as a wide block of surface.
+        density = DroshMenuDensity.Slim,
         items = buildList {
+            // Three sections, in the order the actions are reached for.
+            //
+            // ── Finding what is on screen ─────────────────────────────────
             // The split actions are gone from here. They live in the drawer,
             // beside the pair they act on — a control for a second pane that
             // sits in a menu for the first one is a control the user has to
             // reason their way to, and it was two screens' worth of entries
             // in one four-item list.
-            add(DroshMenuItem(label = stringResource(R.string.topbar_refresh), icon = DroshIcons.RotateCw, id = MENU_REFRESH))
             add(DroshMenuItem(label = stringResource(R.string.topbar_find), icon = DroshIcons.Search, id = MENU_FIND))
+            add(DroshMenuItem(label = stringResource(R.string.topbar_refresh), icon = DroshIcons.RotateCw, id = MENU_REFRESH))
+            // ── Moving through the history ────────────────────────────────
             // The prompts: the shell reports them, and they are the only way
-            // back to a command that scrolled out of the history.
-            add(DroshMenuItem(label = stringResource(R.string.topbar_previous_prompt), icon = DroshIcons.ArrowUp, id = MENU_PREVIOUS_PROMPT))
+            // back to a command that scrolled out of the history. A rule
+            // above them keeps "jump to a prompt" distinct from "look at
+            // what is here", which are different jobs on the same menu.
+            add(DroshMenuItem(label = stringResource(R.string.topbar_previous_prompt), icon = DroshIcons.ArrowUp, id = MENU_PREVIOUS_PROMPT, dividerBefore = true))
             add(DroshMenuItem(label = stringResource(R.string.topbar_next_prompt), icon = DroshIcons.ArrowDown, id = MENU_NEXT_PROMPT))
+            // ── The row itself ────────────────────────────────────────────
             // The row's buttons, out of the way: the terminal is what the
-            // user is looking at, and a tap brings them back. A divider before
-            // it groups the one chrome action the way the card menu groups its
-            // own last entry.
+            // user is looking at, and a tap brings them back. The rule above
+            // it separates the one control that acts on the chrome from the
+            // ones that act on the output.
             add(DroshMenuItem(label = stringResource(R.string.topbar_shrink_buttons), icon = DroshIcons.EyeOff, id = MENU_SHRINK, dividerBefore = true))
             // Settings is gone from here. It is reachable from the drawer, and
             // an overflow entry that duplicates a drawer item gives two ways to

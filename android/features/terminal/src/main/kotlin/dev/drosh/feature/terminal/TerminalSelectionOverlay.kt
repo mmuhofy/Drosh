@@ -48,6 +48,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -150,6 +151,21 @@ fun TerminalSelectionOverlay(
         paneOrigin.y + bounds.bottom - cellH / 2f
     }
 
+    // Where each grip's rule sits: the edge of the selection, not the middle of
+    // its row. The start's rule is the line above the first selected row, the
+    // end's the line below the last one — drawn there, the two ends read as the
+    // selection's own edges and the rows in between are left to the highlight.
+    val startLineY = if (topLeftHandle != null) {
+        paneOrigin.y + topLeftHandle.y
+    } else {
+        paneOrigin.y + bounds.top
+    }
+    val endLineY = if (bottomRightHandle != null) {
+        paneOrigin.y + bottomRightHandle.y + cellH
+    } else {
+        paneOrigin.y + bounds.bottom
+    }
+
     // The toolbar's second row. Closed by default: six actions on a selection
     // covered the text the user had just chosen, and the ones that matter for
     // a terminal — run, open — were lost among copy and select-all.
@@ -229,7 +245,13 @@ fun TerminalSelectionOverlay(
                 SelectionGrip(
                     centerX = paneOrigin.x + handle.x,
                     centerY = startCenterY,
+                    lineY = startLineY,
+                    // The knob hangs off the end of the selection: above the
+                    // start's rule, below the end's, so it never covers text
+                    // the user has just chosen.
+                    outward = -1f,
                     sizePx = handleSizePx,
+                    cellHeightPx = cellH,
                     paneOrigin = paneOrigin,
                     accent = DroshWarning,
                     onDrag = { x, y -> onExtend(x, y, true) },
@@ -242,7 +264,10 @@ fun TerminalSelectionOverlay(
                 SelectionGrip(
                     centerX = paneOrigin.x + handle.x,
                     centerY = endCenterY,
+                    lineY = endLineY,
+                    outward = 1f,
                     sizePx = handleSizePx,
+                    cellHeightPx = cellH,
                     paneOrigin = paneOrigin,
                     accent = DroshWarning,
                     onDrag = { x, y -> onExtend(x, y, false) },
@@ -510,15 +535,21 @@ private fun MoreAction(expanded: Boolean, onToggle: () -> Unit) {
 }
 
 /**
- * A draggable grip at one end of the selection.
+ * A draggable grip at one end of the selection: a rule and a knob under it.
  *
- * The drawing is one plain disc, the accent's yellow. No stem reaching into the
- * row and no ring around it: the extra line beside the terminal's own rows read
- * as a stray glyph, and a halo on a dark terminal read as a second, dimmer
- * handle behind the real one. A solid dot on the endpoint says the same thing
- * with one shape.
+ * The rule is the selection's edge — the line the first row starts on, or the
+ * line the last row ends on — and it is the part that says *where* the
+ * selection begins or ends, spanning the end of the text it holds. The knob is
+ * the part that says *this is grabbable*: a small disc hanging off the rule, on
+ * the outside of the selection so it never covers the text that was just
+ * chosen.
  *
- * A press grows the disc: it is the confirmation that the finger found the
+ * The two shapes are what makes a terminal's selection read without a halo or a
+ * stem: a bare dot on the grid looked like a stray glyph, and a ring around it
+ * read as a second, dimmer handle behind the real one. A rule plus a knob is a
+ * caret's ends — the shape the user already understands.
+ *
+ * A press grows the knob: it is the confirmation that the finger found the
  * grip, given before the drag has moved anything.
  *
  * ## Dragging
@@ -539,7 +570,13 @@ private fun MoreAction(expanded: Boolean, onToggle: () -> Unit) {
 private fun SelectionGrip(
     centerX: Float,
     centerY: Float,
+    /** The selection edge this grip holds, in pane pixels. */
+    lineY: Float,
+    /** -1 to hang the knob above the rule, +1 to hang it below. */
+    outward: Float,
     sizePx: Float,
+    /** One row's height, so the box reaches past the edge the rule sits on. */
+    cellHeightPx: Float,
     paneOrigin: Offset,
     accent: Color,
     onDrag: (x: Float, y: Float) -> Unit,
@@ -547,6 +584,11 @@ private fun SelectionGrip(
 ) {
     val density = LocalDensity.current
     val touchPx = with(density) { 48.dp.toPx() }
+    // Tall enough for the rule and the knob it carries on the outside: the box
+    // is centred on the row, and the edge is half a row from there. A box that
+    // was only 48dp square clipped the knob on a large font.
+    val boxHeightPx = touchPx + cellHeightPx
+    val boxHeightDp = with(density) { boxHeightPx.toDp() }
     val currentCenter by rememberUpdatedState(Offset(centerX, centerY))
     val haptics = LocalHapticFeedback.current
 
@@ -563,7 +605,13 @@ private fun SelectionGrip(
         label = "selectionGripPress",
     )
 
-    val knobRadius = sizePx * 0.44f
+    // The knob is smaller than the old disc — it has a rule to belong to now —
+    // and the rule is longer than the knob is wide, so the pair spans the end of
+    // the row it marks.
+    val knobRadius = sizePx * 0.30f
+    val ruleHalfWidth = sizePx * 0.55f
+    val ruleThickness = with(density) { 2.5.dp.toPx() }
+    val knobGap = with(density) { 3.dp.toPx() }
 
     // The grip follows the selection, it does not teleport to it — but under a
     // finger it must not lag: the spring is exactly what made a drag feel like
@@ -586,6 +634,17 @@ private fun SelectionGrip(
         },
         label = "selectionGripY",
     )
+    // The rule follows the edge rather than the row's centre, so it moves with
+    // the selection exactly like the knob and never lags a row behind it.
+    val animatedLineY by animateFloatAsState(
+        targetValue = lineY,
+        animationSpec = if (pressed) {
+            snap()
+        } else {
+            spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMedium)
+        },
+        label = "selectionGripLineY",
+    )
 
     // Where the finger went down, in the pane's pixels, and how far it has
     // moved since. Both are only written while a drag is in flight.
@@ -597,10 +656,10 @@ private fun SelectionGrip(
             .offset {
                 IntOffset(
                     (animatedX - touchPx / 2f).roundToInt(),
-                    (animatedY - touchPx / 2f).roundToInt(),
+                    (animatedY - boxHeightPx / 2f).roundToInt(),
                 )
             }
-            .size(48.dp)
+            .size(width = 48.dp, height = boxHeightDp)
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = {
@@ -625,10 +684,24 @@ private fun SelectionGrip(
             },
     ) {
         Canvas(Modifier.matchParentSize()) {
+            val centerXInBox = size.width / 2f
+            // The rule's place inside this box: the box is centred on the row
+            // (the drag's own reference), and the edge is half a row away.
+            val ruleY = size.height / 2f + (animatedLineY - animatedY)
+            drawLine(
+                color = accent,
+                start = Offset(centerXInBox - ruleHalfWidth, ruleY),
+                end = Offset(centerXInBox + ruleHalfWidth, ruleY),
+                strokeWidth = ruleThickness,
+                cap = StrokeCap.Round,
+            )
             drawCircle(
                 color = accent,
                 radius = knobRadius * pressScale,
-                center = Offset(size.width / 2f, size.height / 2f),
+                center = Offset(
+                    centerXInBox,
+                    ruleY + outward * (knobGap + knobRadius * pressScale),
+                ),
             )
         }
     }
